@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Set up project dependencies and basic structure
+- [x] 1. Set up project dependencies and basic structure
   - Add SCUBA and JMRTD library dependencies to Android module
   - Add necessary NFC permissions to Android manifest
   - Configure HCE service declaration in manifest
