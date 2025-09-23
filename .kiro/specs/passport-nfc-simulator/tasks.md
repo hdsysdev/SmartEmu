@@ -6,7 +6,7 @@
   - Configure HCE service declaration in manifest
   - _Requirements: 2.4, 4.1, 4.3_
 
-- [ ] 2. Create core data models in common module
+- [x] 2. Create core data models in common module
   - Implement PassportData data class with validation methods
   - Create MRZ generation functionality for BAC/PACE protocols
   - Add date validation and formatting utilities
