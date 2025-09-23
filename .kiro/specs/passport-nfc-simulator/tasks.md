@@ -13,7 +13,7 @@
   - Write unit tests for PassportData validation logic
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 3. Implement NFC event and state management models
+- [x] 3. Implement NFC event and state management models
   - Create NfcEvent data class and NfcEventType enum
   - Implement SimulationStatus enum and PassportSimulatorUiState
   - Add state validation and transition logic
