@@ -1,5 +1,6 @@
 package com.hddev.smartemu.data
 
+import com.hddev.smartemu.domain.PassportValidator
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.format
 import kotlinx.datetime.format.DateTimeFormat
@@ -41,40 +42,14 @@ data class PassportData(
      * Validates all passport data fields according to ICAO standards.
      */
     fun isValid(): Boolean {
-        return validatePassportNumber().isValid &&
-               validateDateOfBirth().isValid &&
-               validateExpiryDate().isValid &&
-               validateCountryCodes().isValid &&
-               validateNames().isValid
+        return PassportValidator.validatePassportData(this).isValid
     }
     
     /**
      * Gets all validation errors for the passport data.
      */
     fun getValidationErrors(): Map<String, String> {
-        val errors = mutableMapOf<String, String>()
-        
-        validatePassportNumber().let { result ->
-            if (!result.isValid) errors["passportNumber"] = result.errorMessage
-        }
-        
-        validateDateOfBirth().let { result ->
-            if (!result.isValid) errors["dateOfBirth"] = result.errorMessage
-        }
-        
-        validateExpiryDate().let { result ->
-            if (!result.isValid) errors["expiryDate"] = result.errorMessage
-        }
-        
-        validateCountryCodes().let { result ->
-            if (!result.isValid) errors["countryCode"] = result.errorMessage
-        }
-        
-        validateNames().let { result ->
-            if (!result.isValid) errors["names"] = result.errorMessage
-        }
-        
-        return errors
+        return PassportValidator.validatePassportData(this).errors
     }
     
     /**
@@ -147,62 +122,5 @@ data class PassportData(
         return (sum % 10).toString()
     }
     
-    private fun validatePassportNumber(): ValidationResult {
-        return when {
-            passportNumber.isBlank() -> ValidationResult(false, "Passport number is required")
-            !PASSPORT_NUMBER_REGEX.matches(passportNumber) -> 
-                ValidationResult(false, "Passport number must be 6-9 alphanumeric characters")
-            else -> ValidationResult(true)
-        }
-    }
-    
-    private fun validateDateOfBirth(): ValidationResult {
-        return when {
-            dateOfBirth == null -> ValidationResult(false, "Date of birth is required")
-            !DateValidationUtils.isPastDate(dateOfBirth) -> 
-                ValidationResult(false, "Date of birth must be in the past")
-            !DateValidationUtils.isReasonableBirthDate(dateOfBirth) ->
-                ValidationResult(false, "Date of birth must be within reasonable range")
-            else -> ValidationResult(true)
-        }
-    }
-    
-    private fun validateExpiryDate(): ValidationResult {
-        return when {
-            expiryDate == null -> ValidationResult(false, "Expiry date is required")
-            !DateValidationUtils.isFutureDate(expiryDate) -> 
-                ValidationResult(false, "Expiry date must be in the future")
-            dateOfBirth != null && !DateValidationUtils.isValidExpiryDate(dateOfBirth!!, expiryDate) ->
-                ValidationResult(false, "Expiry date must be after date of birth")
-            else -> ValidationResult(true)
-        }
-    }
-    
-    private fun validateCountryCodes(): ValidationResult {
-        return when {
-            !VALID_COUNTRIES.contains(issuingCountry) -> 
-                ValidationResult(false, "Invalid issuing country code")
-            !VALID_COUNTRIES.contains(nationality) -> 
-                ValidationResult(false, "Invalid nationality code")
-            else -> ValidationResult(true)
-        }
-    }
-    
-    private fun validateNames(): ValidationResult {
-        return when {
-            firstName.isBlank() -> ValidationResult(false, "First name is required")
-            lastName.isBlank() -> ValidationResult(false, "Last name is required")
-            firstName.length > 39 -> ValidationResult(false, "First name too long")
-            lastName.length > 39 -> ValidationResult(false, "Last name too long")
-            else -> ValidationResult(true)
-        }
-    }
-}
 
-/**
- * Result of a validation operation.
- */
-data class ValidationResult(
-    val isValid: Boolean,
-    val errorMessage: String = ""
-)
+}
