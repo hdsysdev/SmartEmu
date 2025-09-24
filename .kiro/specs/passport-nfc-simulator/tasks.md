@@ -20,14 +20,14 @@
   - Write unit tests for state management models
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 4. Create repository interface and common business logic
+- [x] 4. Create repository interface and common business logic
   - Define NfcSimulatorRepository interface in common module
   - Implement validation logic for passport data
   - Create error handling and result wrapper types
   - Write unit tests for business logic validation
   - _Requirements: 1.5, 4.5, 5.4_
 
-- [ ] 5. Implement ViewModel for UI state management
+- [x] 5. Implement ViewModel for UI state management
   - Create PassportSimulatorViewModel with StateFlow management
   - Implement passport data update and validation methods
   - Add simulation control methods (start/stop)
@@ -35,7 +35,7 @@
   - Write unit tests for ViewModel state transitions
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.5_
 
-- [ ] 6. Build Compose UI components for passport input
+- [x] 6. Build Compose UI components for passport input
   - Create PassportInputForm with text fields for passport details
   - Implement date picker components for birth and expiry dates
   - Add real-time validation feedback and error display
@@ -43,7 +43,7 @@
   - Write Compose UI tests for input validation
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 7. Create simulation control and status UI components
+- [x] 7. Create simulation control and status UI components
   - Implement SimulationControlPanel with start/stop buttons
   - Add NFC availability and permission status indicators
   - Create permission request handling UI
@@ -51,7 +51,7 @@
   - Write UI tests for control panel interactions
   - _Requirements: 3.1, 3.5, 4.1, 4.2, 4.4_
 
-- [ ] 8. Build NFC event logging and display components
+- [x] 8. Build NFC event logging and display components
   - Create EventLogDisplay component for real-time NFC events
   - Implement scrollable event list with timestamps
   - Add event filtering and clearing functionality
@@ -59,7 +59,7 @@
   - Write UI tests for event display functionality
   - _Requirements: 3.2, 3.3, 3.4_
 
-- [ ] 9. Implement Android NFC repository implementation
+- [x] 9. Implement Android NFC repository implementation
   - Create AndroidNfcSimulatorRepository implementing the interface
   - Add NFC hardware availability checking
   - Implement permission request and status monitoring
@@ -67,7 +67,7 @@
   - Write unit tests for repository implementation
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 5.2_
 
-- [ ] 10. Create Android HCE service foundation
+- [-] 10. Create Android HCE service foundation
   - Implement PassportHceService extending HostApduService
   - Add basic APDU command parsing and routing
   - Create service lifecycle management
