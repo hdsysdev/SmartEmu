@@ -6,6 +6,7 @@ import android.nfc.NfcAdapter
 import android.nfc.cardemulation.HostApduService
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.hddev.smartemu.PassportHceService
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.SimulationStatus
@@ -64,6 +65,7 @@ class AndroidNfcSimulatorRepository(
                 
                 // Store passport data for HCE service
                 currentPassportData = passportData
+                PassportHceService.setSharedPassportData(passportData)
                 
                 // Simulate successful startup (in real implementation, this would configure HCE)
                 _simulationStatus.value = SimulationStatus.ACTIVE
@@ -100,6 +102,7 @@ class AndroidNfcSimulatorRepository(
                 
                 // Clear stored passport data
                 currentPassportData = null
+                PassportHceService.setSharedPassportData(null)
                 
                 // Update status to stopped
                 _simulationStatus.value = SimulationStatus.STOPPED

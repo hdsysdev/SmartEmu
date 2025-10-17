@@ -4,9 +4,9 @@ package com.hddev.smartemu.domain
  * Sealed class representing different types of errors that can occur in the passport simulator.
  */
 sealed class SimulatorError(
-    val message: String,
-    val cause: Throwable? = null
-) {
+    message: String,
+    cause: Throwable? = null
+) : Throwable(message, cause) {
     
     /**
      * Errors related to passport data validation.

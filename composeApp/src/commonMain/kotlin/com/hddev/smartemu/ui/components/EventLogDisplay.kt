@@ -157,17 +157,17 @@ private fun ConnectionStatusIndicator(
 ) {
     val (icon, color, text) = when {
         simulationStatus != SimulationStatus.ACTIVE -> Triple(
-            Icons.Filled.RadioButtonUnchecked,
+            Icons.Filled.Clear,
             MaterialTheme.colorScheme.outline,
             "Inactive"
         )
         isConnected -> Triple(
-            Icons.Filled.RadioButtonChecked,
+            Icons.Filled.CheckCircle,
             MaterialTheme.colorScheme.primary,
             "Connected"
         )
         else -> Triple(
-            Icons.Filled.Radio,
+            Icons.Filled.Clear,
             MaterialTheme.colorScheme.secondary,
             "Listening"
         )
@@ -220,7 +220,7 @@ private fun EventTypeFilters(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Icon(
-                    imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp)
                 )
@@ -333,7 +333,7 @@ private fun EventList(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.EventNote,
+                        imageVector = Icons.Filled.List,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)
@@ -441,12 +441,12 @@ private fun EventItem(
 @Composable
 private fun getEventTypeIcon(eventType: NfcEventType): ImageVector {
     return when (eventType) {
-        NfcEventType.CONNECTION_ESTABLISHED -> Icons.Filled.Link
-        NfcEventType.BAC_AUTHENTICATION_REQUEST -> Icons.Filled.Security
-        NfcEventType.PACE_AUTHENTICATION_REQUEST -> Icons.Filled.VpnKey
+        NfcEventType.CONNECTION_ESTABLISHED -> Icons.Filled.Phone
+        NfcEventType.BAC_AUTHENTICATION_REQUEST -> Icons.Filled.Lock
+        NfcEventType.PACE_AUTHENTICATION_REQUEST -> Icons.Filled.Lock
         NfcEventType.AUTHENTICATION_SUCCESS -> Icons.Filled.CheckCircle
-        NfcEventType.AUTHENTICATION_FAILURE -> Icons.Filled.Error
-        NfcEventType.CONNECTION_LOST -> Icons.Filled.LinkOff
+        NfcEventType.AUTHENTICATION_FAILURE -> Icons.Filled.Close
+        NfcEventType.CONNECTION_LOST -> Icons.Filled.Clear
         NfcEventType.ERROR -> Icons.Filled.Warning
     }
 }

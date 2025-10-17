@@ -111,8 +111,8 @@ private fun StatusIndicatorsSection(
             isActive = nfcAvailable,
             activeText = "Available",
             inactiveText = "Not Available",
-            activeIcon = Icons.Filled.Nfc,
-            inactiveIcon = Icons.Filled.NfcOff
+            activeIcon = Icons.Filled.Phone,
+            inactiveIcon = Icons.Filled.Clear
         )
         
         // NFC Permission Status
@@ -175,11 +175,11 @@ private fun SimulationStatusIndicator(
     status: SimulationStatus
 ) {
     val (icon, color, isAnimated) = when (status) {
-        SimulationStatus.STOPPED -> Triple(Icons.Filled.Stop, MaterialTheme.colorScheme.outline, false)
+        SimulationStatus.STOPPED -> Triple(Icons.Filled.Clear, MaterialTheme.colorScheme.outline, false)
         SimulationStatus.STARTING -> Triple(Icons.Filled.PlayArrow, MaterialTheme.colorScheme.primary, true)
-        SimulationStatus.ACTIVE -> Triple(Icons.Filled.PlayCircle, MaterialTheme.colorScheme.primary, false)
-        SimulationStatus.STOPPING -> Triple(Icons.Filled.Stop, MaterialTheme.colorScheme.outline, true)
-        SimulationStatus.ERROR -> Triple(Icons.Filled.Error, MaterialTheme.colorScheme.error, false)
+        SimulationStatus.ACTIVE -> Triple(Icons.Filled.PlayArrow, MaterialTheme.colorScheme.primary, false)
+        SimulationStatus.STOPPING -> Triple(Icons.Filled.Clear, MaterialTheme.colorScheme.outline, true)
+        SimulationStatus.ERROR -> Triple(Icons.Filled.Warning, MaterialTheme.colorScheme.error, false)
     }
     
     Row(
@@ -309,7 +309,7 @@ private fun ControlButtonsSection(
                     )
                 } else {
                     Icon(
-                        imageVector = Icons.Filled.Stop,
+                        imageVector = Icons.Filled.Clear,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
@@ -406,7 +406,7 @@ private fun ErrorDisplaySection(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Error,
+                        imageVector = Icons.Filled.Warning,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onErrorContainer
                     )
