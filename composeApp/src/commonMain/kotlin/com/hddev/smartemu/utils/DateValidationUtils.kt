@@ -52,13 +52,7 @@ object DateValidationUtils {
      * Formats a date for display in the UI.
      */
     fun formatForDisplay(date: LocalDate): String {
-        return date.format(LocalDate.Format {
-            dayOfMonth()
-            char('/')
-            monthNumber()
-            char('/')
-            year()
-        })
+        return "${date.dayOfMonth.toString().padStart(2, '0')}/${date.monthNumber.toString().padStart(2, '0')}/${date.year}"
     }
     
     /**
