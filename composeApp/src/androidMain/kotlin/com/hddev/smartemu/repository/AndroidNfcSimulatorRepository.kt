@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 /**
  * Android-specific implementation of NfcSimulatorRepository.
@@ -28,6 +30,15 @@ class AndroidNfcSimulatorRepository(
     
     private val mutex = Mutex()
     private var currentPassportData: PassportData? = null
+    private var permissionController: PermissionController? = null
+    
+    interface PermissionController {
+        fun requestPermissions(callback: (Boolean) -> Unit)
+    }
+    
+    fun setPermissionController(controller: PermissionController) {
+        this.permissionController = controller
+    }
     
     // State flows for reactive updates
     private val _simulationStatus = MutableStateFlow(SimulationStatus.STOPPED)
@@ -44,19 +55,19 @@ class AndroidNfcSimulatorRepository(
                 // Check prerequisites
                 val nfcAvailable = isNfcAvailable().getOrElse { false }
                 if (!nfcAvailable) {
-                    addEvent(NfcEvent.error(Clock.System.now(), "NFC hardware not available"))
+                    addEventInternal(NfcEvent.error(Clock.System.now(), "NFC hardware not available"))
                     return@withLock Result.failure(Exception("NFC hardware not available"))
                 }
                 
                 val hasPermissions = hasNfcPermissions().getOrElse { false }
                 if (!hasPermissions) {
-                    addEvent(NfcEvent.error(Clock.System.now(), "NFC permissions not granted"))
+                    addEventInternal(NfcEvent.error(Clock.System.now(), "NFC permissions not granted"))
                     return@withLock Result.failure(Exception("NFC permissions not granted"))
                 }
                 
                 // Update status to starting
                 _simulationStatus.value = SimulationStatus.STARTING
-                addEvent(NfcEvent(
+                addEventInternal(NfcEvent(
                     timestamp = Clock.System.now(),
                     type = com.hddev.smartemu.data.NfcEventType.CONNECTION_ESTABLISHED,
                     message = "Starting NFC passport simulation",
@@ -69,7 +80,7 @@ class AndroidNfcSimulatorRepository(
                 
                 // Simulate successful startup (in real implementation, this would configure HCE)
                 _simulationStatus.value = SimulationStatus.ACTIVE
-                addEvent(NfcEvent(
+                addEventInternal(NfcEvent(
                     timestamp = Clock.System.now(),
                     type = com.hddev.smartemu.data.NfcEventType.CONNECTION_ESTABLISHED,
                     message = "NFC passport simulation active and ready",
@@ -79,7 +90,7 @@ class AndroidNfcSimulatorRepository(
                 Result.success(Unit)
             } catch (e: Exception) {
                 _simulationStatus.value = SimulationStatus.ERROR
-                addEvent(NfcEvent.error(Clock.System.now(), "Failed to start simulation: ${e.message}"))
+                addEventInternal(NfcEvent.error(Clock.System.now(), "Failed to start simulation: ${e.message}"))
                 Result.failure(e)
             }
         }
@@ -93,7 +104,7 @@ class AndroidNfcSimulatorRepository(
                 }
                 
                 _simulationStatus.value = SimulationStatus.STOPPING
-                addEvent(NfcEvent(
+                addEventInternal(NfcEvent(
                     timestamp = Clock.System.now(),
                     type = com.hddev.smartemu.data.NfcEventType.CONNECTION_LOST,
                     message = "Stopping NFC passport simulation",
@@ -106,7 +117,7 @@ class AndroidNfcSimulatorRepository(
                 
                 // Update status to stopped
                 _simulationStatus.value = SimulationStatus.STOPPED
-                addEvent(NfcEvent(
+                addEventInternal(NfcEvent(
                     timestamp = Clock.System.now(),
                     type = com.hddev.smartemu.data.NfcEventType.CONNECTION_LOST,
                     message = "NFC passport simulation stopped",
@@ -116,7 +127,7 @@ class AndroidNfcSimulatorRepository(
                 Result.success(Unit)
             } catch (e: Exception) {
                 _simulationStatus.value = SimulationStatus.ERROR
-                addEvent(NfcEvent.error(Clock.System.now(), "Failed to stop simulation: ${e.message}"))
+                addEventInternal(NfcEvent.error(Clock.System.now(), "Failed to stop simulation: ${e.message}"))
                 Result.failure(e)
             }
         }
@@ -174,8 +185,21 @@ class AndroidNfcSimulatorRepository(
     
     override suspend fun requestNfcPermissions(): Result<Boolean> {
         return try {
-            // Note: In a real implementation, this would trigger a permission request dialog
-            // For now, we'll simulate checking current permissions
+            if (permissionController != null) {
+                return suspendCoroutine { cont ->
+                    permissionController?.requestPermissions { granted ->
+                        if (!granted) {
+                            // If denied, we can't easily add an event here because we are in a suspend function
+                            // and addEvent is suspend. But we can launch a coroutine if we had a scope.
+                            // However, the ViewModel handles the failure/success.
+                            // Let's just return the result.
+                        }
+                        cont.resume(Result.success(granted))
+                    }
+                }
+            }
+
+            // Fallback if no controller is set (e.g. during tests)
             val hasPermissions = hasNfcPermissions().getOrElse { false }
             
             if (!hasPermissions) {
@@ -202,16 +226,20 @@ class AndroidNfcSimulatorRepository(
      */
     private suspend fun addEvent(event: NfcEvent) {
         mutex.withLock {
-            val currentEvents = _nfcEvents.value.toMutableList()
-            currentEvents.add(event)
-            
-            // Keep only the last 100 events to prevent memory issues
-            if (currentEvents.size > 100) {
-                currentEvents.removeAt(0)
-            }
-            
-            _nfcEvents.value = currentEvents
+            addEventInternal(event)
         }
+    }
+
+    private fun addEventInternal(event: NfcEvent) {
+        val currentEvents = _nfcEvents.value.toMutableList()
+        currentEvents.add(event)
+        
+        // Keep only the last 100 events to prevent memory issues
+        if (currentEvents.size > 100) {
+            currentEvents.removeAt(0)
+        }
+        
+        _nfcEvents.value = currentEvents
     }
     
     /**

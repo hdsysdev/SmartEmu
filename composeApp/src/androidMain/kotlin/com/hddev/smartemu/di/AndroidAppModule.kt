@@ -11,11 +11,16 @@ import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
  */
 object AndroidAppModule {
     
+    private var nfcSimulatorRepository: AndroidNfcSimulatorRepository? = null
+
     /**
      * Provides the Android-specific NFC simulator repository.
      */
     fun provideNfcSimulatorRepository(context: Context): NfcSimulatorRepository {
-        return AndroidNfcSimulatorRepository(context)
+        if (nfcSimulatorRepository == null) {
+            nfcSimulatorRepository = AndroidNfcSimulatorRepository(context)
+        }
+        return nfcSimulatorRepository!!
     }
     
     /**
