@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -32,6 +32,34 @@ fun PassportSimulatorApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val viewModel = viewModel<PassportSimulatorViewModel> {
         AndroidAppModule.providePassportSimulatorViewModel(context)
+    }
+    
+    // Handle Permission Requests
+    val repository = AndroidAppModule.provideNfcSimulatorRepository(context) as? com.hddev.smartemu.repository.AndroidNfcSimulatorRepository
+    
+    var permissionCallback: ((Boolean) -> Unit)? by remember { mutableStateOf(null) }
+    
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        permissionCallback?.invoke(allGranted)
+        permissionCallback = null
+    }
+    
+    LaunchedEffect(repository) {
+        repository?.setPermissionController(object : com.hddev.smartemu.repository.AndroidNfcSimulatorRepository.PermissionController {
+            override fun requestPermissions(callback: (Boolean) -> Unit) {
+                permissionCallback = callback
+                
+                val permissionsToRequest = mutableListOf(android.Manifest.permission.NFC)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    permissionsToRequest.add(android.Manifest.permission.NFC_TRANSACTION_EVENT)
+                }
+                
+                launcher.launch(permissionsToRequest.toTypedArray())
+            }
+        })
     }
     
     // Main App composable
