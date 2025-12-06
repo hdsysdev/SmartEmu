@@ -112,7 +112,7 @@ class ErrorRecoveryTest {
             baseDelayMs = 100L,
             backoffMultiplier = 2.0
         )
-        val startTime = kotlinx.datetime.Clock.System.now()
+        val startTime = kotlin.time.Clock.System.now()
         
         // When
         val result = errorRecovery.withRecovery(operation, config) { attemptNumber ->
@@ -123,7 +123,7 @@ class ErrorRecoveryTest {
         }
         
         // Then
-        val endTime = kotlinx.datetime.Clock.System.now()
+        val endTime = kotlin.time.Clock.System.now()
         val duration = (endTime - startTime).inWholeMilliseconds
         
         assertTrue(result is ErrorRecovery.RecoveryResult.Success)

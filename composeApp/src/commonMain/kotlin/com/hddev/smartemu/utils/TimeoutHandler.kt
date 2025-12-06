@@ -2,7 +2,7 @@ package com.hddev.smartemu.utils
 
 import com.hddev.smartemu.domain.SimulatorError
 import kotlinx.coroutines.*
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 
 /**

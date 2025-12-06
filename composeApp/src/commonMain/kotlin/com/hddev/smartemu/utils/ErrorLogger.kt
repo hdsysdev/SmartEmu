@@ -3,7 +3,7 @@ package com.hddev.smartemu.utils
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.domain.SimulatorError
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 
 /**

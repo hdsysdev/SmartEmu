@@ -15,7 +15,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -131,6 +131,25 @@ class PassportSimulatorViewModelTest {
         
         val state = viewModel.uiState.first()
         assertEquals(lastName, state.passportData.lastName)
+    }
+
+    @Test
+    fun `autofillPassportData should populate default dummy data`() = runTest {
+        viewModel.autofillPassportData()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.first()
+        assertEquals("123456789", state.passportData.passportNumber)
+        assertEquals("GBR", state.passportData.nationality)
+        assertEquals("GBR", state.passportData.issuingCountry)
+        assertEquals("John", state.passportData.firstName)
+        assertEquals("Doe", state.passportData.lastName)
+        assertEquals("M", state.passportData.gender)
+        assertEquals(LocalDate(1980, 1, 1), state.passportData.dateOfBirth)
+        // We can't strictly assert ExpiryDate since it depends on current time in the implementation logic
+        // but checking it is not null is good enough for simulation or strict equality if we mocked time
+        // The implementation uses fixed date 2030-01-01
+        assertEquals(LocalDate(2030, 1, 1), state.passportData.expiryDate)
     }
     
     @Test

@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import net.sf.scuba.smartcards.CommandAPDU
 import net.sf.scuba.smartcards.ResponseAPDU
 import net.sf.scuba.smartcards.ISO7816
