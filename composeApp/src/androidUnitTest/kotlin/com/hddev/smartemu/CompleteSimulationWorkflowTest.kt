@@ -11,7 +11,7 @@ import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 import org.junit.Test
 import kotlin.test.assertEquals
