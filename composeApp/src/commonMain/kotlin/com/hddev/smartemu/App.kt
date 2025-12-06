@@ -76,6 +76,7 @@ fun App(
                     onGenderChange = viewModel::updateGender,
                     onIssuingCountryChange = viewModel::updateIssuingCountry,
                     onNationalityChange = viewModel::updateNationality,
+                    onAutoFill = viewModel::autofillPassportData,
                     onResetForm = { viewModel.updatePassportData(com.hddev.smartemu.data.PassportData.empty()) }
                 )
                 

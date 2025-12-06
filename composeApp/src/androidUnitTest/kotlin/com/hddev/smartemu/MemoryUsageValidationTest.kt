@@ -7,7 +7,7 @@ import com.hddev.smartemu.utils.BacProtocol
 import com.hddev.smartemu.utils.PaceProtocol
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 import kotlinx.coroutines.runBlocking
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDate
 import org.junit.Test
 import kotlin.test.assertTrue

@@ -35,6 +35,7 @@ fun PassportInputForm(
     onGenderChange: (String) -> Unit,
     onIssuingCountryChange: (String) -> Unit,
     onNationalityChange: (String) -> Unit,
+    onAutoFill: () -> Unit,
     onResetForm: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -57,7 +58,7 @@ fun PassportInputForm(
             value = passportData.passportNumber,
             onValueChange = onPassportNumberChange,
             label = { Text("Passport Number") },
-            placeholder = { Text("e.g., AB123456") },
+            placeholder = { Text("e.g., 123456789") },
             enabled = enabled,
             isError = validationErrors.containsKey("passportNumber"),
             supportingText = {
@@ -199,13 +200,22 @@ fun PassportInputForm(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Auto Fill Button
+            OutlinedButton(
+                onClick = onAutoFill,
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Auto Fill")
+            }
+
             // Reset Button
             OutlinedButton(
                 onClick = onResetForm,
                 enabled = enabled,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Reset Form")
+                Text("Reset")
             }
             
             // Validation Status

@@ -82,6 +82,24 @@ class PassportSimulatorViewModel(
         val currentData = _uiState.value.passportData
         updatePassportData(currentData.copy(nationality = nationality))
     }
+
+    /**
+     * autofills the passport data with dummy values for testing.
+     */
+    fun autofillPassportData() {
+        // Let's use fixed dates for stability or simple construction
+        val dummyData = PassportData(
+            passportNumber = "123456789",
+            dateOfBirth = kotlinx.datetime.LocalDate(1980, 1, 1),
+            expiryDate = kotlinx.datetime.LocalDate(2030, 1, 1), // Using a safe far future date
+            issuingCountry = "GBR",
+            nationality = "GBR",
+            firstName = "John",
+            lastName = "Doe",
+            gender = "M"
+        )
+        updatePassportData(dummyData)
+    }
     
     /**
      * Starts the NFC passport simulation.

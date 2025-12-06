@@ -1,8 +1,11 @@
+@file:OptIn(ExperimentalTime::class)
+
 package com.hddev.smartemu.utils
 
 import com.hddev.smartemu.domain.SimulatorError
 import kotlinx.coroutines.delay
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * Error recovery mechanism for handling protocol failures and system errors.
