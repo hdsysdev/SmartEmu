@@ -37,7 +37,10 @@ object ApduParser {
         val commandType: ApduCommandType,
         val isValid: Boolean,
         val errorResponse: ByteArray? = null,
-        val data: ByteArray? = null
+        val data: ByteArray? = null,
+        val p1: Int = 0,
+        val p2: Int = 0,
+        val le: Int = 0
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -129,48 +132,72 @@ object ApduParser {
      * Parses a SELECT command.
      */
     private fun parseSelectCommand(apdu: ByteArray): ApduParseResult {
-        if (apdu.size < 5) {
+        if (apdu.size < 4) {
             return ApduParseResult(
                 commandType = ApduCommandType.SELECT,
                 isValid = false,
                 errorResponse = SW_WRONG_LENGTH
             )
         }
+
+        val p1 = apdu[2].toInt() and 0xFF
+        val p2 = apdu[3].toInt() and 0xFF
         
-        val lc = apdu[4].toInt() and 0xFF
-        if (apdu.size < 5 + lc) {
-            return ApduParseResult(
-                commandType = ApduCommandType.SELECT,
-                isValid = false,
-                errorResponse = SW_WRONG_LENGTH
-            )
+        // Case 1: Select by DF Name (P1=04, P2=0C) -> Existing logic
+        if (p1 == 0x04) {
+             if (apdu.size < 5) return ApduParseResult(ApduCommandType.SELECT, false, errorResponse = SW_WRONG_LENGTH)
+             val lc = apdu[4].toInt() and 0xFF
+             if (apdu.size < 5 + lc) return ApduParseResult(ApduCommandType.SELECT, false, errorResponse = SW_WRONG_LENGTH)
+             val aidData = apdu.sliceArray(5 until 5 + lc)
+             
+             return if (aidData.contentEquals(PASSPORT_AID)) {
+                ApduParseResult(ApduCommandType.SELECT, true, data = aidData, p1 = p1, p2 = p2)
+             } else {
+                ApduParseResult(ApduCommandType.SELECT, false, errorResponse = SW_FILE_NOT_FOUND, data = aidData, p1 = p1, p2 = p2)
+             }
         }
         
-        val aidData = apdu.sliceArray(5 until 5 + lc)
-        
-        return if (aidData.contentEquals(PASSPORT_AID)) {
-            ApduParseResult(
+        // Case 2: Select by File ID (P1=02, P2=0C)
+        if (p1 == 0x02) {
+            if (apdu.size < 5) return ApduParseResult(ApduCommandType.SELECT, false, errorResponse = SW_WRONG_LENGTH)
+            val lc = apdu[4].toInt() and 0xFF
+            // File ID is typically 2 bytes
+            if (lc != 2 || apdu.size < 5 + lc) return ApduParseResult(ApduCommandType.SELECT, false, errorResponse = SW_WRONG_LENGTH)
+            
+            val fileId = apdu.sliceArray(5 until 5 + lc)
+            return ApduParseResult(
                 commandType = ApduCommandType.SELECT,
                 isValid = true,
-                data = aidData
-            )
-        } else {
-            ApduParseResult(
-                commandType = ApduCommandType.SELECT,
-                isValid = false,
-                errorResponse = SW_FILE_NOT_FOUND,
-                data = aidData
+                data = fileId,
+                p1 = p1,
+                p2 = p2
             )
         }
+        
+        return ApduParseResult(
+             commandType = ApduCommandType.SELECT,
+             isValid = false,
+             errorResponse = SW_INSTRUCTION_NOT_SUPPORTED // Or strictly File Not Found/params error
+        )
     }
     
     /**
      * Parses a READ BINARY command.
      */
     private fun parseReadBinaryCommand(apdu: ByteArray): ApduParseResult {
+        if (apdu.size < 4) {
+             return ApduParseResult(ApduCommandType.READ_BINARY, false, errorResponse = SW_WRONG_LENGTH)
+        }
+        val p1 = apdu[2].toInt() and 0xFF
+        val p2 = apdu[3].toInt() and 0xFF
+        val le = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
+        
         return ApduParseResult(
             commandType = ApduCommandType.READ_BINARY,
-            isValid = true
+            isValid = true,
+            p1 = p1,
+            p2 = p2,
+            le = le
         )
     }
     
