@@ -64,6 +64,13 @@ class PassportHceService : HostApduService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isConnected = false
     private var isAuthenticated = false
+    private var isSimulationActive = false
+    private var currentSelectedFile: ByteArray? = null
+    
+    // File IDs
+    private val FID_EF_COM = byteArrayOf(0x01.toByte(), 0x1E.toByte())
+    private val FID_EF_DG1 = byteArrayOf(0x01.toByte(), 0x01.toByte())
+    private val FID_EF_DG2 = byteArrayOf(0x01.toByte(), 0x01.toByte())
     private var currentProtocol: String? = null
     
     // Error handling and recovery
@@ -457,27 +464,64 @@ class PassportHceService : HostApduService() {
         Log.d(TAG, "Handling SELECT command with SCUBA")
         
         try {
-            val aidData = parseResult.data
-            if (aidData != null && aidData.contentEquals(passportAid)) {
-                Log.d(TAG, "Passport application AID selected successfully")
-                emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Passport application selected"))
-                
-                // Return File Control Information (FCI) for passport application
-                val fciData = byteArrayOf(
-                    0x6F.toByte(), 0x10.toByte(), // FCI template
-                    0x84.toByte(), 0x07.toByte(), // DF name
-                ) + passportAid + byteArrayOf(
-                    0xA5.toByte(), 0x05.toByte(), // Proprietary information
-                    0x9F.toByte(), 0x6E.toByte(), 0x02.toByte(), 0x00.toByte(), 0x00.toByte() // Application production life cycle data
-                )
-                
-                return createSuccessResponse(fciData)
-            } else {
-                val aidHex = aidData?.let { ApduParser.run { it.toHexString() } } ?: "unknown"
-                Log.w(TAG, "Unknown AID selected: $aidHex")
-                emitEvent(NfcEvent.error(Clock.System.now(), "Unknown AID selected: $aidHex"))
-                return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+            // Case 1: Select by AID (P1=04)
+            if (parseResult.p1 == 0x04) {
+                val aidData = parseResult.data
+                if (aidData != null && aidData.contentEquals(passportAid)) {
+                    Log.d(TAG, "Passport application AID selected successfully")
+                    emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Passport application selected"))
+                    
+                    // Return File Control Information (FCI) for passport application
+                    val fciData = byteArrayOf(
+                        0x6F.toByte(), 0x10.toByte(), // FCI template
+                        0x84.toByte(), 0x07.toByte(), // DF name
+                    ) + passportAid + byteArrayOf(
+                        0xA5.toByte(), 0x05.toByte(), // Proprietary information
+                        0x9F.toByte(), 0x6E.toByte(), 0x02.toByte(), 0x00.toByte(), 0x00.toByte() // Application production life cycle data
+                    )
+                    
+                    currentSelectedFile = null // Reset selected file on App Select
+                    return createSuccessResponse(fciData)
+                }
             }
+            
+            // Case 2: Select by File ID (P1=02)
+            if (parseResult.p1 == 0x02) {
+                val fileId = parseResult.data
+                if (fileId != null) {
+                    val fileHex = ApduParser.run { fileId.toHexString() }
+                    Log.d(TAG, "Selecting file ID: $fileHex")
+                    
+                    when {
+                         fileId.contentEquals(FID_EF_COM) -> {
+                             currentSelectedFile = sharedPassportData?.generateEfCom()
+                             emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "EF.COM selected"))
+                             return createSuccessResponse()
+                         }
+                         fileId.contentEquals(FID_EF_DG1) -> {
+                             currentSelectedFile = sharedPassportData?.generateDg1()
+                             emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "EF.DG1 selected"))
+                             return createSuccessResponse()
+                         }
+                         fileId.contentEquals(FID_EF_DG2) -> {
+                             currentSelectedFile = sharedPassportData?.generateDg2()
+                             emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "EF.DG2 selected"))
+                             return createSuccessResponse()
+                         }
+                         else -> {
+                             Log.w(TAG, "Unknown File ID selected: $fileHex")
+                             currentSelectedFile = null
+                             return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+                         }
+                    }
+                }
+            }
+            
+            val aidHex = parseResult.data?.let { ApduParser.run { it.toHexString() } } ?: "unknown"
+            Log.w(TAG, "Unknown selection: P1=${parseResult.p1}, Data=$aidHex")
+            emitEvent(NfcEvent.error(Clock.System.now(), "Unknown selection: $aidHex"))
+            return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+
         } catch (e: Exception) {
             Log.e(TAG, "Error in SELECT command handling", e)
             emitEvent(NfcEvent.error(Clock.System.now(), "SELECT command error: ${e.message}"))
@@ -497,10 +541,30 @@ class PassportHceService : HostApduService() {
             return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
         }
         
-        // Placeholder response - will be enhanced in later tasks with actual passport data
-        Log.d(TAG, "READ BINARY successful (placeholder)")
-        emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Data file accessed"))
-        return createSuccessResponse()
+        val fileContent = currentSelectedFile
+        if (fileContent == null) {
+            Log.w(TAG, "READ BINARY with no file selected")
+            return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+        }
+        
+        // Calculate offset from P1/P2
+        val offset = (parseResult.p1 shl 8) or parseResult.p2
+        val le = if (parseResult.le == 0) 256 else parseResult.le // Le=0 means max length (256 bytes usually in short APDU)
+        
+        if (offset >= fileContent.size) {
+            return createErrorResponse(ISO7816.SW_WRONG_LENGTH.toInt()) // Or End of File
+        }
+        
+        val bytesToRead = minOf(le, fileContent.size - offset)
+        val responseData = fileContent.sliceArray(offset until offset + bytesToRead)
+        
+        Log.d(TAG, "READ BINARY success: Offset=$offset, Length=$bytesToRead")
+        // Only emit event for first chunk to avoid spamming
+        if (offset == 0) {
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Reading file content"))
+        }
+        
+        return createSuccessResponse(responseData)
     }
     
     /**
