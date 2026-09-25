@@ -9,7 +9,9 @@ import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.domain.SimulatorError
 import com.hddev.smartemu.utils.ApduParser
 import com.hddev.smartemu.utils.BacProtocol
+import com.hddev.smartemu.utils.ChipSecureMessaging
 import com.hddev.smartemu.utils.PaceProtocol
+import com.hddev.smartemu.utils.PassportLdsFiles
 import com.hddev.smartemu.utils.ErrorLogger
 import com.hddev.smartemu.utils.ErrorCodeMapper
 import com.hddev.smartemu.utils.TimeoutHandler
@@ -18,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -25,22 +28,32 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.time.Clock
 import net.sf.scuba.smartcards.CommandAPDU
+import org.jmrtd.PassportService
 import net.sf.scuba.smartcards.ResponseAPDU
 import net.sf.scuba.smartcards.ISO7816
-import java.security.SecureRandom
 import java.util.UUID
 
 /**
  * Host Card Emulation service for simulating passport NFC chip.
- * Handles APDU commands and emulates passport authentication protocols.
+ * Emulates an ICAO 9303 LDS1 eMRTD protected by BAC, PACE or both, as chosen by [PassportData.accessControl]:
+ * - PACE: EF.CardAccess in the master file (readable in plain), MSE:Set AT and GENERAL AUTHENTICATE, with the
+ *   mapping chosen by [PassportData.paceMapping]; with CAM, EF.CardSecurity in the master file (read under PACE)
+ * - BAC: GET CHALLENGE and EXTERNAL AUTHENTICATE
+ * Either establishes secure messaging, under which the eMRTD application's EF.COM, EF.SOD, EF.DG1 and EF.DG2
+ * can be selected and read.
  */
 class PassportHceService : HostApduService() {
     
     companion object {
         private const val TAG = "PassportHceService"
         
-        // Shared event flow for communication with the app
-        private val _nfcEvents = MutableSharedFlow<NfcEvent>(replay = 0, extraBufferCapacity = 100)
+        // Shared event flow for communication with the app. Emitted without suspending, so events keep their order
+        // and a slow collector never holds up a reader; if it falls this far behind, the oldest events are dropped
+        private val _nfcEvents = MutableSharedFlow<NfcEvent>(
+            replay = 0,
+            extraBufferCapacity = 512,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST
+        )
         val nfcEvents: SharedFlow<NfcEvent> = _nfcEvents.asSharedFlow()
         
         // Shared passport data for HCE service
@@ -63,15 +76,8 @@ class PassportHceService : HostApduService() {
     
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isConnected = false
-    private var isAuthenticated = false
-    private var isSimulationActive = false
-    private var currentSelectedFile: ByteArray? = null
-    
-    // File IDs
-    private val FID_EF_COM = byteArrayOf(0x01.toByte(), 0x1E.toByte())
-    private val FID_EF_DG1 = byteArrayOf(0x01.toByte(), 0x01.toByte())
-    private val FID_EF_DG2 = byteArrayOf(0x01.toByte(), 0x01.toByte())
-    private var currentProtocol: String? = null
+    private var isApplicationSelected = false
+    private var selectedFileId: Short? = null
     
     // Error handling and recovery
     private val timeoutHandler = TimeoutHandler()
@@ -79,21 +85,26 @@ class PassportHceService : HostApduService() {
     private var sessionCorrelationId: String? = null
     
     // SCUBA library components
-    private val secureRandom = SecureRandom()
     private var isScubaInitialized = false
     
-    // BAC protocol handler
+    // Access control protocol handlers
     private val bacProtocol = BacProtocol()
-    
-    // PACE protocol handler
     private val paceProtocol = PaceProtocol()
     
-    private var currentPassportData: PassportData? = null
+    // Secure messaging session established by the last successful BAC or PACE run
+    private var secureMessaging: ChipSecureMessaging? = null
     
-    // Passport application AID (as per ICAO 9303)
-    private val passportAid = byteArrayOf(
-        0xA0.toByte(), 0x00, 0x00, 0x02, 0x47, 0x10, 0x01
-    )
+    // The unwrapped command and unprotected response of the secure messaging exchange in progress, for the APDU trace
+    private var plainExchange: Pair<ByteArray, ByteArray>? = null
+    
+    // Passport data and the LDS files generated from it for the current simulation
+    private var currentPassportData: PassportData? = null
+    private var ldsFiles: PassportLdsFiles? = null
+    
+    // Largest READ BINARY payload returned, so the secure messaging response still fits a short APDU
+    private val maxReadLength = PassportService.DEFAULT_MAX_BLOCKSIZE
+    
+    private val MASTER_FILE_ID: Short = 0x3F00
     
     override fun onCreate() {
         super.onCreate()
@@ -111,12 +122,6 @@ class PassportHceService : HostApduService() {
         
         initializeScubaLibrary()
         
-        // Initialize with shared passport data if available
-        val sharedData = getSharedPassportData()
-        if (sharedData != null) {
-            setPassportData(sharedData)
-        }
-        
         emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Service initialized"))
     }
     
@@ -133,14 +138,6 @@ class PassportHceService : HostApduService() {
                 )
             ) { attemptNumber ->
                 Log.d(TAG, "Initializing SCUBA library (attempt $attemptNumber)")
-                
-                // Initialize secure random for cryptographic operations
-                secureRandom.setSeed(System.currentTimeMillis())
-                
-                // Simulate potential initialization failure for testing
-                if (attemptNumber == 1 && Math.random() < 0.1) {
-                    throw RuntimeException("Simulated SCUBA initialization failure")
-                }
                 
                 Log.d(TAG, "SCUBA library initialized successfully")
                 true
@@ -192,6 +189,51 @@ class PassportHceService : HostApduService() {
     }
     
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
+        plainExchange = null
+        val response = respondToCommandApdu(commandApdu)
+        emitEvent(apduTraceEvent(commandApdu, response, plainExchange))
+        plainExchange = null
+        return response
+    }
+    
+    /**
+     * Summarises an exchange as, for example, "READ BINARY → 9000", naming the unwrapped command under secure messaging.
+     */
+    private fun apduTraceEvent(
+        commandApdu: ByteArray?,
+        response: ByteArray,
+        plainExchange: Pair<ByteArray, ByteArray>?
+    ): NfcEvent {
+        val hex: (ByteArray) -> String = { ApduParser.run { it.toHexString() } }
+        val shownCommand = plainExchange?.first ?: commandApdu
+        val shownResponse = plainExchange?.second ?: response
+        val name = shownCommand?.takeIf { it.size >= 2 }?.let { instructionName(it[1]) } ?: "Malformed command"
+        val statusWord = if (shownResponse.size >= 2) hex(shownResponse.copyOfRange(shownResponse.size - 2, shownResponse.size)) else "none"
+        val protection = if (plainExchange != null) " (SM)" else ""
+        return NfcEvent.apdu(
+            timestamp = Clock.System.now(),
+            summary = "$name$protection → $statusWord",
+            status = statusWord,
+            command = commandApdu?.let(hex) ?: "null",
+            response = hex(response),
+            plainCommand = plainExchange?.first?.let(hex),
+            plainResponse = plainExchange?.second?.let(hex)
+        )
+    }
+    
+    private fun instructionName(ins: Byte): String = when (ins.toInt() and 0xFF) {
+        0xA4 -> "SELECT"
+        0xB0 -> "READ BINARY"
+        0xB1 -> "READ BINARY (odd)"
+        0x84 -> "GET CHALLENGE"
+        0x82 -> "EXTERNAL AUTHENTICATE"
+        0x88 -> "INTERNAL AUTHENTICATE"
+        0x22 -> "MSE"
+        0x86, 0x87 -> "GENERAL AUTHENTICATE"
+        else -> "INS %02X".format(ins)
+    }
+    
+    private fun respondToCommandApdu(commandApdu: ByteArray?): ByteArray {
         val apduHex = commandApdu?.let { ApduParser.run { it.toHexString() } } ?: "null"
         Log.d(TAG, "Processing APDU: $apduHex")
         
@@ -213,25 +255,6 @@ class PassportHceService : HostApduService() {
                 return validationResult.errorResponse
             }
             
-            // Parse the APDU command
-            val parseResult = ApduParser.parseApduCommand(commandApdu)
-            
-            // Handle parsing errors
-            if (!parseResult.isValid && parseResult.errorResponse != null) {
-                Log.w(TAG, "APDU parsing failed: ${parseResult.commandType}")
-                
-                ErrorLogger.logError(
-                    level = ErrorLogger.LogLevel.WARNING,
-                    category = ErrorLogger.ErrorCategory.PROTOCOL_VIOLATION,
-                    message = "APDU parsing failed: ${parseResult.commandType}",
-                    context = mapOf("apdu" to apduHex, "commandType" to parseResult.commandType.toString()),
-                    correlationId = sessionCorrelationId
-                )
-                
-                emitEvent(NfcEvent.error(Clock.System.now(), "Invalid APDU command: ${parseResult.commandType}"))
-                return parseResult.errorResponse
-            }
-            
             // Mark connection as established on first valid APDU
             if (!isConnected) {
                 isConnected = true
@@ -245,8 +268,20 @@ class PassportHceService : HostApduService() {
                 emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "NFC reader connected"))
             }
             
-            // Generate smart card response using SCUBA
-            generateSmartCardResponse(parseResult)
+            refreshPassportData()
+            
+            if (isSecureMessagingCommand(commandApdu!!)) {
+                return processSecureMessagingCommand(commandApdu)
+            }
+            
+            if (secureMessaging != null) {
+                // ICAO 9303-11: a plain command aborts an established secure messaging session
+                Log.w(TAG, "Plain APDU received during secure messaging; ending session")
+                emitEvent(NfcEvent.error(Clock.System.now(), "Secure messaging session ended by plain command"))
+                endSession()
+            }
+            
+            processPlainCommand(commandApdu, isSecure = false)
             
         } catch (e: Exception) {
             Log.e(TAG, "Error processing APDU command", e)
@@ -268,6 +303,69 @@ class PassportHceService : HostApduService() {
     }
     
 
+    
+    /**
+     * Whether CLA indicates ISO 7816-4 secure messaging with an authenticated header.
+     */
+    private fun isSecureMessagingCommand(apdu: ByteArray): Boolean = (apdu[0].toInt() and 0x0C) == 0x0C
+    
+    /**
+     * Verifies and decrypts a protected command, processes it, and protects the response.
+     */
+    private fun processSecureMessagingCommand(apdu: ByteArray): ByteArray {
+        val secureMessaging = secureMessaging
+        if (secureMessaging == null) {
+            Log.w(TAG, "Secure messaging APDU received without an established session")
+            emitEvent(NfcEvent.error(Clock.System.now(), "Secure messaging used before authentication"))
+            return createErrorResponse(ErrorCodeMapper.SW_EXPECTED_SM_DATA_OBJECTS_MISSING)
+        }
+        
+        val plainApdu = try {
+            secureMessaging.unwrapCommand(apdu)
+        } catch (e: ChipSecureMessaging.SecureMessagingException) {
+            Log.w(TAG, "Secure messaging verification failed: ${e.message}")
+            ErrorLogger.logError(
+                level = ErrorLogger.LogLevel.WARNING,
+                category = ErrorLogger.ErrorCategory.PROTOCOL_VIOLATION,
+                message = "Secure messaging verification failed: ${e.message}",
+                correlationId = sessionCorrelationId
+            )
+            emitEvent(NfcEvent.error(Clock.System.now(), "Secure messaging error: ${e.message}"))
+            // The session is aborted; the reader has to authenticate again
+            endSession()
+            return createErrorResponse(ErrorCodeMapper.SW_SM_DATA_OBJECTS_INCORRECT)
+        }
+        
+        val plainResponse = processPlainCommand(plainApdu, isSecure = true)
+        plainExchange = plainApdu to plainResponse
+        return secureMessaging.wrapResponse(plainResponse)
+    }
+    
+    /**
+     * Parses and executes an unprotected (or already unwrapped) command APDU.
+     */
+    private fun processPlainCommand(apdu: ByteArray, isSecure: Boolean): ByteArray {
+        val apduHex = ApduParser.run { apdu.toHexString() }
+        val parseResult = ApduParser.parseApduCommand(apdu)
+        
+        // Handle parsing errors
+        if (!parseResult.isValid && parseResult.errorResponse != null) {
+            Log.w(TAG, "APDU parsing failed: ${parseResult.commandType}")
+            
+            ErrorLogger.logError(
+                level = ErrorLogger.LogLevel.WARNING,
+                category = ErrorLogger.ErrorCategory.PROTOCOL_VIOLATION,
+                message = "APDU parsing failed: ${parseResult.commandType}",
+                context = mapOf("apdu" to apduHex, "commandType" to parseResult.commandType.toString()),
+                correlationId = sessionCorrelationId
+            )
+            
+            emitEvent(NfcEvent.error(Clock.System.now(), "Invalid APDU command: ${parseResult.commandType}"))
+            return parseResult.errorResponse
+        }
+        
+        return generateSmartCardResponse(parseResult, isSecure)
+    }
     
     override fun onDeactivated(reason: Int) {
         val reasonString = when (reason) {
@@ -291,14 +389,11 @@ class PassportHceService : HostApduService() {
             sessionCorrelationId?.let { timeoutHandler.cancelOperation(it) }
         }
         
-        // Reset connection state
+        // Reset connection state; the reader has to select the application and authenticate again
         isConnected = false
-        isAuthenticated = false
-        currentProtocol = null
-        
-        // Reset BAC and PACE protocol states
-        bacProtocol.reset()
-        paceProtocol.reset()
+        isApplicationSelected = false
+        selectedFileId = null
+        endSession()
         
         emitEvent(NfcEvent.connectionLost(Clock.System.now(), reasonString))
     }
@@ -323,34 +418,61 @@ class PassportHceService : HostApduService() {
     }
     
     /**
-     * Sets the passport data for BAC and PACE authentication.
-     * This method should be called before starting NFC simulation.
+     * Picks up the simulation's current passport data. Data that changed (or a stopped simulation) ends the session,
+     * so a restarted simulation takes effect from the next command.
      */
-    fun setPassportData(passportData: PassportData) {
+    private fun refreshPassportData() {
+        val passportData = getSharedPassportData()
+        if (passportData == currentPassportData) return
+        
+        endSession()
+        isApplicationSelected = false
+        selectedFileId = null
         currentPassportData = passportData
-        
-        // Initialize BAC protocol
-        val bacInitResult = bacProtocol.initialize(passportData)
-        if (bacInitResult.success) {
-            Log.d(TAG, "BAC protocol initialized successfully")
-            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "BAC protocol ready"))
-        } else {
-            Log.e(TAG, "Failed to initialize BAC protocol: ${bacInitResult.message}")
-            emitEvent(NfcEvent.error(Clock.System.now(), "BAC initialization failed: ${bacInitResult.message}"))
-        }
-        
-        // Initialize PACE protocol
-        val paceInitResult = paceProtocol.initialize(passportData)
-        if (paceInitResult.success) {
-            Log.d(TAG, "PACE protocol initialized successfully")
-            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "PACE protocol ready"))
-        } else {
-            Log.e(TAG, "Failed to initialize PACE protocol: ${paceInitResult.message}")
-            emitEvent(NfcEvent.error(Clock.System.now(), "PACE initialization failed: ${paceInitResult.message}"))
-        }
+        ldsFiles = passportData?.let { loadPassportData(it) }
     }
     
-
+    /**
+     * Generates the LDS files for new passport data and derives the access keys.
+     * Returns null if the data cannot be emulated.
+     */
+    private fun loadPassportData(passportData: PassportData): PassportLdsFiles? {
+        val files = try {
+            PassportLdsFiles.create(passportData)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to generate passport files", e)
+            emitEvent(NfcEvent.error(Clock.System.now(), "Passport file generation failed: ${e.message}"))
+            return null
+        }
+        
+        val bacInitResult = bacProtocol.initialize(passportData)
+        val paceInitResult = paceProtocol.initialize(passportData, files.chipAuthenticationKeyPair)
+        if (!bacInitResult.success || !paceInitResult.success) {
+            val message = if (!bacInitResult.success) bacInitResult.message else paceInitResult.message
+            Log.e(TAG, "Failed to initialize access control: $message")
+            emitEvent(NfcEvent.error(Clock.System.now(), "Access control initialization failed: $message"))
+            return null
+        }
+        
+        val configuration = if (passportData.accessControl.supportsPace) {
+            "${passportData.accessControl.displayName}, PACE-${passportData.paceMapping.abbreviation}" +
+                if (passportData.hasCan()) ", CAN ${passportData.can}" else ""
+        } else {
+            passportData.accessControl.displayName
+        }
+        Log.d(TAG, "Chip ready with $configuration")
+        emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Chip ready ($configuration)"))
+        return files
+    }
+    
+    /**
+     * Ends the secure messaging session and any access control run in progress.
+     */
+    private fun endSession() {
+        secureMessaging = null
+        bacProtocol.reset()
+        paceProtocol.reset()
+    }
     
     /**
      * Validates APDU command using SCUBA library.
@@ -406,18 +528,24 @@ class PassportHceService : HostApduService() {
     
     /**
      * Generates smart card response using SCUBA library.
+     * [isSecure] is true when the command arrived under BAC secure messaging.
      */
-    private fun generateSmartCardResponse(parseResult: ApduParser.ApduParseResult): ByteArray {
+    private fun generateSmartCardResponse(parseResult: ApduParser.ApduParseResult, isSecure: Boolean): ByteArray {
         Log.d(TAG, "Generating smart card response using SCUBA")
         
         return when (parseResult.commandType) {
-            ApduParser.ApduCommandType.SELECT -> handleSelectCommandWithScuba(parseResult)
-            ApduParser.ApduCommandType.READ_BINARY -> handleReadBinaryCommandWithScuba(parseResult)
+            ApduParser.ApduCommandType.SELECT -> handleSelectCommandWithScuba(parseResult, isSecure)
+            ApduParser.ApduCommandType.READ_BINARY -> handleReadBinaryCommandWithScuba(parseResult, isSecure)
             ApduParser.ApduCommandType.GET_CHALLENGE -> handleGetChallengeCommandWithScuba(parseResult)
             ApduParser.ApduCommandType.EXTERNAL_AUTHENTICATE -> handleExternalAuthenticateCommandWithScuba(parseResult)
-            ApduParser.ApduCommandType.INTERNAL_AUTHENTICATE -> handleInternalAuthenticateCommandWithScuba(parseResult)
-            ApduParser.ApduCommandType.MSE_SET_AT -> handleMseSetAtCommandWithPace(parseResult)
-            ApduParser.ApduCommandType.GENERAL_AUTHENTICATE -> handleGeneralAuthenticateCommandWithPace(parseResult)
+            ApduParser.ApduCommandType.MSE_SET_AT -> handleMseSetAtCommand(parseResult)
+            ApduParser.ApduCommandType.GENERAL_AUTHENTICATE -> handleGeneralAuthenticateCommand(parseResult)
+            ApduParser.ApduCommandType.INTERNAL_AUTHENTICATE -> {
+                // Active Authentication needs a chip key pair in DG15, which this chip does not have
+                Log.w(TAG, "Unsupported authentication command: ${parseResult.commandType}")
+                emitEvent(NfcEvent.error(Clock.System.now(), "Active Authentication not supported"))
+                createErrorResponse(ISO7816.SW_INS_NOT_SUPPORTED.toInt())
+            }
             ApduParser.ApduCommandType.UNSUPPORTED -> {
                 Log.w(TAG, "Unsupported APDU command")
                 emitEvent(NfcEvent.error(Clock.System.now(), "Unsupported APDU command"))
@@ -459,68 +587,65 @@ class PassportHceService : HostApduService() {
     
     /**
      * Enhanced SELECT command handler using SCUBA library.
+     * [isSecure] is true when the command arrived under secure messaging, as the application selection after PACE does.
      */
-    private fun handleSelectCommandWithScuba(parseResult: ApduParser.ApduParseResult): ByteArray {
+    private fun handleSelectCommandWithScuba(parseResult: ApduParser.ApduParseResult, isSecure: Boolean): ByteArray {
         Log.d(TAG, "Handling SELECT command with SCUBA")
         
         try {
-            // Case 1: Select by AID (P1=04)
+            val files = ldsFiles
+            
+            // Case 1: Select by AID (P1=04); the parser only accepts the passport AID
             if (parseResult.p1 == 0x04) {
-                val aidData = parseResult.data
-                if (aidData != null && aidData.contentEquals(passportAid)) {
-                    Log.d(TAG, "Passport application AID selected successfully")
-                    emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Passport application selected"))
-                    
-                    // Return File Control Information (FCI) for passport application
-                    val fciData = byteArrayOf(
-                        0x6F.toByte(), 0x10.toByte(), // FCI template
-                        0x84.toByte(), 0x07.toByte(), // DF name
-                    ) + passportAid + byteArrayOf(
-                        0xA5.toByte(), 0x05.toByte(), // Proprietary information
-                        0x9F.toByte(), 0x6E.toByte(), 0x02.toByte(), 0x00.toByte(), 0x00.toByte() // Application production life cycle data
-                    )
-                    
-                    currentSelectedFile = null // Reset selected file on App Select
-                    return createSuccessResponse(fciData)
+                if (files == null) {
+                    Log.w(TAG, "Passport application selected while simulation is not running")
+                    emitEvent(NfcEvent.error(Clock.System.now(), "Reader connected but simulation is not running"))
+                    return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+                }
+                
+                // A plain selection starts a new session; after PACE the reader selects the application under
+                // secure messaging, which keeps the session
+                if (!isSecure) {
+                    endSession()
+                }
+                isApplicationSelected = true
+                selectedFileId = null
+                
+                Log.d(TAG, "Passport application AID selected successfully")
+                emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Passport application selected"))
+                
+                // P2=0C asks for no response data; otherwise return the FCI with the DF name
+                return if ((parseResult.p2 and 0x0C) == 0x0C) {
+                    createSuccessResponse()
+                } else {
+                    val dfName = byteArrayOf(0x84.toByte(), ApduParser.PASSPORT_AID.size.toByte()) + ApduParser.PASSPORT_AID
+                    createSuccessResponse(byteArrayOf(0x6F, dfName.size.toByte()) + dfName)
                 }
             }
             
-            // Case 2: Select by File ID (P1=02)
-            if (parseResult.p1 == 0x02) {
-                val fileId = parseResult.data
-                if (fileId != null) {
-                    val fileHex = ApduParser.run { fileId.toHexString() }
-                    Log.d(TAG, "Selecting file ID: $fileHex")
-                    
-                    when {
-                         fileId.contentEquals(FID_EF_COM) -> {
-                             currentSelectedFile = sharedPassportData?.generateEfCom()
-                             emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "EF.COM selected"))
-                             return createSuccessResponse()
-                         }
-                         fileId.contentEquals(FID_EF_DG1) -> {
-                             currentSelectedFile = sharedPassportData?.generateDg1()
-                             emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "EF.DG1 selected"))
-                             return createSuccessResponse()
-                         }
-                         fileId.contentEquals(FID_EF_DG2) -> {
-                             currentSelectedFile = sharedPassportData?.generateDg2()
-                             emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "EF.DG2 selected"))
-                             return createSuccessResponse()
-                         }
-                         else -> {
-                             Log.w(TAG, "Unknown File ID selected: $fileHex")
-                             currentSelectedFile = null
-                             return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
-                         }
-                    }
-                }
+            // Case 2: Select by File ID (P1=02 or P1=00)
+            val fileIdBytes = parseResult.data ?: return createErrorResponse(ISO7816.SW_WRONG_LENGTH.toInt())
+            val fileId = (((fileIdBytes[0].toInt() and 0xFF) shl 8) or (fileIdBytes[1].toInt() and 0xFF)).toShort()
+            val fileHex = ApduParser.run { fileIdBytes.toHexString() }
+            Log.d(TAG, "Selecting file ID: $fileHex")
+            
+            if (fileId == MASTER_FILE_ID) {
+                // Leaves the eMRTD application; a secure messaging session stays up
+                isApplicationSelected = false
+                selectedFileId = null
+                return createSuccessResponse()
             }
             
-            val aidHex = parseResult.data?.let { ApduParser.run { it.toHexString() } } ?: "unknown"
-            Log.w(TAG, "Unknown selection: P1=${parseResult.p1}, Data=$aidHex")
-            emitEvent(NfcEvent.error(Clock.System.now(), "Unknown selection: $aidHex"))
-            return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+            // EF.CardAccess and EF.CardSecurity live in the master file, the other EFs in the application
+            if (files?.fileById(fileId, isApplicationSelected) == null) {
+                Log.w(TAG, "Unknown File ID selected: $fileHex")
+                selectedFileId = null
+                return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+            }
+            
+            selectedFileId = fileId
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "${files.fileName(fileId, isApplicationSelected)} selected"))
+            return createSuccessResponse()
 
         } catch (e: Exception) {
             Log.e(TAG, "Error in SELECT command handling", e)
@@ -531,37 +656,52 @@ class PassportHceService : HostApduService() {
     
     /**
      * Enhanced READ BINARY command handler using SCUBA library.
+     * Supports both the current-EF form (15-bit offset in P1-P2) and the short EF identifier form
+     * (P1 = 0x80 | SFI, offset in P2), which also selects the file.
      */
-    private fun handleReadBinaryCommandWithScuba(parseResult: ApduParser.ApduParseResult): ByteArray {
+    private fun handleReadBinaryCommandWithScuba(parseResult: ApduParser.ApduParseResult, isSecure: Boolean): ByteArray {
         Log.d(TAG, "Handling READ BINARY command with SCUBA")
         
-        if (!isAuthenticated) {
+        val files = ldsFiles ?: return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+        
+        val offset: Int
+        if ((parseResult.p1 and 0x80) != 0) {
+            val fileId = files.fidForSfi(parseResult.p1 and 0x1F, isApplicationSelected)
+                ?: return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+            selectedFileId = fileId
+            offset = parseResult.p2
+        } else {
+            offset = (parseResult.p1 shl 8) or parseResult.p2
+        }
+        
+        val fileId = selectedFileId
+        if (fileId == null) {
+            Log.w(TAG, "READ BINARY with no file selected")
+            return createErrorResponse(ErrorCodeMapper.SW_COMMAND_NOT_ALLOWED)
+        }
+        val fileContent = files.fileById(fileId, isApplicationSelected) ?: return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+        
+        // EF.CardAccess is public; every other file can only be read under secure messaging
+        if (!isSecure && !files.isPublic(fileId)) {
             Log.w(TAG, "READ BINARY attempted without authentication")
             emitEvent(NfcEvent.error(Clock.System.now(), "Authentication required for data access"))
             return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
         }
         
-        val fileContent = currentSelectedFile
-        if (fileContent == null) {
-            Log.w(TAG, "READ BINARY with no file selected")
-            return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
-        }
-        
-        // Calculate offset from P1/P2
-        val offset = (parseResult.p1 shl 8) or parseResult.p2
-        val le = if (parseResult.le == 0) 256 else parseResult.le // Le=0 means max length (256 bytes usually in short APDU)
-        
         if (offset >= fileContent.size) {
-            return createErrorResponse(ISO7816.SW_WRONG_LENGTH.toInt()) // Or End of File
+            return createErrorResponse(ISO7816.SW_WRONG_P1P2.toInt())
         }
         
-        val bytesToRead = minOf(le, fileContent.size - offset)
-        val responseData = fileContent.sliceArray(offset until offset + bytesToRead)
+        // Le=0 in a short APDU means up to 256 bytes
+        val le = if (parseResult.le == 0) 256 else parseResult.le
+        val bytesToRead = minOf(le, maxReadLength, fileContent.size - offset)
+        val responseData = fileContent.copyOfRange(offset, offset + bytesToRead)
         
-        Log.d(TAG, "READ BINARY success: Offset=$offset, Length=$bytesToRead")
+        val fileName = files.fileName(fileId, isApplicationSelected)
+        Log.d(TAG, "READ BINARY success: File=$fileName, Offset=$offset, Length=$bytesToRead")
         // Only emit event for first chunk to avoid spamming
         if (offset == 0) {
-            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Reading file content"))
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Reading $fileName"))
         }
         
         return createSuccessResponse(responseData)
@@ -574,11 +714,15 @@ class PassportHceService : HostApduService() {
         Log.d(TAG, "Handling GET CHALLENGE command with BAC protocol")
         
         try {
-            // Check if passport data is available
-            if (currentPassportData == null) {
+            // Check that the application was selected with passport data available
+            if (!isApplicationSelected || ldsFiles == null) {
                 Log.e(TAG, "No passport data available for BAC challenge")
                 emitEvent(NfcEvent.error(Clock.System.now(), "No passport data configured"))
                 return createErrorResponse(ISO7816.SW_CONDITIONS_NOT_SATISFIED.toInt())
+            }
+            
+            if (currentPassportData?.accessControl?.supportsBac != true) {
+                return bacDisabledResponse()
             }
             
             // Generate BAC challenge
@@ -608,10 +752,9 @@ class PassportHceService : HostApduService() {
         Log.d(TAG, "Handling EXTERNAL AUTHENTICATE command with BAC protocol")
         
         try {
-            currentProtocol = "BAC"
-            
             // Check if passport data is available
-            if (currentPassportData == null) {
+            val passportData = currentPassportData
+            if (passportData == null || ldsFiles == null) {
                 ErrorLogger.logAuthenticationError(
                     protocol = "BAC",
                     message = "No passport data available for BAC authentication",
@@ -621,6 +764,10 @@ class PassportHceService : HostApduService() {
                 emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "BAC", "No passport data configured"))
                 val errorResponse = ErrorCodeMapper.mapError(SimulatorError.SystemError.ConfigurationError("No passport data configured"))
                 return errorResponse.toByteArray()
+            }
+            
+            if (!passportData.accessControl.supportsBac) {
+                return bacDisabledResponse()
             }
             
             // Extract authentication data from APDU
@@ -644,7 +791,8 @@ class PassportHceService : HostApduService() {
             val authResult = bacProtocol.processExternalAuthenticate(authData)
             
             if (authResult.success) {
-                isAuthenticated = true
+                // Secure messaging is now established; later commands must be protected with the session keys
+                secureMessaging = bacProtocol.getSecureMessaging()
                 Log.d(TAG, "BAC authentication successful")
                 
                 ErrorLogger.logError(
@@ -692,171 +840,87 @@ class PassportHceService : HostApduService() {
     }
     
     /**
-     * Enhanced INTERNAL AUTHENTICATE command handler using SCUBA library.
+     * BAC commands on a PACE-only chip.
      */
-    private fun handleInternalAuthenticateCommandWithScuba(parseResult: ApduParser.ApduParseResult): ByteArray {
-        Log.d(TAG, "Handling INTERNAL AUTHENTICATE command with SCUBA")
-        
-        try {
-            currentProtocol = "PACE"
-            emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "Internal authentication"))
-            
-            // Placeholder implementation - will be enhanced in PACE task
-            // For now, simulate successful authentication
-            isAuthenticated = true
-            emitEvent(NfcEvent.authenticationSuccess(Clock.System.now(), "PACE"))
-            
-            return createSuccessResponse()
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in INTERNAL AUTHENTICATE", e)
-            emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", e.message ?: "Unknown error"))
-            return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
-        }
+    private fun bacDisabledResponse(): ByteArray {
+        Log.w(TAG, "BAC attempted on a PACE-only chip")
+        emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "BAC", "BAC disabled; chip requires PACE"))
+        return createErrorResponse(ISO7816.SW_INS_NOT_SUPPORTED.toInt())
     }
     
     /**
-     * Handles MSE SET AT command for PACE protocol initialization.
+     * PACE commands on a BAC-only chip, which has no EF.CardAccess advertising PACE.
      */
-    private fun handleMseSetAtCommandWithPace(parseResult: ApduParser.ApduParseResult): ByteArray {
-        Log.d(TAG, "Handling MSE SET AT command for PACE protocol")
-        
-        try {
-            currentProtocol = "PACE"
-            
-            // Check if passport data is available
-            if (currentPassportData == null) {
-                Log.e(TAG, "No passport data available for PACE MSE SET AT")
-                emitEvent(NfcEvent.error(Clock.System.now(), "No passport data configured"))
-                return createErrorResponse(ISO7816.SW_CONDITIONS_NOT_SATISFIED.toInt())
-            }
-            
-            // Extract MSE SET AT data from APDU
-            val mseData = parseResult.data ?: byteArrayOf()
-            
-            Log.d(TAG, "Processing PACE MSE SET AT with ${mseData.size} bytes of data")
-            emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "MSE SET AT for PACE"))
-            
-            // Process MSE SET AT with PACE protocol
-            val mseResult = paceProtocol.processMseSetAt(mseData)
-            
-            if (mseResult.success) {
-                Log.d(TAG, "PACE MSE SET AT processed successfully")
-                emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "PACE parameters established"))
-                return createSuccessResponse()
-            } else {
-                Log.e(TAG, "PACE MSE SET AT failed: ${mseResult.message}")
-                emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", mseResult.message))
-                return createErrorResponse(ISO7816.SW_WRONG_DATA.toInt())
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in PACE MSE SET AT", e)
-            emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", e.message ?: "Unknown error"))
-            return createErrorResponse(ISO7816.SW_UNKNOWN.toInt())
-        }
+    private fun paceDisabledResponse(): ByteArray {
+        Log.w(TAG, "PACE attempted on a BAC-only chip")
+        emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", "PACE disabled; chip requires BAC"))
+        return createErrorResponse(ISO7816.SW_INS_NOT_SUPPORTED.toInt())
     }
     
     /**
-     * Handles GENERAL AUTHENTICATE command for PACE protocol steps.
+     * MSE:Set AT selects the PACE protocol and password and starts a PACE run.
      */
-    private fun handleGeneralAuthenticateCommandWithPace(parseResult: ApduParser.ApduParseResult): ByteArray {
-        Log.d(TAG, "Handling GENERAL AUTHENTICATE command for PACE protocol")
-        
-        try {
-            currentProtocol = "PACE"
-            
-            // Check if passport data is available
-            if (currentPassportData == null) {
-                Log.e(TAG, "No passport data available for PACE GENERAL AUTHENTICATE")
-                emitEvent(NfcEvent.error(Clock.System.now(), "No passport data configured"))
-                return createErrorResponse(ISO7816.SW_CONDITIONS_NOT_SATISFIED.toInt())
-            }
-            
-            // Extract authentication data from APDU
-            val authData = parseResult.data ?: byteArrayOf()
-            val currentStep = paceProtocol.getCurrentStep()
-            
-            Log.d(TAG, "Processing PACE GENERAL AUTHENTICATE step $currentStep with ${authData.size} bytes of data")
-            
-            return when (paceProtocol.getCurrentState()) {
-                PaceProtocol.PaceState.MSE_SET_AT_PROCESSED -> {
-                    // Step 1: Generate encrypted nonce
-                    emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "PACE step 1: Generate nonce"))
-                    val nonceResult = paceProtocol.generateEncryptedNonce()
-                    
-                    if (nonceResult.success && nonceResult.data != null) {
-                        Log.d(TAG, "PACE encrypted nonce generated")
-                        emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "Encrypted nonce generated"))
-                        createSuccessResponse(nonceResult.data)
-                    } else {
-                        Log.e(TAG, "PACE nonce generation failed: ${nonceResult.message}")
-                        emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", nonceResult.message))
-                        createErrorResponse(ISO7816.SW_UNKNOWN.toInt())
-                    }
-                }
-                
-                PaceProtocol.PaceState.NONCE_GENERATED -> {
-                    // Step 2: Process terminal public key
-                    emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "PACE step 2: Process terminal key"))
-                    val keyResult = paceProtocol.processTerminalPublicKey(authData)
-                    
-                    if (keyResult.success && keyResult.data != null) {
-                        Log.d(TAG, "PACE terminal public key processed")
-                        emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "Terminal key processed"))
-                        createSuccessResponse(keyResult.data)
-                    } else {
-                        Log.e(TAG, "PACE terminal key processing failed: ${keyResult.message}")
-                        emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", keyResult.message))
-                        createErrorResponse(ISO7816.SW_WRONG_DATA.toInt())
-                    }
-                }
-                
-                PaceProtocol.PaceState.KEY_AGREEMENT_IN_PROGRESS -> {
-                    // Step 3: Perform key agreement
-                    emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "PACE step 3: Key agreement"))
-                    val agreementResult = paceProtocol.performKeyAgreement()
-                    
-                    if (agreementResult.success && agreementResult.data != null) {
-                        Log.d(TAG, "PACE key agreement completed")
-                        emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "Key agreement completed"))
-                        createSuccessResponse(agreementResult.data)
-                    } else {
-                        Log.e(TAG, "PACE key agreement failed: ${agreementResult.message}")
-                        emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", agreementResult.message))
-                        createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
-                    }
-                }
-                
-                PaceProtocol.PaceState.MUTUAL_AUTHENTICATION -> {
-                    // Step 4: Verify terminal authentication
-                    emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), "PACE step 4: Verify authentication"))
-                    val authResult = paceProtocol.verifyTerminalAuthentication(authData)
-                    
-                    if (authResult.success) {
-                        isAuthenticated = true
-                        Log.d(TAG, "PACE authentication completed successfully")
-                        emitEvent(NfcEvent.authenticationSuccess(Clock.System.now(), "PACE"))
-                        createSuccessResponse()
-                    } else {
-                        Log.e(TAG, "PACE authentication verification failed: ${authResult.message}")
-                        emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", authResult.message))
-                        createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
-                    }
-                }
-                
-                else -> {
-                    Log.w(TAG, "PACE GENERAL AUTHENTICATE in invalid state: ${paceProtocol.getCurrentState()}")
-                    emitEvent(NfcEvent.error(Clock.System.now(), "Invalid PACE state for GENERAL AUTHENTICATE"))
-                    createErrorResponse(ISO7816.SW_CONDITIONS_NOT_SATISFIED.toInt())
-                }
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in PACE GENERAL AUTHENTICATE", e)
-            emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", e.message ?: "Unknown error"))
-            return createErrorResponse(ISO7816.SW_UNKNOWN.toInt())
+    private fun handleMseSetAtCommand(parseResult: ApduParser.ApduParseResult): ByteArray {
+        val passportData = currentPassportData
+        if (passportData == null || ldsFiles == null) {
+            emitEvent(NfcEvent.error(Clock.System.now(), "No passport data configured"))
+            return createErrorResponse(ISO7816.SW_CONDITIONS_NOT_SATISFIED.toInt())
         }
+        if (!passportData.accessControl.supportsPace) {
+            return paceDisabledResponse()
+        }
+        
+        val result = paceProtocol.processMseSetAt(parseResult.data ?: byteArrayOf())
+        if (!result.success) {
+            ErrorLogger.logAuthenticationError(
+                protocol = "PACE",
+                message = "MSE:Set AT rejected: ${result.message}",
+                error = SimulatorError.ProtocolError.PaceAuthenticationFailed,
+                correlationId = sessionCorrelationId
+            )
+            emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", result.message))
+            return createErrorResponse(result.statusWord)
+        }
+        
+        Log.d(TAG, result.message)
+        emitEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), paceProtocol.oid))
+        return createSuccessResponse()
+    }
+    
+    /**
+     * GENERAL AUTHENTICATE runs the four PACE steps; the last one establishes secure messaging.
+     */
+    private fun handleGeneralAuthenticateCommand(parseResult: ApduParser.ApduParseResult): ByteArray {
+        if (currentPassportData?.accessControl?.supportsPace != true) {
+            return paceDisabledResponse()
+        }
+        
+        val result = paceProtocol.processGeneralAuthenticate(parseResult.data ?: byteArrayOf())
+        if (!result.success) {
+            ErrorLogger.logAuthenticationError(
+                protocol = "PACE",
+                message = "PACE authentication failed: ${result.message}",
+                error = SimulatorError.ProtocolError.PaceAuthenticationFailed,
+                context = mapOf("paceMessage" to result.message),
+                correlationId = sessionCorrelationId
+            )
+            emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "PACE", result.message))
+            return createErrorResponse(result.statusWord)
+        }
+        
+        if (result.newState == PaceProtocol.PaceState.AUTHENTICATED) {
+            // Secure messaging starts with the next command; this response is still sent in plain
+            secureMessaging = paceProtocol.getSecureMessaging()
+            ErrorLogger.logError(
+                level = ErrorLogger.LogLevel.INFO,
+                category = ErrorLogger.ErrorCategory.AUTHENTICATION,
+                message = "PACE authentication successful",
+                correlationId = sessionCorrelationId
+            )
+            emitEvent(NfcEvent.authenticationSuccess(Clock.System.now(), "PACE-${paceProtocol.getMapping().abbreviation}"))
+        }
+        
+        return createSuccessResponse(result.data ?: byteArrayOf())
     }
     
     /**
@@ -872,9 +936,7 @@ class PassportHceService : HostApduService() {
      * Emits an NFC event to the shared flow.
      */
     private fun emitEvent(event: NfcEvent) {
-        serviceScope.launch {
-            _nfcEvents.emit(event)
-        }
+        _nfcEvents.tryEmit(event)
     }
 
 }

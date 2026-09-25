@@ -31,7 +31,7 @@ class PassportSimulatorUiStateTest {
         assertFalse(state.isLoading)
         assertEquals(null, state.errorMessage)
         assertEquals(emptyList(), state.nfcEvents)
-        assertEquals(100, state.maxEventCount)
+        assertEquals(2000, state.maxEventCount)
     }
     
     @Test
@@ -282,7 +282,7 @@ class PassportSimulatorUiStateTest {
             NfcEvent.connectionEstablished(Instant.fromEpochSeconds(i.toLong()))
         }
         
-        var state = PassportSimulatorUiState.initial()
+        var state = PassportSimulatorUiState.initial().copy(maxEventCount = 100)
         events.forEach { event ->
             state = state.withNewEvent(event)
         }

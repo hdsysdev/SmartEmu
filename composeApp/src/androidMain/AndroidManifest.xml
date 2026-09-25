@@ -37,6 +37,17 @@
                 android:name="android.nfc.cardemulation.host_apdu_service"
                 android:resource="@xml/passport_aid_list" />
         </service>
+
+        <!-- Lets other apps read the event logs shared from the emulator screen -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_file_paths" />
+        </provider>
     </application>
 
 </manifest>

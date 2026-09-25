@@ -16,6 +16,7 @@ object ApduParser {
     
     // APDU command constants
     private const val CLA_ISO7816 = 0x00.toByte()
+    private const val CLA_COMMAND_CHAINING = 0x10.toByte()
     private const val INS_SELECT = 0xA4.toByte()
     private const val INS_READ_BINARY = 0xB0.toByte()
     private const val INS_GET_CHALLENGE = 0x84.toByte()
@@ -24,9 +25,9 @@ object ApduParser {
     private const val INS_MSE_SET_AT = 0x22.toByte()
     private const val INS_GENERAL_AUTHENTICATE = 0x86.toByte()
     
-    // Passport AID
+    // Passport (LDS1 eMRTD) application AID, ICAO 9303 part 10: A0 00 00 02 47 10 01
     val PASSPORT_AID = byteArrayOf(
-        0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(),
+        0xA0.toByte(), 0x00.toByte(), 0x00.toByte(),
         0x02.toByte(), 0x47.toByte(), 0x10.toByte(), 0x01.toByte()
     )
     
@@ -108,6 +109,8 @@ object ApduParser {
         val ins = apdu[1]
         
         return when {
+            // PACE sends its GENERAL AUTHENTICATE steps as a command chain
+            cla == CLA_COMMAND_CHAINING && ins == INS_GENERAL_AUTHENTICATE -> parseGeneralAuthenticateCommand(apdu)
             cla != CLA_ISO7816 -> ApduParseResult(
                 commandType = ApduCommandType.INVALID,
                 isValid = false,
@@ -157,8 +160,8 @@ object ApduParser {
              }
         }
         
-        // Case 2: Select by File ID (P1=02, P2=0C)
-        if (p1 == 0x02) {
+        // Case 2: Select by File ID, either as EF under the current DF (P1=02) or MF/DF/EF (P1=00)
+        if (p1 == 0x02 || p1 == 0x00) {
             if (apdu.size < 5) return ApduParseResult(ApduCommandType.SELECT, false, errorResponse = SW_WRONG_LENGTH)
             val lc = apdu[4].toInt() and 0xFF
             // File ID is typically 2 bytes
@@ -275,7 +278,7 @@ object ApduParser {
     }
     
     /**
-     * Parses an MSE SET AT command for PACE protocol.
+     * Parses an MSE:Set AT command selecting PACE (P1=C1: set for mutual authentication, P2=A4: AT template).
      */
     private fun parseMseSetAtCommand(apdu: ByteArray): ApduParseResult {
         if (apdu.size < 4) {
@@ -289,8 +292,7 @@ object ApduParser {
         val p1 = apdu[2]
         val p2 = apdu[3]
         
-        // Check for PACE-specific MSE SET AT parameters
-        if (p1 == 0x81.toByte() && p2 == 0xB6.toByte()) {
+        if (p1 == 0xC1.toByte() && p2 == 0xA4.toByte()) {
             val lc = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
             val data = if (lc > 0 && apdu.size >= 5 + lc) {
                 apdu.sliceArray(5 until 5 + lc)

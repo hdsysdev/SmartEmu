@@ -5,15 +5,21 @@ import android.content.pm.PackageManager
 import android.nfc.NfcAdapter
 import android.nfc.cardemulation.HostApduService
 import android.os.Build
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.hddev.smartemu.PassportHceService
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.SimulationStatus
+import com.hddev.smartemu.utils.EventLogFormatter
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
@@ -42,7 +48,8 @@ class AndroidNfcSimulatorRepository(
     
     // State flows for reactive updates
     private val _simulationStatus = MutableStateFlow(SimulationStatus.STOPPED)
-    private val _nfcEvents = MutableStateFlow<List<NfcEvent>>(emptyList())
+    // Events are passed on as they happen rather than kept here; the ViewModel keeps the log
+    private val _nfcEvents = MutableSharedFlow<NfcEvent>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     
     // NFC adapter for hardware access
     private val nfcAdapter: NfcAdapter? by lazy {
@@ -71,7 +78,12 @@ class AndroidNfcSimulatorRepository(
                     timestamp = Clock.System.now(),
                     type = com.hddev.smartemu.data.NfcEventType.CONNECTION_ESTABLISHED,
                     message = "Starting NFC passport simulation",
-                    details = mapOf("passportNumber" to passportData.passportNumber)
+                    details = mapOf(
+                        "passportNumber" to passportData.passportNumber,
+                        "accessControl" to passportData.accessControl.displayName,
+                        "paceMapping" to passportData.paceMapping.abbreviation,
+                        "can" to passportData.can.ifBlank { "none" }
+                    )
                 ))
                 
                 // Store passport data for HCE service
@@ -137,14 +149,13 @@ class AndroidNfcSimulatorRepository(
         return _simulationStatus.asStateFlow()
     }
     
+    /**
+     * The repository's own events merged with the reader's, from [PassportHceService]. Each is also written to logcat
+     * as a JSON line under [EventLogFormatter.LOGCAT_TAG], so `adb logcat -s SmartEmuEvents` follows the log live.
+     */
     override fun getNfcEvents(): Flow<NfcEvent> {
-        return kotlinx.coroutines.flow.flow {
-            _nfcEvents.collect { events ->
-                events.forEach { event ->
-                    emit(event)
-                }
-            }
-        }
+        return merge(_nfcEvents, PassportHceService.nfcEvents)
+            .onEach { Log.i(EventLogFormatter.LOGCAT_TAG, EventLogFormatter.eventJson(it)) }
     }
     
     override suspend fun isNfcAvailable(): Result<Boolean> {
@@ -216,9 +227,7 @@ class AndroidNfcSimulatorRepository(
     }
     
     override suspend fun clearEvents() {
-        mutex.withLock {
-            _nfcEvents.value = emptyList()
-        }
+        // Nothing to clear: past events aren't kept here
     }
     
     /**
@@ -231,15 +240,7 @@ class AndroidNfcSimulatorRepository(
     }
 
     private fun addEventInternal(event: NfcEvent) {
-        val currentEvents = _nfcEvents.value.toMutableList()
-        currentEvents.add(event)
-        
-        // Keep only the last 100 events to prevent memory issues
-        if (currentEvents.size > 100) {
-            currentEvents.removeAt(0)
-        }
-        
-        _nfcEvents.value = currentEvents
+        _nfcEvents.tryEmit(event)
     }
     
     /**

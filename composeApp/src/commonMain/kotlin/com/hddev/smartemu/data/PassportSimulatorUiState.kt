@@ -13,7 +13,8 @@ data class PassportSimulatorUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val nfcEvents: List<NfcEvent> = emptyList(),
-    val maxEventCount: Int = 100
+    // Room for the APDU trace of a few complete reads, each a few hundred commands with DG2
+    val maxEventCount: Int = 2000
 ) {
     
     /**

@@ -85,7 +85,7 @@ class PassportDataTest {
         assertTrue(validPassportData.copy(issuingCountry = "GBR", nationality = "GBR").isValid())
         
         // Invalid country codes
-        assertFalse(validPassportData.copy(issuingCountry = "XXX").isValid())
+        assertFalse(validPassportData.copy(issuingCountry = "ZZZ").isValid())
         assertFalse(validPassportData.copy(nationality = "YYY").isValid())
         assertFalse(validPassportData.copy(issuingCountry = "nl").isValid()) // Lowercase
     }
@@ -101,6 +101,25 @@ class PassportDataTest {
         assertFalse(validPassportData.copy(lastName = "").isValid())
         assertFalse(validPassportData.copy(firstName = "A".repeat(40)).isValid()) // Too long
         assertFalse(validPassportData.copy(lastName = "B".repeat(40)).isValid()) // Too long
+    }
+    
+    @Test
+    fun testCanValidation() {
+        assertTrue(validPassportData.copy(can = "").isValid())
+        assertTrue(validPassportData.copy(can = "012345").isValid())
+        assertFalse(validPassportData.copy(can = "12345").isValid())
+        assertFalse(validPassportData.copy(can = "1234567").isValid())
+        assertFalse(validPassportData.copy(can = "12345A").isValid())
+        assertEquals("CAN must be 6 digits", validPassportData.copy(can = "1").getValidationErrors()["can"])
+    }
+    
+    @Test
+    fun testMrzLines() {
+        val lines = validPassportData.toMrzLines()
+        
+        assertEquals(2, lines.size)
+        assertTrue(lines.all { it.length == PassportData.MRZ_LINE_LENGTH })
+        assertEquals(validPassportData.toMrzData(), lines.joinToString(""))
     }
     
     @Test
@@ -159,8 +178,8 @@ class PassportDataTest {
         
         val mrz = dataWithSpaces.toMrzData()
         
-        // Spaces should be removed and names should be properly formatted
-        assertTrue(mrz.contains("VANDERBERG<<MARYJANE"))
+        // Spaces separate name components with a filler, as in ICAO 9303
+        assertTrue(mrz.contains("VAN<DER<BERG<<MARY<JANE"))
     }
     
     @Test
@@ -169,7 +188,7 @@ class PassportDataTest {
             passportNumber = "123", // Too short
             dateOfBirth = LocalDate(2025, 1, 1), // Future date
             expiryDate = LocalDate(2020, 1, 1), // Past date
-            issuingCountry = "XXX", // Invalid country
+            issuingCountry = "ZZZ", // Invalid country
             nationality = "YYY", // Invalid nationality
             firstName = "", // Empty
             lastName = "", // Empty

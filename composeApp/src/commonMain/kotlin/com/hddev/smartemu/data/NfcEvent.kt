@@ -96,6 +96,34 @@ data class NfcEvent(
                 details = errorCode?.let { mapOf("errorCode" to it) } ?: emptyMap()
             )
         }
+        
+        /**
+         * Creates an APDU exchange event: the command as received and the response as sent, in hex.
+         * [status] is the status word the chip answered with, such as 9000. Under secure messaging, [plainCommand]
+         * and [plainResponse] are the unwrapped command and the response before it was protected.
+         */
+        fun apdu(
+            timestamp: Instant,
+            summary: String,
+            status: String,
+            command: String,
+            response: String,
+            plainCommand: String? = null,
+            plainResponse: String? = null
+        ): NfcEvent {
+            return NfcEvent(
+                timestamp = timestamp,
+                type = NfcEventType.APDU,
+                message = summary,
+                details = buildMap {
+                    put("status", status)
+                    put("command", command)
+                    put("response", response)
+                    plainCommand?.let { put("plainCommand", it) }
+                    plainResponse?.let { put("plainResponse", it) }
+                }
+            )
+        }
     }
 }
 
@@ -136,7 +164,12 @@ enum class NfcEventType {
     /**
      * An error has occurred during NFC operations.
      */
-    ERROR;
+    ERROR,
+    
+    /**
+     * A command APDU from the reader and the chip's response.
+     */
+    APDU;
     
     /**
      * Returns a human-readable description of the event type.
@@ -150,6 +183,7 @@ enum class NfcEventType {
             AUTHENTICATION_FAILURE -> "Authentication Failure"
             CONNECTION_LOST -> "Connection Lost"
             ERROR -> "Error"
+            APDU -> "APDU"
         }
     }
     
@@ -167,3 +201,7 @@ enum class NfcEventType {
         return this == CONNECTION_ESTABLISHED || this == AUTHENTICATION_SUCCESS
     }
 }
+/**
+ * True for an APDU exchange the chip answered with anything but 9000, success.
+ */
+fun NfcEvent.isFailedApdu(): Boolean = type == NfcEventType.APDU && details["status"] != "9000"

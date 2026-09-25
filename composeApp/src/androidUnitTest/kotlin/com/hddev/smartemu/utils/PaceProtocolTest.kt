@@ -1,390 +1,163 @@
 package com.hddev.smartemu.utils
 
+import com.hddev.smartemu.data.PaceMapping
 import com.hddev.smartemu.data.PassportData
 import kotlinx.datetime.LocalDate
+import net.sf.scuba.tlv.TLVUtil
+import org.jmrtd.PassportService
+import org.jmrtd.Util
+import org.jmrtd.lds.PACEInfo
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Unit tests for PACE (Password Authenticated Connection Establishment) protocol implementation.
+ * Unit tests for the chip side of PACE. The complete protocol run is covered against JMRTD's reader in
+ * PaceIntegrationTest; these tests cover what a reader must not get away with.
  */
 class PaceProtocolTest {
-    
-    private val validPassportData = PassportData(
+
+    private val passportData = PassportData(
         passportNumber = "L898902C3",
         dateOfBirth = LocalDate(1974, 8, 12),
-        expiryDate = LocalDate(2025, 4, 15),
-        issuingCountry = "NLD",
-        nationality = "NLD",
+        expiryDate = LocalDate(2034, 4, 15),
         firstName = "ANNA",
         lastName = "ERIKSSON",
         gender = "F"
     )
-    
-    private val invalidPassportData = PassportData(
-        passportNumber = "", // Invalid empty passport number
-        dateOfBirth = null,
-        expiryDate = null
-    )
-    
-    @Test
-    fun `initialize with valid passport data should succeed`() {
-        val paceProtocol = PaceProtocol()
-        
-        val result = paceProtocol.initialize(validPassportData)
-        
-        assertTrue(result.success)
-        assertEquals("PACE initialized", result.message)
-        assertEquals(PaceProtocol.PaceState.INITIAL, result.newState)
-        assertEquals(PaceProtocol.PaceState.INITIAL, paceProtocol.getCurrentState())
-        assertEquals(0, paceProtocol.getCurrentStep())
+
+    private fun initializedProtocol(data: PassportData = passportData): PaceProtocol = PaceProtocol().also {
+        assertTrue(it.initialize(data).success)
     }
-    
+
+    private fun mseSetAt(
+        oid: String = PaceProtocol.oid(PaceMapping.GENERIC),
+        passwordReference: Byte = PassportService.MRZ_PACE_KEY_REFERENCE,
+        parameterId: Int? = PaceProtocol.PARAMETER_ID
+    ): ByteArray {
+        val parameter = parameterId?.let { TLVUtil.wrapDO(0x84, byteArrayOf(it.toByte())) } ?: byteArrayOf()
+        return Util.toOIDBytes(oid) + TLVUtil.wrapDO(0x83, byteArrayOf(passwordReference)) + parameter
+    }
+
+    private fun generalAuthenticate(vararg dataObjects: ByteArray): ByteArray =
+        TLVUtil.wrapDO(0x7C, dataObjects.fold(byteArrayOf()) { acc, it -> acc + it })
+
     @Test
-    fun `initialize with invalid passport data should fail`() {
-        val paceProtocol = PaceProtocol()
-        
-        val result = paceProtocol.initialize(invalidPassportData)
-        
+    fun `MSE Set AT with the advertised protocol and the MRZ password is accepted`() {
+        val pace = initializedProtocol()
+
+        val result = pace.processMseSetAt(mseSetAt())
+
+        assertTrue(result.success, result.message)
+        assertEquals(PaceProtocol.PaceState.KEY_SELECTED, pace.getCurrentState())
+    }
+
+    @Test
+    fun `MSE Set AT without a domain parameter reference is accepted`() {
+        assertTrue(initializedProtocol().processMseSetAt(mseSetAt(parameterId = null)).success)
+    }
+
+    @Test
+    fun `MSE Set AT with an unsupported protocol is rejected with wrong data`() {
+        val result = initializedProtocol().processMseSetAt(mseSetAt(oid = PACEInfo.ID_PACE_ECDH_IM_AES_CBC_CMAC_128))
+
         assertFalse(result.success)
-        assertEquals("Invalid passport data", result.message)
-        assertEquals(PaceProtocol.PaceState.FAILED, result.newState)
-        assertEquals(PaceProtocol.PaceState.FAILED, paceProtocol.getCurrentState())
+        assertEquals(PaceProtocol.SW_WRONG_DATA, result.statusWord)
     }
-    
+
     @Test
-    fun `process MSE SET AT in initial state should succeed`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte(), 0x04.toByte(), 0x00.toByte(), 0x7F.toByte(), 0x00.toByte(), 0x07.toByte(), 0x02.toByte(), 0x02.toByte(), 0x04.toByte(), 0x02.toByte(), 0x02.toByte())
-        val result = paceProtocol.processMseSetAt(mseData)
-        
-        assertTrue(result.success)
-        assertEquals("MSE SET AT processed", result.message)
-        assertEquals(PaceProtocol.PaceState.MSE_SET_AT_PROCESSED, result.newState)
-        assertEquals(PaceProtocol.PaceState.MSE_SET_AT_PROCESSED, paceProtocol.getCurrentState())
-        assertEquals(2, result.nextStep)
-    }
-    
-    @Test
-    fun `process MSE SET AT in wrong state should fail`() {
-        val paceProtocol = PaceProtocol()
-        // Don't initialize - should be in wrong state
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        val result = paceProtocol.processMseSetAt(mseData)
-        
+    fun `MSE Set AT with the CAN as password is rejected because the chip has no CAN`() {
+        val result = initializedProtocol().processMseSetAt(mseSetAt(passwordReference = PassportService.CAN_PACE_KEY_REFERENCE))
+
         assertFalse(result.success)
-        assertEquals("Invalid state for MSE SET AT", result.message)
+        assertEquals(PaceProtocol.SW_REFERENCED_DATA_NOT_FOUND, result.statusWord)
     }
-    
+
     @Test
-    fun `process MSE SET AT with empty data should fail`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val result = paceProtocol.processMseSetAt(byteArrayOf())
-        
+    fun `MSE Set AT with the CAN as password is accepted when the document has a CAN`() {
+        val pace = initializedProtocol(passportData.copy(can = "123456"))
+
+        val result = pace.processMseSetAt(mseSetAt(passwordReference = PassportService.CAN_PACE_KEY_REFERENCE))
+
+        assertTrue(result.success, result.message)
+        assertEquals("PACE-GM selected with the CAN", result.message)
+    }
+
+    @Test
+    fun `MSE Set AT with a PIN as password is rejected`() {
+        val pace = initializedProtocol(passportData.copy(can = "123456"))
+
+        val result = pace.processMseSetAt(mseSetAt(passwordReference = PassportService.PIN_PACE_KEY_REFERENCE))
+
+        assertEquals(PaceProtocol.SW_REFERENCED_DATA_NOT_FOUND, result.statusWord)
+    }
+
+    @Test
+    fun `chip accepts only the mapping it advertises`() {
+        val pace = PaceProtocol().also {
+            val camData = passportData.copy(paceMapping = PaceMapping.CHIP_AUTHENTICATION)
+            assertTrue(it.initialize(camData, PaceProtocol.generateChipAuthenticationKeyPair()).success)
+        }
+
+        assertEquals(PaceProtocol.SW_WRONG_DATA, pace.processMseSetAt(mseSetAt()).statusWord)
+        assertTrue(pace.processMseSetAt(mseSetAt(oid = PaceProtocol.oid(PaceMapping.CHIP_AUTHENTICATION))).success)
+    }
+
+    @Test
+    fun `chip authentication mapping needs the chip key pair`() {
+        val camData = passportData.copy(paceMapping = PaceMapping.CHIP_AUTHENTICATION)
+
+        assertFalse(PaceProtocol().initialize(camData).success)
+        assertTrue(PaceProtocol().initialize(camData, PaceProtocol.generateChipAuthenticationKeyPair()).success)
+    }
+
+    @Test
+    fun `MSE Set AT with other domain parameters is rejected`() {
+        val result = initializedProtocol().processMseSetAt(mseSetAt(parameterId = PACEInfo.PARAM_ID_ECP_BRAINPOOL_P256_R1))
+
         assertFalse(result.success)
-        assertEquals("Invalid MSE SET AT data", result.message)
-        assertEquals(PaceProtocol.PaceState.FAILED, result.newState)
+        assertEquals(PaceProtocol.SW_REFERENCED_DATA_NOT_FOUND, result.statusWord)
     }
-    
+
     @Test
-    fun `generate encrypted nonce after MSE SET AT should succeed`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        
-        val result = paceProtocol.generateEncryptedNonce()
-        
-        assertTrue(result.success)
-        assertEquals("Encrypted nonce generated", result.message)
-        assertEquals(PaceProtocol.PaceState.NONCE_GENERATED, result.newState)
-        assertEquals(PaceProtocol.PaceState.NONCE_GENERATED, paceProtocol.getCurrentState())
-        assertNotNull(result.data)
-        assertEquals(16, result.data!!.size) // Nonce should be 16 bytes
-        assertEquals(3, result.nextStep)
-    }
-    
-    @Test
-    fun `generate encrypted nonce in wrong state should fail`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        // Don't process MSE SET AT - should be in wrong state
-        
-        val result = paceProtocol.generateEncryptedNonce()
-        
+    fun `GENERAL AUTHENTICATE before MSE Set AT is out of sequence`() {
+        val result = initializedProtocol().processGeneralAuthenticate(generalAuthenticate())
+
         assertFalse(result.success)
-        assertEquals("Invalid state for nonce generation", result.message)
+        assertEquals(PaceProtocol.SW_CONDITIONS_NOT_SATISFIED, result.statusWord)
     }
-    
+
     @Test
-    fun `process terminal public key after nonce generation should succeed`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        paceProtocol.generateEncryptedNonce()
-        
-        val terminalPubKey = ByteArray(65) { it.toByte() } // Mock EC public key
-        val result = paceProtocol.processTerminalPublicKey(terminalPubKey)
-        
-        assertTrue(result.success)
-        assertEquals("Key agreement initiated", result.message)
-        assertEquals(PaceProtocol.PaceState.KEY_AGREEMENT_IN_PROGRESS, result.newState)
-        assertEquals(PaceProtocol.PaceState.KEY_AGREEMENT_IN_PROGRESS, paceProtocol.getCurrentState())
-        assertNotNull(result.data) // Should return card's public key
-        assertEquals(4, result.nextStep)
+    fun `first GENERAL AUTHENTICATE returns a nonce encrypted to one AES block`() {
+        val pace = initializedProtocol()
+        pace.processMseSetAt(mseSetAt())
+
+        val result = pace.processGeneralAuthenticate(generalAuthenticate())
+
+        assertTrue(result.success, result.message)
+        val encryptedNonce = TLVUtil.unwrapDO(0x80, TLVUtil.unwrapDO(0x7C, result.data!!))
+        assertEquals(16, encryptedNonce.size)
+        assertEquals(PaceProtocol.PaceState.NONCE_SENT, pace.getCurrentState())
     }
-    
+
     @Test
-    fun `process terminal public key in wrong state should fail`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        // Don't generate nonce - should be in wrong state
-        
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        val result = paceProtocol.processTerminalPublicKey(terminalPubKey)
-        
+    fun `mapping data that is not a curve point fails the run`() {
+        val pace = initializedProtocol()
+        pace.processMseSetAt(mseSetAt())
+        pace.processGeneralAuthenticate(generalAuthenticate())
+        val notOnCurve = byteArrayOf(0x04) + ByteArray(64) { 0x01 }
+
+        val result = pace.processGeneralAuthenticate(generalAuthenticate(TLVUtil.wrapDO(0x81, notOnCurve)))
+
         assertFalse(result.success)
-        assertEquals("Invalid state for key processing", result.message)
+        assertEquals(PaceProtocol.PaceState.FAILED, pace.getCurrentState())
+        assertNull(pace.getSecureMessaging())
     }
-    
+
     @Test
-    fun `perform key agreement after terminal public key should succeed`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        paceProtocol.generateEncryptedNonce()
-        
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        paceProtocol.processTerminalPublicKey(terminalPubKey)
-        
-        val result = paceProtocol.performKeyAgreement()
-        
-        assertTrue(result.success)
-        assertEquals("Key agreement completed", result.message)
-        assertEquals(PaceProtocol.PaceState.MUTUAL_AUTHENTICATION, result.newState)
-        assertEquals(PaceProtocol.PaceState.MUTUAL_AUTHENTICATION, paceProtocol.getCurrentState())
-        assertNotNull(result.data) // Should return authentication token
-        assertEquals(5, result.nextStep)
-    }
-    
-    @Test
-    fun `perform key agreement in wrong state should fail`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        // Don't process terminal public key - should be in wrong state
-        
-        val result = paceProtocol.performKeyAgreement()
-        
-        assertFalse(result.success)
-        assertEquals("Invalid state for key agreement", result.message)
-    }
-    
-    @Test
-    fun `verify terminal authentication with valid token should succeed`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        paceProtocol.generateEncryptedNonce()
-        
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        paceProtocol.processTerminalPublicKey(terminalPubKey)
-        paceProtocol.performKeyAgreement()
-        
-        val terminalToken = ByteArray(16) { (it + 5).toByte() } // Valid token
-        val result = paceProtocol.verifyTerminalAuthentication(terminalToken)
-        
-        assertTrue(result.success)
-        assertEquals("PACE authentication successful", result.message)
-        assertEquals(PaceProtocol.PaceState.AUTHENTICATED, result.newState)
-        assertEquals(PaceProtocol.PaceState.AUTHENTICATED, paceProtocol.getCurrentState())
-        assertTrue(paceProtocol.isAuthenticated())
-    }
-    
-    @Test
-    fun `verify terminal authentication with invalid token should fail`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        paceProtocol.generateEncryptedNonce()
-        
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        paceProtocol.processTerminalPublicKey(terminalPubKey)
-        paceProtocol.performKeyAgreement()
-        
-        val invalidToken = byteArrayOf() // Empty token
-        val result = paceProtocol.verifyTerminalAuthentication(invalidToken)
-        
-        assertFalse(result.success)
-        assertEquals("Authentication token verification failed", result.message)
-        assertEquals(PaceProtocol.PaceState.FAILED, result.newState)
-        assertFalse(paceProtocol.isAuthenticated())
-    }
-    
-    @Test
-    fun `verify terminal authentication in wrong state should fail`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        // Don't perform key agreement - should be in wrong state
-        
-        val terminalToken = ByteArray(16) { it.toByte() }
-        val result = paceProtocol.verifyTerminalAuthentication(terminalToken)
-        
-        assertFalse(result.success)
-        assertEquals("Invalid state for authentication verification", result.message)
-    }
-    
-    @Test
-    fun `reset should return to initial state`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        paceProtocol.generateEncryptedNonce()
-        
-        // Verify we're in nonce generated state
-        assertEquals(PaceProtocol.PaceState.NONCE_GENERATED, paceProtocol.getCurrentState())
-        
-        paceProtocol.reset()
-        
-        // Should be back to initial state
-        assertEquals(PaceProtocol.PaceState.INITIAL, paceProtocol.getCurrentState())
-        assertEquals(0, paceProtocol.getCurrentStep())
-        assertFalse(paceProtocol.isAuthenticated())
-    }
-    
-    @Test
-    fun `full PACE workflow should complete successfully`() {
-        val paceProtocol = PaceProtocol()
-        
-        // Step 1: Initialize
-        val initResult = paceProtocol.initialize(validPassportData)
-        assertTrue(initResult.success)
-        assertEquals(PaceProtocol.PaceState.INITIAL, paceProtocol.getCurrentState())
-        
-        // Step 2: Process MSE SET AT
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        val mseResult = paceProtocol.processMseSetAt(mseData)
-        assertTrue(mseResult.success)
-        assertEquals(PaceProtocol.PaceState.MSE_SET_AT_PROCESSED, paceProtocol.getCurrentState())
-        
-        // Step 3: Generate encrypted nonce
-        val nonceResult = paceProtocol.generateEncryptedNonce()
-        assertTrue(nonceResult.success)
-        assertEquals(PaceProtocol.PaceState.NONCE_GENERATED, paceProtocol.getCurrentState())
-        assertNotNull(nonceResult.data)
-        
-        // Step 4: Process terminal public key
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        val keyResult = paceProtocol.processTerminalPublicKey(terminalPubKey)
-        assertTrue(keyResult.success)
-        assertEquals(PaceProtocol.PaceState.KEY_AGREEMENT_IN_PROGRESS, paceProtocol.getCurrentState())
-        assertNotNull(keyResult.data)
-        
-        // Step 5: Perform key agreement
-        val agreementResult = paceProtocol.performKeyAgreement()
-        assertTrue(agreementResult.success)
-        assertEquals(PaceProtocol.PaceState.MUTUAL_AUTHENTICATION, paceProtocol.getCurrentState())
-        assertNotNull(agreementResult.data)
-        
-        // Step 6: Verify terminal authentication
-        val terminalToken = ByteArray(16) { (it + 5).toByte() }
-        val authResult = paceProtocol.verifyTerminalAuthentication(terminalToken)
-        assertTrue(authResult.success)
-        assertEquals(PaceProtocol.PaceState.AUTHENTICATED, paceProtocol.getCurrentState())
-        assertTrue(paceProtocol.isAuthenticated())
-        
-        // Step 7: Reset
-        paceProtocol.reset()
-        assertEquals(PaceProtocol.PaceState.INITIAL, paceProtocol.getCurrentState())
-        assertFalse(paceProtocol.isAuthenticated())
-    }
-    
-    @Test
-    fun `PACE state transitions should be enforced correctly`() {
-        val paceProtocol = PaceProtocol()
-        
-        // Should start in INITIAL state (after initialization)
-        paceProtocol.initialize(validPassportData)
-        assertEquals(PaceProtocol.PaceState.INITIAL, paceProtocol.getCurrentState())
-        
-        // Can only process MSE SET AT from INITIAL state
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        assertTrue(paceProtocol.processMseSetAt(mseData).success)
-        assertEquals(PaceProtocol.PaceState.MSE_SET_AT_PROCESSED, paceProtocol.getCurrentState())
-        
-        // Cannot process MSE SET AT again
-        assertFalse(paceProtocol.processMseSetAt(mseData).success)
-        
-        // Can only generate nonce from MSE_SET_AT_PROCESSED state
-        assertTrue(paceProtocol.generateEncryptedNonce().success)
-        assertEquals(PaceProtocol.PaceState.NONCE_GENERATED, paceProtocol.getCurrentState())
-        
-        // Cannot generate nonce again
-        assertFalse(paceProtocol.generateEncryptedNonce().success)
-        
-        // Can only process terminal public key from NONCE_GENERATED state
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        assertTrue(paceProtocol.processTerminalPublicKey(terminalPubKey).success)
-        assertEquals(PaceProtocol.PaceState.KEY_AGREEMENT_IN_PROGRESS, paceProtocol.getCurrentState())
-        
-        // Can only perform key agreement from KEY_AGREEMENT_IN_PROGRESS state
-        assertTrue(paceProtocol.performKeyAgreement().success)
-        assertEquals(PaceProtocol.PaceState.MUTUAL_AUTHENTICATION, paceProtocol.getCurrentState())
-        
-        // Can only verify authentication from MUTUAL_AUTHENTICATION state
-        val terminalToken = ByteArray(16) { it.toByte() }
-        assertTrue(paceProtocol.verifyTerminalAuthentication(terminalToken).success)
-        assertEquals(PaceProtocol.PaceState.AUTHENTICATED, paceProtocol.getCurrentState())
-        
-        // Cannot verify authentication again
-        assertFalse(paceProtocol.verifyTerminalAuthentication(terminalToken).success)
-    }
-    
-    @Test
-    fun `PACE protocol steps should increment correctly`() {
-        val paceProtocol = PaceProtocol()
-        paceProtocol.initialize(validPassportData)
-        
-        assertEquals(0, paceProtocol.getCurrentStep())
-        
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        val mseResult = paceProtocol.processMseSetAt(mseData)
-        assertEquals(1, paceProtocol.getCurrentStep())
-        assertEquals(2, mseResult.nextStep)
-        
-        val nonceResult = paceProtocol.generateEncryptedNonce()
-        assertEquals(2, paceProtocol.getCurrentStep())
-        assertEquals(3, nonceResult.nextStep)
-        
-        val terminalPubKey = ByteArray(65) { it.toByte() }
-        val keyResult = paceProtocol.processTerminalPublicKey(terminalPubKey)
-        assertEquals(3, paceProtocol.getCurrentStep())
-        assertEquals(4, keyResult.nextStep)
-        
-        val agreementResult = paceProtocol.performKeyAgreement()
-        assertEquals(4, paceProtocol.getCurrentStep())
-        assertEquals(5, agreementResult.nextStep)
-        
-        val terminalToken = ByteArray(16) { it.toByte() }
-        paceProtocol.verifyTerminalAuthentication(terminalToken)
-        assertEquals(5, paceProtocol.getCurrentStep())
+    fun `MSE Set AT before initialization fails`() {
+        assertFalse(PaceProtocol().processMseSetAt(mseSetAt()).success)
     }
 }

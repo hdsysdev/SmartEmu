@@ -1,0 +1,28 @@
+# Certificate profiles for the SmartEmu test PKI, following ICAO Doc 9303 part 12.
+# Used by generate.sh; not needed to use the generated certificates.
+
+[ req ]
+distinguished_name = req_distinguished_name
+prompt             = no
+string_mask        = utf8only
+
+[ req_distinguished_name ]
+
+# Country Signing CA: self-signed trust anchor
+[ csca_ext ]
+basicConstraints       = critical, CA:TRUE, pathlen:0
+keyUsage               = critical, keyCertSign, cRLSign
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+
+# Document Signer: signs EF.SOD, issued by the CSCA
+[ ds_ext ]
+keyUsage               = critical, digitalSignature
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+# ICAO document type list extension: passports ("P")
+2.23.136.1.1.6.2       = ASN1:SEQUENCE:document_type_list
+
+[ document_type_list ]
+version  = INTEGER:0
+docTypes = SETWRAP,PRINTABLESTRING:P
