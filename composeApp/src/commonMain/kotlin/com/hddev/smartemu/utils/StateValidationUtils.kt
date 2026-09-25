@@ -117,6 +117,11 @@ object StateValidationUtils {
                 // Error events can happen at any time
                 ValidationResult(true)
             }
+            
+            NfcEventType.APDU -> {
+                // Readers can send commands whether or not the simulation is running
+                ValidationResult(true)
+            }
         }
     }
     

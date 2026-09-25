@@ -1,5 +1,6 @@
 package com.hddev.smartemu.domain
 
+import com.hddev.smartemu.data.Countries
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.utils.DateValidationUtils
 
@@ -11,12 +12,6 @@ object PassportValidator {
     
     // ICAO passport number validation regex
     private val PASSPORT_NUMBER_REGEX = Regex("^[A-Z0-9]{6,9}$")
-    
-    // Valid country codes (ISO 3166-1 alpha-3)
-    private val VALID_COUNTRIES = setOf(
-        "NLD", "USA", "GBR", "DEU", "FRA", "ESP", "ITA", "CAN", "AUS", "JPN",
-        "BEL", "CHE", "AUT", "DNK", "FIN", "NOR", "SWE", "IRL", "PRT", "GRC"
-    )
     
     // Valid gender codes
     private val VALID_GENDERS = setOf("M", "F", "X")
@@ -58,6 +53,10 @@ object PassportValidator {
         
         validateGender(passportData.gender)?.let { error ->
             errors["gender"] = error
+        }
+        
+        validateCan(passportData.can)?.let { error ->
+            errors["can"] = error
         }
         
         return ValidationResult(
@@ -118,8 +117,8 @@ object PassportValidator {
         return when {
             countryCode.isBlank() -> "${fieldName.replaceFirstChar { it.uppercase() }} is required"
             countryCode.length != 3 -> "${fieldName.replaceFirstChar { it.uppercase() }} must be 3 characters"
-            !VALID_COUNTRIES.contains(countryCode.uppercase()) -> 
-                "Invalid $fieldName code. Must be a valid ISO 3166-1 alpha-3 code"
+            countryCode.uppercase() !in Countries.codes -> 
+                "Invalid $fieldName code. Must be a valid ICAO country code"
             else -> null
         }
     }
@@ -146,6 +145,18 @@ object PassportValidator {
             gender.isBlank() -> "Gender is required"
             !VALID_GENDERS.contains(gender.uppercase()) -> 
                 "Gender must be M (Male), F (Female), or X (Unspecified)"
+            else -> null
+        }
+    }
+    
+    /**
+     * Validates the Card Access Number: optional, otherwise exactly six digits as printed on the data page.
+     */
+    fun validateCan(can: String): String? {
+        return when {
+            can.isEmpty() -> null
+            can.length != PassportData.CAN_LENGTH || !can.all { it in '0'..'9' } ->
+                "CAN must be ${PassportData.CAN_LENGTH} digits"
             else -> null
         }
     }

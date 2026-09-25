@@ -2,57 +2,56 @@ package com.hddev.smartemu.utils
 
 import android.util.Log
 import com.hddev.smartemu.data.PassportData
-import java.security.MessageDigest
+import org.jmrtd.BACKey
+import org.jmrtd.Util
+import org.jmrtd.protocol.BACProtocol
 import java.security.SecureRandom
 import javax.crypto.Cipher
+import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 /**
- * Implementation of BAC (Basic Access Control) protocol for passport authentication.
- * Handles key derivation, challenge-response authentication, and secure messaging setup.
+ * Chip side of BAC (Basic Access Control), ICAO 9303 part 11 section 4.3.
+ * Mirrors the reader side in JMRTD's BACProtocol / BACAPDUSender: the chip answers GET CHALLENGE with RND.IC,
+ * verifies and decrypts the reader's EXTERNAL AUTHENTICATE cryptogram, answers with its own cryptogram and
+ * derives the 3DES session keys and send sequence counter for secure messaging.
  */
 class BacProtocol {
-    
+
     companion object {
         private const val TAG = "BacProtocol"
-        
-        // BAC protocol constants
+
         private const val CHALLENGE_LENGTH = 8
-        private const val KEY_LENGTH = 16
-        private const val DES_KEY_LENGTH = 8
-        
-        // Key derivation constants
-        private const val KDF_COUNTER_ENC = 1
-        private const val KDF_COUNTER_MAC = 2
-        
-        // Cipher algorithms
-        private const val DES_ALGORITHM = "DES"
-        private const val TRIPLE_DES_ALGORITHM = "DESede"
-        private const val DES_ECB_MODE = "DES/ECB/NoPadding"
-        private const val TRIPLE_DES_ECB_MODE = "DESede/ECB/NoPadding"
+        private const val KEY_MATERIAL_LENGTH = 16
+        private const val CRYPTOGRAM_LENGTH = 32
+        private const val MAC_LENGTH = 8
+
+        /** EXTERNAL AUTHENTICATE data: E_IFD (32 bytes) followed by M_IFD (8 bytes). */
+        const val MUTUAL_AUTHENTICATION_DATA_LENGTH = CRYPTOGRAM_LENGTH + MAC_LENGTH
+
+        private val ZERO_IV = IvParameterSpec(ByteArray(8))
     }
-    
+
     private val secureRandom = SecureRandom()
+    private val cipher: Cipher = Util.getCipher("DESede/CBC/NoPadding")
+    private val mac = Util.getMac("ISO9797Alg3Mac")
+
     private var currentState = BacState.INITIAL
-    private var passportData: PassportData? = null
-    private var kEnc: ByteArray? = null
-    private var kMac: ByteArray? = null
+    private var kEnc: SecretKey? = null
+    private var kMac: SecretKey? = null
     private var rndIc: ByteArray? = null
-    private var rndIfd: ByteArray? = null
-    private var kIfd: ByteArray? = null
-    
+    private var secureMessaging: ChipSecureMessaging? = null
+
     /**
      * BAC protocol states for state management.
      */
     enum class BacState {
         INITIAL,
         CHALLENGE_GENERATED,
-        AUTHENTICATION_IN_PROGRESS,
         AUTHENTICATED,
         FAILED
     }
-    
+
     /**
      * Result of BAC operations.
      */
@@ -65,7 +64,7 @@ class BacProtocol {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is BacResult) return false
-            
+
             if (success != other.success) return false
             if (message != other.message) return false
             if (data != null) {
@@ -73,10 +72,10 @@ class BacProtocol {
                 if (!data.contentEquals(other.data)) return false
             } else if (other.data != null) return false
             if (newState != other.newState) return false
-            
+
             return true
         }
-        
+
         override fun hashCode(): Int {
             var result = success.hashCode()
             result = 31 * result + message.hashCode()
@@ -85,19 +84,22 @@ class BacProtocol {
             return result
         }
     }
-    
+
     /**
-     * Initializes BAC protocol with passport data.
+     * Initializes BAC protocol with passport data, deriving the document basic access keys K_enc and K_mac.
      */
     fun initialize(passportData: PassportData): BacResult {
         return try {
             if (!passportData.isValid()) {
                 Log.e(TAG, "Invalid passport data provided for BAC initialization")
+                currentState = BacState.FAILED
                 BacResult(false, "Invalid passport data", newState = BacState.FAILED)
             } else {
-                this.passportData = passportData
-                deriveKeys(passportData)
-                currentState = BacState.INITIAL
+                val bacKey = BACKey(passportData.passportNumber, passportData.mrzDateOfBirth(), passportData.mrzExpiryDate())
+                val keySeed = BACProtocol.computeKeySeedForBAC(bacKey)
+                kEnc = Util.deriveKey(keySeed, Util.ENC_MODE)
+                kMac = Util.deriveKey(keySeed, Util.MAC_MODE)
+                reset()
                 Log.d(TAG, "BAC protocol initialized successfully")
                 BacResult(true, "BAC initialized", newState = BacState.INITIAL)
             }
@@ -107,28 +109,29 @@ class BacProtocol {
             BacResult(false, "BAC initialization failed: ${e.message}", newState = BacState.FAILED)
         }
     }
-    
+
     /**
-     * Generates a challenge for BAC authentication.
+     * Generates RND.IC for GET CHALLENGE. A new challenge restarts BAC and discards any previous session.
      */
     fun generateChallenge(): BacResult {
         return try {
-            if (currentState != BacState.INITIAL) {
-                Log.w(TAG, "Challenge generation attempted in invalid state: $currentState")
-                return BacResult(false, "Invalid state for challenge generation", newState = currentState)
+            if (kEnc == null || kMac == null) {
+                Log.w(TAG, "Challenge requested before BAC keys were derived")
+                return BacResult(false, "BAC not initialized", newState = currentState)
             }
-            
-            // Generate 8-byte random challenge (RND.IC)
-            rndIc = ByteArray(CHALLENGE_LENGTH)
-            secureRandom.nextBytes(rndIc!!)
-            
+
+            val challenge = ByteArray(CHALLENGE_LENGTH)
+            secureRandom.nextBytes(challenge)
+            rndIc = challenge
+            secureMessaging = null
+
             currentState = BacState.CHALLENGE_GENERATED
-            Log.d(TAG, "BAC challenge generated: ${rndIc!!.toHexString()}")
-            
+            Log.d(TAG, "BAC challenge generated")
+
             BacResult(
                 success = true,
                 message = "Challenge generated",
-                data = rndIc,
+                data = challenge.copyOf(),
                 newState = BacState.CHALLENGE_GENERATED
             )
         } catch (e: Exception) {
@@ -137,194 +140,105 @@ class BacProtocol {
             BacResult(false, "Challenge generation failed: ${e.message}", newState = BacState.FAILED)
         }
     }
-    
+
     /**
-     * Processes external authentication command for BAC.
+     * Processes EXTERNAL AUTHENTICATE (mutual authentication) data E_IFD || M_IFD.
+     * On success returns E_IC || M_IC and establishes secure messaging.
      */
     fun processExternalAuthenticate(authData: ByteArray): BacResult {
         return try {
-            if (currentState != BacState.CHALLENGE_GENERATED) {
+            val challenge = rndIc
+            val encKey = kEnc
+            val macKey = kMac
+            if (currentState != BacState.CHALLENGE_GENERATED || challenge == null || encKey == null || macKey == null) {
                 Log.w(TAG, "External authenticate attempted in invalid state: $currentState")
                 return BacResult(false, "Invalid state for authentication", newState = currentState)
             }
-            
-            currentState = BacState.AUTHENTICATION_IN_PROGRESS
-            
-            // Parse authentication data (should contain RND.IFD + K.IFD + encrypted data)
-            if (authData.size < 32) {
+
+            // The challenge is single use, whatever the outcome
+            rndIc = null
+
+            if (authData.size != MUTUAL_AUTHENTICATION_DATA_LENGTH) {
                 Log.e(TAG, "Invalid authentication data length: ${authData.size}")
-                currentState = BacState.FAILED
-                return BacResult(false, "Invalid authentication data", newState = BacState.FAILED)
+                return fail("Invalid authentication data length")
             }
-            
-            // Extract RND.IFD and K.IFD from authentication data
-            rndIfd = authData.sliceArray(0..7)
-            kIfd = authData.sliceArray(8..15)
-            
-            Log.d(TAG, "Processing BAC authentication - RND.IFD: ${rndIfd!!.toHexString()}, K.IFD: ${kIfd!!.toHexString()}")
-            
-            // Verify the authentication data
-            val verificationResult = verifyAuthentication(authData)
-            if (!verificationResult) {
-                Log.e(TAG, "BAC authentication verification failed")
-                currentState = BacState.FAILED
-                return BacResult(false, "Authentication verification failed", newState = BacState.FAILED)
+
+            val eIfd = authData.copyOfRange(0, CRYPTOGRAM_LENGTH)
+            val mIfd = authData.copyOfRange(CRYPTOGRAM_LENGTH, MUTUAL_AUTHENTICATION_DATA_LENGTH)
+            if (!computeMac(macKey, eIfd).contentEquals(mIfd)) {
+                Log.e(TAG, "BAC cryptogram MAC mismatch; reader used a different MRZ")
+                return fail("Authentication verification failed")
             }
-            
-            // Generate response data
-            val responseData = generateAuthenticationResponse()
-            
+
+            // S = RND.IFD || RND.IC || K.IFD
+            cipher.init(Cipher.DECRYPT_MODE, encKey, ZERO_IV)
+            val s = cipher.doFinal(eIfd)
+            val rndIfd = s.copyOfRange(0, 8)
+            val echoedRndIc = s.copyOfRange(8, 16)
+            val kIfd = s.copyOfRange(16, 32)
+            if (!echoedRndIc.contentEquals(challenge)) {
+                Log.e(TAG, "BAC cryptogram does not contain the issued challenge")
+                return fail("Authentication verification failed")
+            }
+
+            // R = RND.IC || RND.IFD || K.IC
+            val kIc = ByteArray(KEY_MATERIAL_LENGTH)
+            secureRandom.nextBytes(kIc)
+            cipher.init(Cipher.ENCRYPT_MODE, encKey, ZERO_IV)
+            val eIc = cipher.doFinal(challenge + rndIfd + kIc)
+            val mIc = computeMac(macKey, eIc)
+
+            val sessionKeySeed = ByteArray(KEY_MATERIAL_LENGTH) { i -> (kIfd[i].toInt() xor kIc[i].toInt()).toByte() }
+            secureMessaging = ChipSecureMessaging(
+                ksEnc = Util.deriveKey(sessionKeySeed, Util.ENC_MODE),
+                ksMac = Util.deriveKey(sessionKeySeed, Util.MAC_MODE),
+                ssc = BACProtocol.computeSendSequenceCounter(challenge, rndIfd)
+            )
+
             currentState = BacState.AUTHENTICATED
             Log.d(TAG, "BAC authentication successful")
-            
+
             BacResult(
                 success = true,
                 message = "BAC authentication successful",
-                data = responseData,
+                data = eIc + mIc,
                 newState = BacState.AUTHENTICATED
             )
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to process BAC external authentication", e)
-            currentState = BacState.FAILED
-            BacResult(false, "Authentication failed: ${e.message}", newState = BacState.FAILED)
+            fail("Authentication failed: ${e.message}")
         }
     }
-    
+
     /**
      * Gets the current BAC protocol state.
      */
     fun getCurrentState(): BacState = currentState
-    
+
     /**
-     * Resets the BAC protocol to initial state.
+     * Secure messaging session established by the last successful mutual authentication, if any.
+     */
+    fun getSecureMessaging(): ChipSecureMessaging? = secureMessaging
+
+    /**
+     * Resets the BAC protocol to initial state, keeping the document basic access keys.
      */
     fun reset() {
         currentState = BacState.INITIAL
         rndIc = null
-        rndIfd = null
-        kIfd = null
+        secureMessaging = null
         Log.d(TAG, "BAC protocol reset")
     }
-    
-    /**
-     * Derives encryption and MAC keys from passport MRZ data.
-     */
-    private fun deriveKeys(passportData: PassportData) {
-        try {
-            // Generate MRZ data for key derivation
-            val mrzData = passportData.toMrzData()
-            Log.d(TAG, "Deriving BAC keys from MRZ data")
-            
-            // Extract key seed from MRZ (passport number + birth date + expiry date + check digits)
-            val keySeed = extractKeySeed(mrzData)
-            
-            // Derive K_seed using SHA-1
-            val sha1 = MessageDigest.getInstance("SHA-1")
-            val kSeed = sha1.digest(keySeed)
-            
-            // Derive encryption and MAC keys
-            kEnc = deriveKey(kSeed, KDF_COUNTER_ENC)
-            kMac = deriveKey(kSeed, KDF_COUNTER_MAC)
-            
-            Log.d(TAG, "BAC keys derived successfully")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to derive BAC keys", e)
-            throw e
-        }
+
+    private fun fail(message: String): BacResult {
+        currentState = BacState.FAILED
+        secureMessaging = null
+        return BacResult(false, message, newState = BacState.FAILED)
     }
-    
-    /**
-     * Extracts key seed from MRZ data according to ICAO 9303 specification.
-     */
-    private fun extractKeySeed(mrzData: String): ByteArray {
-        // MRZ line 2 contains: passport number + check digit + nationality + birth date + check digit + 
-        // gender + expiry date + check digit + personal number + check digit + final check digit
-        val line2 = mrzData.substring(44) // Second line of MRZ
-        
-        // Extract passport number (positions 0-8), birth date (positions 13-18), expiry date (positions 21-26)
-        val passportNumber = line2.substring(0, 9).replace('<', '0')
-        val birthDate = line2.substring(13, 19)
-        val expiryDate = line2.substring(21, 27)
-        
-        // Calculate check digits
-        val passportCheckDigit = line2.substring(9, 10)
-        val birthDateCheckDigit = line2.substring(19, 20)
-        val expiryDateCheckDigit = line2.substring(27, 28)
-        
-        val keySeedString = passportNumber + passportCheckDigit + birthDate + birthDateCheckDigit + expiryDate + expiryDateCheckDigit
-        
-        Log.d(TAG, "Key seed extracted: $keySeedString")
-        return keySeedString.toByteArray(Charsets.UTF_8)
-    }
-    
-    /**
-     * Derives a key using the key derivation function specified in ICAO 9303.
-     */
-    private fun deriveKey(kSeed: ByteArray, counter: Int): ByteArray {
-        val input = kSeed + byteArrayOf(0x00, 0x00, 0x00, counter.toByte())
-        val sha1 = MessageDigest.getInstance("SHA-1")
-        val hash = sha1.digest(input)
-        
-        // Take first 16 bytes for the key
-        return hash.sliceArray(0 until KEY_LENGTH)
-    }
-    
-    /**
-     * Verifies the authentication data received from the reader.
-     */
-    private fun verifyAuthentication(authData: ByteArray): Boolean {
-        return try {
-            // In a real implementation, this would decrypt and verify the authentication data
-            // For simulation purposes, we'll perform basic validation
-            
-            // Check that we have the required components
-            if (rndIc == null || kEnc == null || kMac == null) {
-                Log.e(TAG, "Missing required BAC components for verification")
-                return false
-            }
-            
-            // Simulate successful verification for valid-looking data
-            val hasValidStructure = authData.size >= 32 && rndIfd != null && kIfd != null
-            
-            Log.d(TAG, "BAC authentication verification: $hasValidStructure")
-            return hasValidStructure
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during BAC verification", e)
-            false
-        }
-    }
-    
-    /**
-     * Generates the authentication response for successful BAC.
-     */
-    private fun generateAuthenticationResponse(): ByteArray {
-        return try {
-            // Generate K.IC (8 bytes)
-            val kIc = ByteArray(8)
-            secureRandom.nextBytes(kIc)
-            
-            // Create response data: RND.IFD + RND.IC + K.IC
-            val responseData = rndIfd!! + rndIc!! + kIc
-            
-            Log.d(TAG, "Generated BAC authentication response")
-            
-            // In a real implementation, this would be encrypted with the derived keys
-            // For simulation, return the response data directly
-            responseData
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate BAC authentication response", e)
-            throw e
-        }
-    }
-    
-    /**
-     * Extension function to convert ByteArray to hex string.
-     */
-    private fun ByteArray.toHexString(): String {
-        return joinToString("") { "%02X".format(it) }
+
+    private fun computeMac(key: SecretKey, data: ByteArray): ByteArray {
+        mac.init(key)
+        return mac.doFinal(Util.pad(data, 8))
     }
 }

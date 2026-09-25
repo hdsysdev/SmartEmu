@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Where LogExporter writes the reports it shares, and where the camera app writes the selfie PortraitPicker takes -->
+<paths>
+    <external-files-path name="logs" path="logs/" />
+    <cache-path name="cached_logs" path="logs/" />
+    <cache-path name="portraits" path="portraits/" />
+</paths>

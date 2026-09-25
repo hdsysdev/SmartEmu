@@ -107,7 +107,7 @@ class PassportValidatorTest {
     
     @Test
     fun `validateCountryCode accepts valid country codes`() {
-        val validCodes = listOf("NLD", "USA", "GBR", "DEU", "FRA")
+        val validCodes = listOf("NLD", "USA", "GBR", "DEU", "FRA", "BRA", "NZL", "ZWE", "GBN", "XXA")
         
         validCodes.forEach { code ->
             val error = PassportValidator.validateCountryCode(code, "test country")
@@ -121,7 +121,7 @@ class PassportValidatorTest {
             "" to "Test country is required",
             "NL" to "Test country must be 3 characters",
             "NETH" to "Test country must be 3 characters",
-            "XXX" to "Invalid test country code. Must be a valid ISO 3166-1 alpha-3 code"
+            "ZZZ" to "Invalid test country code. Must be a valid ICAO country code"
         )
         
         invalidCodes.forEach { (code, expectedError) ->

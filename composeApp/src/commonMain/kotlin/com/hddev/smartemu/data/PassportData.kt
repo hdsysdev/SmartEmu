@@ -2,12 +2,16 @@ package com.hddev.smartemu.data
 
 import com.hddev.smartemu.domain.PassportValidator
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.format
-import kotlinx.datetime.format.DateTimeFormat
+import kotlinx.datetime.number
 
 /**
- * Data class representing passport information for NFC simulation.
+ * Data class representing passport information for NFC simulation, and the access control the chip enforces.
  * Contains validation methods and MRZ generation functionality.
+ *
+ * [can] is the Card Access Number printed on the data page, an alternative PACE password to the MRZ.
+ * Blank means the document has no CAN.
+ *
+ * [portrait] is the holder's photo; without one the data page and EF.DG2 carry a placeholder.
  */
 data class PassportData(
     val passportNumber: String = "",
@@ -17,25 +21,23 @@ data class PassportData(
     val nationality: String = "NLD",
     val firstName: String = "",
     val lastName: String = "",
-    val gender: String = "M"
+    val gender: String = "M",
+    val accessControl: AccessControl = AccessControl.BAC_AND_PACE,
+    val paceMapping: PaceMapping = PaceMapping.GENERIC,
+    val can: String = "",
+    val portrait: Portrait? = null
 ) {
-    
+
     companion object {
         fun empty(): PassportData = PassportData()
-        
-        private val MRZ_DATE_FORMAT = LocalDate.Format {
-            year()
-            monthNumber()
-            dayOfMonth()
-        }
+
+        const val CAN_LENGTH = 6
+        const val MRZ_LINE_LENGTH = 44
+
+        private const val MRZ_NAME_LENGTH = 39
         
         // ICAO passport number validation regex
         private val PASSPORT_NUMBER_REGEX = Regex("^[A-Z0-9]{6,9}$")
-        
-        // Valid country codes (ISO 3166-1 alpha-3)
-        private val VALID_COUNTRIES = setOf(
-            "NLD", "USA", "GBR", "DEU", "FRA", "ESP", "ITA", "CAN", "AUS", "JPN"
-        )
     }
     
     /**
@@ -46,73 +48,6 @@ data class PassportData(
     }
 
     /**
-     * Generates EF.COM file content indicating presence of DG1 and DG2.
-     * Tag: 60, LDS Version: 0107, Tag List: 0102 (DG1, DG2).
-     */
-    fun generateEfCom(): ByteArray {
-        // Tag 60 (EF.COM), Length calculated later
-        // 5F01 04 31303730 (LDS Version 1.7)
-        // 5C 02 6175 (Tag List: 61=DG1, 75=DG2)
-        val ldsVersion = byteArrayOf(0x5F.toByte(), 0x01.toByte(), 0x04.toByte(), 0x30.toByte(), 0x31.toByte(), 0x30.toByte(), 0x37.toByte())
-        val tagList = byteArrayOf(0x5C.toByte(), 0x02.toByte(), 0x61.toByte(), 0x75.toByte())
-        
-        val content = ldsVersion + tagList
-        // Simple length encoding (assuming small size < 127)
-        return byteArrayOf(0x60.toByte(), content.size.toByte()) + content
-    }
-
-    /**
-     * Generates EF.DG1 containing the MRZ.
-     * Tag: 61
-     */
-    fun generateDg1(): ByteArray {
-        val mrz = toMrzData()
-        val mrzBytes = mrz.encodeToByteArray()
-        
-        // MRZ Data Object (Tag 5F1F)
-        // Length encoding for MRZ (88 bytes for TD3)
-        // 5F1F 58 [MRZ Bytes]
-        val mrzTag = byteArrayOf(0x5F.toByte(), 0x1F.toByte())
-        val mrzLen = mrzBytes.size.toByte()
-        
-        val content = mrzTag + mrzLen + mrzBytes
-        
-        // DG1 Tag (61)
-        return byteArrayOf(0x61.toByte(), content.size.toByte()) + content
-    }
-
-    /**
-     * Generates EF.DG2 containing a dummy face image header.
-     * Tag: 75
-     */
-    fun generateDg2(): ByteArray {
-        // Biometric Information Group Template (Tag 7F61)
-        // Number of Biometric Templates (Tag 02) = 1
-        // Biometric Information Template (Tag 7F60)
-        // Biometric Header Template (Tag A1)
-        // Biometric Data Block (Tag 5F2E) = Empty/Dummy
-        
-        // Simplified dummy structure for testing connectivity:
-        // 75 [Len]
-        //   7F61 [Len]
-        //      02 01 01 (Count=1)
-        //      7F60 [Len] 
-        //         A1 05 (Header) ...
-        //         5F2E 04 01020304 (Dummy Image Data)
-        
-        val dummyImageBlock = byteArrayOf(0x5F.toByte(), 0x2E.toByte(), 0x04.toByte(), 0x01.toByte(), 0x02.toByte(), 0x03.toByte(), 0x04.toByte())
-        val biometicHeader = byteArrayOf(0xA1.toByte(), 0x05.toByte(), 0x81.toByte(), 0x01.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte()) // Minimal
-        val bitContent = biometicHeader + dummyImageBlock
-        val bit = byteArrayOf(0x7F.toByte(), 0x60.toByte(), bitContent.size.toByte()) + bitContent
-        
-        val count = byteArrayOf(0x02.toByte(), 0x01.toByte(), 0x01.toByte())
-        val bigtContent = count + bit
-        val bigt = byteArrayOf(0x7F.toByte(), 0x61.toByte(), bigtContent.size.toByte()) + bigtContent
-        
-        return byteArrayOf(0x75.toByte(), bigt.size.toByte()) + bigt
-    }
-    
-    /**
      * Gets all validation errors for the passport data.
      */
     fun getValidationErrors(): Map<String, String> {
@@ -121,52 +56,106 @@ data class PassportData(
     
     /**
      * Generates MRZ (Machine Readable Zone) data for BAC/PACE protocols.
-     * Returns the MRZ string in TD3 format (passport format).
+     * Returns the MRZ string in TD3 format (passport format): two lines of 44 characters, concatenated.
      */
     fun toMrzData(): String {
         if (!isValid()) {
             throw IllegalStateException("Cannot generate MRZ for invalid passport data")
         }
         
-        val mrzDateOfBirth = dateOfBirth?.format(MRZ_DATE_FORMAT) ?: "000000"
-        val mrzExpiryDate = expiryDate?.format(MRZ_DATE_FORMAT) ?: "000000"
+        // Line 1: P<COUNTRY + LASTNAME<<FIRSTNAME padded to 39 characters
+        val line1 = "P<$issuingCountry${mrzName().padEnd(MRZ_NAME_LENGTH, '<')}"
         
-        // Line 1: P<COUNTRY<<LASTNAME<<FIRSTNAME<<<<<<<<<<<<<<<<<<<
-        val line1 = buildMrzLine1()
-        
-        // Line 2: PASSPORTNUMBER<COUNTRY<BIRTHDATE<GENDER<EXPIRYDATE<PERSONALNUM<<CHECKDIGIT
-        val line2 = buildMrzLine2(mrzDateOfBirth, mrzExpiryDate)
-        
-        return line1 + line2
+        return line1 + buildMrzLine2()
+    }
+
+    /**
+     * The two MRZ lines as printed at the bottom of the data page.
+     */
+    fun toMrzLines(): List<String> = toMrzData().chunked(MRZ_LINE_LENGTH)
+
+    /**
+     * Whether the chip accepts the CAN as a PACE password.
+     */
+    fun hasCan(): Boolean = can.isNotBlank()
+
+    /**
+     * Date of birth in the MRZ YYMMDD form, as used for the BAC key seed.
+     */
+    fun mrzDateOfBirth(): String = dateOfBirth?.let { toMrzDate(it) } ?: "000000"
+    
+    /**
+     * Expiry date in the MRZ YYMMDD form, as used for the BAC key seed.
+     */
+    fun mrzExpiryDate(): String = expiryDate?.let { toMrzDate(it) } ?: "000000"
+    
+    /**
+     * Surname as it appears in the MRZ name field, truncated with the given names to fit 39 characters.
+     */
+    fun mrzPrimaryIdentifier(): String = mrzName().substringBefore("<<").trimEnd('<')
+    
+    /**
+     * Given names as they appear in the MRZ name field, truncated with the surname to fit 39 characters.
+     */
+    fun mrzSecondaryIdentifier(): String = mrzName().substringAfter("<<", "").trimEnd('<')
+    
+    /**
+     * Sex field of the MRZ; unspecified ("X") is encoded as a filler per ICAO 9303.
+     */
+    fun mrzGender(): Char = when (gender.uppercase()) {
+        "M" -> 'M'
+        "F" -> 'F'
+        else -> '<'
     }
     
-    private fun buildMrzLine1(): String {
-        val cleanLastName = lastName.uppercase().replace(" ", "").take(39)
-        val cleanFirstName = firstName.uppercase().replace(" ", "").take(39)
-        
-        val nameSection = "$cleanLastName<<$cleanFirstName"
-        val paddedNameSection = nameSection.padEnd(39, '<')
-        
-        return "P<$issuingCountry$paddedNameSection"
+    private fun mrzName(): String {
+        return "${toMrzNameComponent(lastName)}<<${toMrzNameComponent(firstName)}".take(MRZ_NAME_LENGTH)
     }
     
-    private fun buildMrzLine2(mrzDateOfBirth: String, mrzExpiryDate: String): String {
-        val paddedPassportNumber = passportNumber.padEnd(9, '<')
-        val checkDigit1 = calculateCheckDigit(passportNumber)
+    private fun buildMrzLine2(): String {
+        val documentNumberField = passportNumber.uppercase().padEnd(9, '<')
+        val documentNumberCheckDigit = calculateCheckDigit(documentNumberField)
         
-        val birthDateCheckDigit = calculateCheckDigit(mrzDateOfBirth)
-        val expiryDateCheckDigit = calculateCheckDigit(mrzExpiryDate)
+        val birthDate = mrzDateOfBirth()
+        val birthDateCheckDigit = calculateCheckDigit(birthDate)
+        val expiry = mrzExpiryDate()
+        val expiryDateCheckDigit = calculateCheckDigit(expiry)
         
-        val personalNumber = "<<<<<<<<<<<"
-        val personalNumberCheckDigit = calculateCheckDigit(personalNumber)
+        // No optional data: 14 fillers, and a filler check digit as ICAO 9303 permits
+        val personalNumber = "".padEnd(14, '<')
+        val personalNumberCheckDigit = "<"
         
-        val compositeData = paddedPassportNumber + checkDigit1 + nationality + 
-                           mrzDateOfBirth + birthDateCheckDigit + gender + 
-                           mrzExpiryDate + expiryDateCheckDigit + personalNumber + personalNumberCheckDigit
+        // Composite check digit covers document number, dates and personal number (with their check digits),
+        // but not nationality or sex
+        val compositeData = documentNumberField + documentNumberCheckDigit +
+                           birthDate + birthDateCheckDigit +
+                           expiry + expiryDateCheckDigit +
+                           personalNumber + personalNumberCheckDigit
+        val compositeCheckDigit = calculateCheckDigit(compositeData)
         
-        val finalCheckDigit = calculateCheckDigit(compositeData)
-        
-        return compositeData + finalCheckDigit
+        return documentNumberField + documentNumberCheckDigit + nationality +
+               birthDate + birthDateCheckDigit + mrzGender() +
+               expiry + expiryDateCheckDigit +
+               personalNumber + personalNumberCheckDigit + compositeCheckDigit
+    }
+    
+    private fun toMrzDate(date: LocalDate): String {
+        val year = (date.year % 100).toString().padStart(2, '0')
+        val month = date.month.number.toString().padStart(2, '0')
+        val day = date.day.toString().padStart(2, '0')
+        return year + month + day
+    }
+    
+    /**
+     * Upper case, apostrophes dropped, each run of other separators replaced by a single '<'.
+     */
+    private fun toMrzNameComponent(name: String): String {
+        return name.uppercase()
+            .replace("'", "")
+            .map { if (it in 'A'..'Z') it else '<' }
+            .joinToString("")
+            .replace(Regex("<+"), "<")
+            .trim('<')
     }
     
     /**
@@ -179,8 +168,7 @@ data class PassportData(
         data.forEachIndexed { index, char ->
             val value = when {
                 char.isDigit() -> char.digitToInt()
-                char.isLetter() -> char.code - 'A'.code + 10
-                char == '<' -> 0
+                char in 'A'..'Z' -> char.code - 'A'.code + 10
                 else -> 0
             }
             sum += value * weights[index % 3]
@@ -188,6 +176,5 @@ data class PassportData(
         
         return (sum % 10).toString()
     }
-    
 
 }

@@ -2,11 +2,14 @@ package com.hddev.smartemu.ui.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import com.hddev.smartemu.utils.DateValidationUtils
 import kotlinx.datetime.LocalDate
@@ -50,16 +53,12 @@ fun DatePickerField(
             },
             label = { Text(label) },
             placeholder = { Text("DD/MM/YYYY") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
             enabled = enabled,
             isError = isError,
-            supportingText = {
-                errorMessage?.let { error ->
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            },
+            // Only reserve space below the field for an error
+            supportingText = errorMessage?.let { error -> { Text(text = error, color = MaterialTheme.colorScheme.error) } },
             trailingIcon = {
                 IconButton(
                     onClick = { showDatePicker = true },
@@ -135,9 +134,10 @@ private fun DatePickerDialog(
             }
         }
     ) {
+        // The toggle lets people type a date decades away rather than page through the calendar
         DatePicker(
             state = datePickerState,
-            showModeToggle = false
+            showModeToggle = true
         )
     }
 }

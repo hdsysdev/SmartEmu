@@ -17,3 +17,10 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
+# Signing keys
+keystore/
+
+# Local agent tooling state
+.codex/
+.claude/.headroom_*

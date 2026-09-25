@@ -18,7 +18,7 @@ class PassportHceServiceIntegrationTest {
         
         // 1. Test initial connection with SELECT command
         val selectApdu = byteArrayOf(
-            0x00.toByte(), 0xA4.toByte(), 0x04.toByte(), 0x00.toByte(), 0x08.toByte()
+            0x00.toByte(), 0xA4.toByte(), 0x04.toByte(), 0x00.toByte(), ApduParser.PASSPORT_AID.size.toByte()
         ) + ApduParser.PASSPORT_AID
         
         val selectResult = ApduParser.parseApduCommand(selectApdu)
@@ -147,7 +147,7 @@ class PassportHceServiceIntegrationTest {
     fun `service handles AID selection correctly`() {
         // Test passport AID selection
         val passportSelectApdu = byteArrayOf(
-            0x00.toByte(), 0xA4.toByte(), 0x04.toByte(), 0x00.toByte(), 0x08.toByte()
+            0x00.toByte(), 0xA4.toByte(), 0x04.toByte(), 0x00.toByte(), ApduParser.PASSPORT_AID.size.toByte()
         ) + ApduParser.PASSPORT_AID
         
         val passportResult = ApduParser.parseApduCommand(passportSelectApdu)

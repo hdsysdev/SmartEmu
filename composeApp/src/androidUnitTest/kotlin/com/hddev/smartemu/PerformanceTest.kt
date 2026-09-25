@@ -2,7 +2,7 @@ package com.hddev.smartemu
 
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.utils.BacProtocol
-import com.hddev.smartemu.utils.PaceProtocol
+import com.hddev.smartemu.utils.BacTestReader
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.LocalDate
 import org.junit.Test
@@ -18,7 +18,7 @@ class PerformanceTest {
     private val validPassportData = PassportData(
         passportNumber = "L898902C3",
         dateOfBirth = LocalDate(1974, 8, 12),
-        expiryDate = LocalDate(2025, 4, 15),
+        expiryDate = LocalDate(2034, 4, 15),
         issuingCountry = "NLD",
         nationality = "NLD",
         firstName = "ANNA",
@@ -37,47 +37,22 @@ class PerformanceTest {
         assertTrue(initTime < 100, "BAC initialization should complete within 100ms, took ${initTime}ms")
         
         // Measure challenge generation time
+        var challenge = ByteArray(0)
         val challengeTime = measureTimeMillis {
-            bacProtocol.generateChallenge()
+            challenge = bacProtocol.generateChallenge().data!!
         }
         assertTrue(challengeTime < 50, "Challenge generation should complete within 50ms, took ${challengeTime}ms")
         
         // Measure authentication time
-        val mockAuthData = ByteArray(32) { it.toByte() }
+        val authData = BacTestReader.createMutualAuthentication(validPassportData, challenge).data
         val authTime = measureTimeMillis {
-            bacProtocol.processExternalAuthenticate(mockAuthData)
+            bacProtocol.processExternalAuthenticate(authData)
         }
         assertTrue(authTime < 200, "BAC authentication should complete within 200ms, took ${authTime}ms")
         
         // Total workflow should be under 350ms
         val totalTime = initTime + challengeTime + authTime
         assertTrue(totalTime < 350, "Complete BAC workflow should complete within 350ms, took ${totalTime}ms")
-    }
-    
-    @Test
-    fun `PACE authentication should complete within acceptable time limits`() {
-        val paceProtocol = PaceProtocol()
-        
-        // Measure complete PACE workflow
-        val totalTime = measureTimeMillis {
-            paceProtocol.initialize(validPassportData)
-            
-            val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-            paceProtocol.processMseSetAt(mseData)
-            
-            paceProtocol.generateEncryptedNonce()
-            
-            val terminalPubKey = ByteArray(65) { it.toByte() }
-            paceProtocol.processTerminalPublicKey(terminalPubKey)
-            
-            paceProtocol.performKeyAgreement()
-            
-            val terminalToken = ByteArray(16) { (it + 5).toByte() }
-            paceProtocol.verifyTerminalAuthentication(terminalToken)
-        }
-        
-        // PACE is more complex but should still complete within reasonable time
-        assertTrue(totalTime < 500, "Complete PACE workflow should complete within 500ms, took ${totalTime}ms")
     }
     
     @Test
@@ -120,17 +95,11 @@ class PerformanceTest {
         repeat(100) { iteration ->
             val bacProtocol = BacProtocol()
             bacProtocol.initialize(validPassportData)
-            bacProtocol.generateChallenge()
+            val challenge = bacProtocol.generateChallenge().data!!
             
-            val mockAuthData = ByteArray(32) { it.toByte() }
-            bacProtocol.processExternalAuthenticate(mockAuthData)
+            val authData = BacTestReader.createMutualAuthentication(validPassportData, challenge).data
+            bacProtocol.processExternalAuthenticate(authData)
             
-            val paceProtocol = PaceProtocol()
-            paceProtocol.initialize(validPassportData)
-            
-            val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-            paceProtocol.processMseSetAt(mseData)
-            paceProtocol.generateEncryptedNonce()
             
             // Check memory every 25 iterations
             if (iteration % 25 == 0) {
@@ -194,9 +163,9 @@ class PerformanceTest {
     fun `large passport data should not impact performance significantly`() {
         // Create passport data with maximum field lengths
         val largePassportData = PassportData(
-            passportNumber = "A" + "1234567890".repeat(3), // Long passport number
+            passportNumber = "A12345678", // Maximum passport number length
             dateOfBirth = LocalDate(1900, 1, 1),
-            expiryDate = LocalDate(2099, 12, 31),
+            expiryDate = LocalDate(2040, 12, 31),
             issuingCountry = "USA",
             nationality = "USA",
             firstName = "A".repeat(39), // Maximum first name length
@@ -209,20 +178,20 @@ class PerformanceTest {
         // Measure performance with large data
         val largeDataTime = measureTimeMillis {
             bacProtocol.initialize(largePassportData)
-            bacProtocol.generateChallenge()
+            val challenge = bacProtocol.generateChallenge().data!!
             
-            val mockAuthData = ByteArray(32) { it.toByte() }
-            bacProtocol.processExternalAuthenticate(mockAuthData)
+            val authData = BacTestReader.createMutualAuthentication(largePassportData, challenge).data
+            bacProtocol.processExternalAuthenticate(authData)
         }
         
         // Compare with normal data
         val normalProtocol = BacProtocol()
         val normalDataTime = measureTimeMillis {
             normalProtocol.initialize(validPassportData)
-            normalProtocol.generateChallenge()
+            val challenge = normalProtocol.generateChallenge().data!!
             
-            val mockAuthData = ByteArray(32) { it.toByte() }
-            normalProtocol.processExternalAuthenticate(mockAuthData)
+            val authData = BacTestReader.createMutualAuthentication(validPassportData, challenge).data
+            normalProtocol.processExternalAuthenticate(authData)
         }
         
         // Large data should not be more than 2x slower
@@ -236,16 +205,10 @@ class PerformanceTest {
     @Test
     fun `protocol reset operations should be fast`() {
         val bacProtocol = BacProtocol()
-        val paceProtocol = PaceProtocol()
         
         // Set up protocols in various states
         bacProtocol.initialize(validPassportData)
         bacProtocol.generateChallenge()
-        
-        paceProtocol.initialize(validPassportData)
-        val mseData = byteArrayOf(0x80.toByte(), 0x0A.toByte())
-        paceProtocol.processMseSetAt(mseData)
-        paceProtocol.generateEncryptedNonce()
         
         // Measure reset times
         val bacResetTime = measureTimeMillis {
@@ -254,14 +217,7 @@ class PerformanceTest {
             }
         }
         
-        val paceResetTime = measureTimeMillis {
-            repeat(100) {
-                paceProtocol.reset()
-            }
-        }
-        
         // Reset operations should be very fast
         assertTrue(bacResetTime < 50, "BAC reset operations should complete quickly, took ${bacResetTime}ms for 100 resets")
-        assertTrue(paceResetTime < 50, "PACE reset operations should complete quickly, took ${paceResetTime}ms for 100 resets")
     }
 }

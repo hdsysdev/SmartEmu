@@ -1,10 +1,13 @@
 package com.hddev.smartemu.viewmodel
 
+import com.hddev.smartemu.data.AccessControl
+import com.hddev.smartemu.data.PaceMapping
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.SimulationStatus
 import com.hddev.smartemu.repository.NfcSimulatorRepository
+import com.hddev.smartemu.repository.PassportStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -31,13 +34,15 @@ class PassportSimulatorViewModelTest {
     
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var mockRepository: MockNfcSimulatorRepository
+    private lateinit var passportStore: FakePassportStore
     private lateinit var viewModel: PassportSimulatorViewModel
     
     @BeforeTest
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         mockRepository = MockNfcSimulatorRepository()
-        viewModel = PassportSimulatorViewModel(mockRepository)
+        passportStore = FakePassportStore()
+        viewModel = PassportSimulatorViewModel(mockRepository, passportStore)
     }
     
     @AfterTest
@@ -152,6 +157,85 @@ class PassportSimulatorViewModelTest {
         assertEquals(LocalDate(2030, 1, 1), state.passportData.expiryDate)
     }
     
+    @Test
+    fun `updateAccessControl should update passport data`() = runTest {
+        viewModel.updateAccessControl(AccessControl.PACE_ONLY)
+        advanceUntilIdle()
+        
+        val state = viewModel.uiState.first()
+        assertEquals(AccessControl.PACE_ONLY, state.passportData.accessControl)
+    }
+    
+    @Test
+    fun `autofillPassportData should keep the selected access control`() = runTest {
+        viewModel.updateAccessControl(AccessControl.BAC_ONLY)
+        
+        viewModel.autofillPassportData()
+        advanceUntilIdle()
+        
+        val state = viewModel.uiState.first()
+        assertEquals(AccessControl.BAC_ONLY, state.passportData.accessControl)
+    }
+    
+    @Test
+    fun `updatePaceMapping should update passport data and survive autofill`() = runTest {
+        viewModel.updatePaceMapping(PaceMapping.CHIP_AUTHENTICATION)
+        viewModel.autofillPassportData()
+        advanceUntilIdle()
+        
+        val state = viewModel.uiState.first()
+        assertEquals(PaceMapping.CHIP_AUTHENTICATION, state.passportData.paceMapping)
+    }
+    
+    @Test
+    fun `updateCan should keep at most six digits`() = runTest {
+        viewModel.updateCan("12a34-5678")
+        advanceUntilIdle()
+        
+        assertEquals("123456", viewModel.uiState.first().passportData.can)
+    }
+    
+    @Test
+    fun `generateCan and autofill should set a valid CAN`() = runTest {
+        viewModel.generateCan()
+        advanceUntilIdle()
+        assertTrue(Regex("[0-9]{6}").matches(viewModel.uiState.first().passportData.can))
+        
+        viewModel.autofillPassportData()
+        advanceUntilIdle()
+        val state = viewModel.uiState.first()
+        assertTrue(Regex("[0-9]{6}").matches(state.passportData.can))
+        assertTrue(state.passportData.isValid())
+    }
+
+    @Test
+    fun `autofillPassportData should keep an existing CAN`() = runTest {
+        viewModel.updateCan("246810")
+        viewModel.autofillPassportData()
+        advanceUntilIdle()
+
+        assertEquals("246810", viewModel.uiState.first().passportData.can)
+    }
+
+    @Test
+    fun `clearPassportDetails should clear the holder but keep the chip settings`() = runTest {
+        viewModel.autofillPassportData()
+        viewModel.updateAccessControl(AccessControl.PACE_ONLY)
+        viewModel.updatePaceMapping(PaceMapping.CHIP_AUTHENTICATION)
+        viewModel.updateCan("135790")
+
+        viewModel.clearPassportDetails()
+        advanceUntilIdle()
+
+        val data = viewModel.uiState.first().passportData
+        assertEquals("", data.passportNumber)
+        assertEquals("", data.lastName)
+        assertEquals(null, data.dateOfBirth)
+        assertEquals(AccessControl.PACE_ONLY, data.accessControl)
+        assertEquals(PaceMapping.CHIP_AUTHENTICATION, data.paceMapping)
+        assertEquals("135790", data.can)
+    }
+
     @Test
     fun `startSimulation should succeed when conditions are met`() = runTest {
         // Setup valid state
@@ -380,6 +464,78 @@ class PassportSimulatorViewModelTest {
         val state = viewModel.uiState.first()
         assertNotNull(state.errorMessage)
         assertTrue(state.errorMessage!!.contains("BAC authentication failed"))
+    }
+
+    @Test
+    fun `saved passport should be restored on creation`() = runTest {
+        val saved = PassportData(
+            passportNumber = "AB123456",
+            dateOfBirth = LocalDate(1990, 1, 1),
+            expiryDate = LocalDate(2030, 1, 1),
+            firstName = "John",
+            lastName = "Doe",
+            accessControl = AccessControl.PACE_ONLY,
+            paceMapping = PaceMapping.CHIP_AUTHENTICATION,
+            can = "123456"
+        )
+        passportStore.saved = saved
+
+        val restoredViewModel = PassportSimulatorViewModel(mockRepository, passportStore)
+        advanceUntilIdle()
+
+        assertEquals(saved, restoredViewModel.uiState.value.passportData)
+        assertTrue(passportStore.saveCount == 0, "Restoring should not save the passport back")
+    }
+
+    @Test
+    fun `untouched passport should not be saved`() = runTest {
+        advanceUntilIdle()
+
+        assertNull(passportStore.saved)
+    }
+
+    @Test
+    fun `edits should be saved once they pause`() = runTest {
+        advanceUntilIdle()
+
+        viewModel.updateFirstName("J")
+        viewModel.updateFirstName("Jo")
+        viewModel.updateAccessControl(AccessControl.BAC_ONLY)
+        advanceUntilIdle()
+
+        assertEquals(1, passportStore.saveCount)
+        assertEquals("Jo", passportStore.saved?.firstName)
+        assertEquals(AccessControl.BAC_ONLY, passportStore.saved?.accessControl)
+    }
+
+    @Test
+    fun `failed restore should set error message and keep the empty passport`() = runTest {
+        passportStore.loadResult = Result.failure(RuntimeException("Corrupt"))
+
+        val failedViewModel = PassportSimulatorViewModel(mockRepository, passportStore)
+        advanceUntilIdle()
+
+        val state = failedViewModel.uiState.value
+        assertEquals(PassportData.empty(), state.passportData)
+        assertTrue(state.errorMessage!!.contains("Failed to restore passport"))
+    }
+}
+
+/**
+ * In-memory PassportStore for testing.
+ */
+private class FakePassportStore : PassportStore {
+
+    var saved: PassportData? = null
+    var saveCount = 0
+    var loadResult: Result<PassportData?>? = null
+
+    override suspend fun load(): Result<PassportData?> = loadResult ?: Result.success(saved)
+
+    override suspend fun save(passportData: PassportData): Result<Unit> {
+        saveCount++
+        saved = passportData
+        return Result.success(Unit)
     }
 }
 
