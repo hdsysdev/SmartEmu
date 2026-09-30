@@ -26,3 +26,49 @@ authorityKeyIdentifier = keyid:always
 [ document_type_list ]
 version  = INTEGER:0
 docTypes = SETWRAP,PRINTABLESTRING:P
+
+# Document Signer for ID cards ("ID") and residence permits ("IR"), the TD1 documents
+[ ds_id_ext ]
+keyUsage               = critical, digitalSignature
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+2.23.136.1.1.6.2       = ASN1:SEQUENCE:id_document_type_list
+
+[ id_document_type_list ]
+version  = INTEGER:0
+docTypes = SET:id_document_types
+
+[ id_document_types ]
+id = PRINTABLESTRING:ID
+ir = PRINTABLESTRING:IR
+
+# Document Signer for the Dutch ID card, whose document code is "I", and other TD1 cards ("ID")
+[ ds_nl_id_ext ]
+keyUsage               = critical, digitalSignature
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+2.23.136.1.1.6.2       = ASN1:SEQUENCE:nl_id_document_type_list
+
+[ nl_id_document_type_list ]
+version  = INTEGER:0
+docTypes = SET:nl_id_document_types
+
+[ nl_id_document_types ]
+i  = PRINTABLESTRING:I
+id = PRINTABLESTRING:ID
+
+# Document Signers for the chip faults, valid for every document type the app emulates
+[ ds_fault_ext ]
+keyUsage               = critical, digitalSignature
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+2.23.136.1.1.6.2       = ASN1:SEQUENCE:fault_document_type_list
+
+[ fault_document_type_list ]
+version  = INTEGER:0
+docTypes = SET:fault_document_types
+
+[ fault_document_types ]
+p  = PRINTABLESTRING:P
+id = PRINTABLESTRING:ID
+ir = PRINTABLESTRING:IR

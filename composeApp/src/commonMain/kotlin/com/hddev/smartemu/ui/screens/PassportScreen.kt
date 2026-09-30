@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.PassportSimulatorUiState
 import com.hddev.smartemu.data.Portrait
+import com.hddev.smartemu.ui.components.AdditionalDetailsCallbacks
 import com.hddev.smartemu.ui.components.AppButton
 import com.hddev.smartemu.ui.components.ButtonEmphasis
 import com.hddev.smartemu.ui.components.EditingLockedBanner
@@ -86,7 +87,14 @@ fun PassportScreen(
             onExpiryDateChange = viewModel::updateExpiryDate,
             onGenderChange = viewModel::updateGender,
             onIssuingCountryChange = viewModel::updateIssuingCountry,
-            onNationalityChange = viewModel::updateNationality
+            onNationalityChange = viewModel::updateNationality,
+            onDocumentTypeChange = viewModel::updateDocumentType,
+            additionalDetails = AdditionalDetailsCallbacks(
+                onPersonalNumberChange = viewModel::updatePersonalNumber,
+                onPlaceOfBirthChange = viewModel::updatePlaceOfBirth,
+                onIssuingAuthorityChange = viewModel::updateIssuingAuthority,
+                onDateOfIssueChange = viewModel::updateDateOfIssue
+            )
         )
 
         PortraitSection(

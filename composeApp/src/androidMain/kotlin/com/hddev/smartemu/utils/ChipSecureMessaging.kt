@@ -8,7 +8,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.IvParameterSpec
 
 /**
- * Chip side of ICAO 9303 part 11 secure messaging, with 3DES session keys (BAC) or AES session keys (PACE).
+ * Chip side of ICAO 9303 part 11 secure messaging, with 3DES session keys (BAC, and PACE or Chip Authentication
+ * with 3DES) or AES session keys (PACE or Chip Authentication with AES).
  * Mirrors JMRTD's DESedeSecureMessagingWrapper and AESSecureMessagingWrapper: where the reader wraps commands
  * and unwraps responses, the chip unwraps commands and wraps responses. The send sequence counter is incremented
  * before every command MAC check and every response MAC computation.
@@ -30,6 +31,10 @@ class ChipSecureMessaging(
 
     companion object {
         private const val MAC_LENGTH = 8
+
+        /** The suite secure messaging runs with after PACE or Chip Authentication with [cipher]. */
+        fun algorithmFor(cipher: com.hddev.smartemu.data.SessionCipher): Algorithm =
+            if (cipher.isAes) Algorithm.AES else Algorithm.DESEDE
 
         private const val TAG_ENCRYPTED_DATA = 0x87
         private const val TAG_ENCRYPTED_DATA_ODD_INS = 0x85

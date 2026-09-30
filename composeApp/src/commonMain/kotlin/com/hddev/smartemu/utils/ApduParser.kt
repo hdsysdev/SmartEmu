@@ -24,6 +24,12 @@ object ApduParser {
     private const val INS_INTERNAL_AUTHENTICATE = 0x88.toByte()
     private const val INS_MSE_SET_AT = 0x22.toByte()
     private const val INS_GENERAL_AUTHENTICATE = 0x86.toByte()
+    private const val INS_PSO = 0x2A.toByte()
+
+    /** MSE P1: set for mutual authentication (PACE), internal authentication (CA), external authentication (TA). */
+    const val MSE_P1_PACE = 0xC1
+    const val MSE_P1_CHIP_AUTHENTICATION = 0x41
+    const val MSE_P1_TERMINAL_AUTHENTICATION = 0x81
     
     // Passport (LDS1 eMRTD) application AID, ICAO 9303 part 10: A0 00 00 02 47 10 01
     val PASSPORT_AID = byteArrayOf(
@@ -79,7 +85,14 @@ object ApduParser {
         GET_CHALLENGE,
         EXTERNAL_AUTHENTICATE,
         INTERNAL_AUTHENTICATE,
+        /** MSE:Set AT, for PACE, Chip Authentication or Terminal Authentication as P1 says. */
         MSE_SET_AT,
+        /** MSE:Set KAT, Chip Authentication with 3DES. */
+        MSE_SET_KAT,
+        /** MSE:Set DST, naming the key a terminal certificate is to be verified with. */
+        MSE_SET_DST,
+        /** PSO:Verify Certificate, a step of Terminal Authentication. */
+        PSO_VERIFY_CERTIFICATE,
         GENERAL_AUTHENTICATE,
         UNSUPPORTED,
         INVALID
@@ -123,6 +136,7 @@ object ApduParser {
             ins == INS_INTERNAL_AUTHENTICATE -> parseInternalAuthenticateCommand(apdu)
             ins == INS_MSE_SET_AT -> parseMseSetAtCommand(apdu)
             ins == INS_GENERAL_AUTHENTICATE -> parseGeneralAuthenticateCommand(apdu)
+            ins == INS_PSO -> parsePsoCommand(apdu)
             else -> ApduParseResult(
                 commandType = ApduCommandType.UNSUPPORTED,
                 isValid = false,
@@ -268,17 +282,29 @@ object ApduParser {
     }
     
     /**
-     * Parses an INTERNAL AUTHENTICATE command.
+     * Parses an INTERNAL AUTHENTICATE command: its data is the reader's challenge, eight bytes for Active
+     * Authentication.
      */
     private fun parseInternalAuthenticateCommand(apdu: ByteArray): ApduParseResult {
+        val lc = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
+        if (lc == 0 || apdu.size < 5 + lc) {
+            return ApduParseResult(
+                commandType = ApduCommandType.INTERNAL_AUTHENTICATE,
+                isValid = false,
+                errorResponse = SW_WRONG_LENGTH
+            )
+        }
         return ApduParseResult(
             commandType = ApduCommandType.INTERNAL_AUTHENTICATE,
-            isValid = true
+            isValid = true,
+            data = apdu.sliceArray(5 until 5 + lc)
         )
     }
     
     /**
-     * Parses an MSE:Set AT command selecting PACE (P1=C1: set for mutual authentication, P2=A4: AT template).
+     * Parses an MSE (MANAGE SECURITY ENVIRONMENT) command: Set AT (P2=A4) for PACE (P1=C1), Chip Authentication
+     * (P1=41) or Terminal Authentication (P1=81); Set KAT (41 A6) for Chip Authentication with 3DES; and Set DST
+     * (81 B6) for Terminal Authentication.
      */
     private fun parseMseSetAtCommand(apdu: ByteArray): ApduParseResult {
         if (apdu.size < 4) {
@@ -289,29 +315,54 @@ object ApduParser {
             )
         }
         
-        val p1 = apdu[2]
-        val p2 = apdu[3]
-        
-        if (p1 == 0xC1.toByte() && p2 == 0xA4.toByte()) {
-            val lc = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
-            val data = if (lc > 0 && apdu.size >= 5 + lc) {
-                apdu.sliceArray(5 until 5 + lc)
-            } else {
-                byteArrayOf()
-            }
-            
-            return ApduParseResult(
+        val p1 = apdu[2].toInt() and 0xFF
+        val p2 = apdu[3].toInt() and 0xFF
+        val commandType = when {
+            p2 == 0xA4 && p1 in setOf(MSE_P1_PACE, MSE_P1_CHIP_AUTHENTICATION, MSE_P1_TERMINAL_AUTHENTICATION) ->
+                ApduCommandType.MSE_SET_AT
+            p1 == MSE_P1_CHIP_AUTHENTICATION && p2 == 0xA6 -> ApduCommandType.MSE_SET_KAT
+            p1 == MSE_P1_TERMINAL_AUTHENTICATION && p2 == 0xB6 -> ApduCommandType.MSE_SET_DST
+            else -> return ApduParseResult(
                 commandType = ApduCommandType.MSE_SET_AT,
-                isValid = true,
-                data = data
+                isValid = false,
+                errorResponse = SW_INSTRUCTION_NOT_SUPPORTED
             )
         }
-        
         return ApduParseResult(
-            commandType = ApduCommandType.MSE_SET_AT,
-            isValid = false,
-            errorResponse = SW_INSTRUCTION_NOT_SUPPORTED
+            commandType = commandType,
+            isValid = true,
+            data = commandData(apdu),
+            p1 = p1,
+            p2 = p2
         )
+    }
+
+    /**
+     * Parses a PERFORM SECURITY OPERATION command; only Verify Certificate (P1=00, P2=BE) is recognised.
+     */
+    private fun parsePsoCommand(apdu: ByteArray): ApduParseResult {
+        val p1 = apdu[2].toInt() and 0xFF
+        val p2 = apdu[3].toInt() and 0xFF
+        if (p1 != 0x00 || p2 != 0xBE) {
+            return ApduParseResult(
+                commandType = ApduCommandType.UNSUPPORTED,
+                isValid = false,
+                errorResponse = SW_INSTRUCTION_NOT_SUPPORTED
+            )
+        }
+        return ApduParseResult(
+            commandType = ApduCommandType.PSO_VERIFY_CERTIFICATE,
+            isValid = true,
+            data = commandData(apdu),
+            p1 = p1,
+            p2 = p2
+        )
+    }
+
+    /** The command data of a short APDU, or none. */
+    private fun commandData(apdu: ByteArray): ByteArray {
+        val lc = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
+        return if (lc > 0 && apdu.size >= 5 + lc) apdu.sliceArray(5 until 5 + lc) else byteArrayOf()
     }
     
     /**

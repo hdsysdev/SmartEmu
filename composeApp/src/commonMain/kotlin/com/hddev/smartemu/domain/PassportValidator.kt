@@ -58,6 +58,22 @@ object PassportValidator {
         validateCan(passportData.can)?.let { error ->
             errors["can"] = error
         }
+
+        validatePersonalNumber(passportData)?.let { error ->
+            errors["personalNumber"] = error
+        }
+
+        validateFreeText(passportData.placeOfBirth, "Place of birth")?.let { error ->
+            errors["placeOfBirth"] = error
+        }
+
+        validateFreeText(passportData.issuingAuthority, "Issuing authority")?.let { error ->
+            errors["issuingAuthority"] = error
+        }
+
+        validateDateOfIssue(passportData.dateOfIssue, passportData.dateOfBirth, passportData.expiryDate)?.let { error ->
+            errors["dateOfIssue"] = error
+        }
         
         return ValidationResult(
             isValid = errors.isEmpty(),
@@ -94,7 +110,7 @@ object PassportValidator {
     }
     
     /**
-     * Validates expiry date.
+     * Validates expiry date. Dates in the past are accepted so expired passports can be emulated.
      */
     fun validateExpiryDate(
         expiryDate: kotlinx.datetime.LocalDate?, 
@@ -102,8 +118,6 @@ object PassportValidator {
     ): String? {
         return when {
             expiryDate == null -> "Expiry date is required"
-            !DateValidationUtils.isFutureDate(expiryDate) -> 
-                "Expiry date must be in the future"
             dateOfBirth != null && !DateValidationUtils.isValidExpiryDate(dateOfBirth, expiryDate) ->
                 "Expiry date must be after date of birth and within reasonable validity period"
             else -> null
@@ -161,6 +175,51 @@ object PassportValidator {
         }
     }
     
+    /**
+     * Validates the personal number: optional, letters, digits and spaces, and short enough for the MRZ's optional
+     * data where the issuer puts it there.
+     */
+    fun validatePersonalNumber(passportData: PassportData): String? {
+        val number = passportData.personalNumber
+        val maxLength = when {
+            !passportData.chipProfile.mrz.personalNumberInMrz -> MAX_FREE_TEXT_LENGTH
+            passportData.documentType.isCard -> PassportData.MAX_MRZ_PERSONAL_NUMBER_LENGTH_TD1
+            else -> PassportData.MAX_MRZ_PERSONAL_NUMBER_LENGTH_TD3
+        }
+        return when {
+            number.isEmpty() -> null
+            !number.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == ' ' } ->
+                "Personal number can only contain letters, digits and spaces"
+            number.length > maxLength -> "Personal number must be at most $maxLength characters"
+            else -> null
+        }
+    }
+
+    /**
+     * Validates an optional free-text detail of DG11 or DG12.
+     */
+    fun validateFreeText(text: String, fieldName: String): String? = when {
+        text.length > MAX_FREE_TEXT_LENGTH -> "$fieldName must be at most $MAX_FREE_TEXT_LENGTH characters"
+        text.trim() != text -> "$fieldName cannot start or end with spaces"
+        else -> null
+    }
+
+    /**
+     * Validates the optional date of issue: on or after the date of birth, and before the expiry date.
+     */
+    fun validateDateOfIssue(
+        dateOfIssue: kotlinx.datetime.LocalDate?,
+        dateOfBirth: kotlinx.datetime.LocalDate?,
+        expiryDate: kotlinx.datetime.LocalDate?
+    ): String? = when {
+        dateOfIssue == null -> null
+        dateOfBirth != null && dateOfIssue < dateOfBirth -> "Date of issue can't be before the date of birth"
+        expiryDate != null && dateOfIssue >= expiryDate -> "Date of issue must be before the expiry date"
+        else -> null
+    }
+
+    private const val MAX_FREE_TEXT_LENGTH = 40
+
     /**
      * Validates that passport data can be used for MRZ generation.
      */

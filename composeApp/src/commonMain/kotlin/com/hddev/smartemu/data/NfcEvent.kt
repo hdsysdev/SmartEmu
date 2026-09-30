@@ -13,6 +13,15 @@ data class NfcEvent(
     val details: Map<String, Any> = emptyMap()
 ) {
     companion object {
+        /** The reader info of the event the HCE service emits on a reader's first command, starting a session. */
+        const val READER_CONNECTED = "NFC reader connected"
+
+        /** The start of the reader info as a reader starts reading a file, followed by the file's name. */
+        const val READING_PREFIX = "Reading "
+
+        /** The reader info once the chip has answered an Active Authentication challenge. */
+        const val ACTIVE_AUTHENTICATION_ANSWERED = "Active Authentication challenge signed"
+
         /**
          * Creates a connection established event.
          */
@@ -205,3 +214,9 @@ enum class NfcEventType {
  * True for an APDU exchange the chip answered with anything but 9000, success.
  */
 fun NfcEvent.isFailedApdu(): Boolean = type == NfcEventType.APDU && details["status"] != "9000"
+
+/**
+ * What the HCE service says about the connection, for the events [NfcEvent.connectionEstablished] makes, or null.
+ */
+fun NfcEvent.readerInfo(): String? =
+    if (type == NfcEventType.CONNECTION_ESTABLISHED) details["readerInfo"]?.toString() else null

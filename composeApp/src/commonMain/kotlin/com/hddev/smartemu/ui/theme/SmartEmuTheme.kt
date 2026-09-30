@@ -1,5 +1,6 @@
 package com.hddev.smartemu.ui.theme
 
+import com.hddev.smartemu.data.AppTheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -89,6 +90,14 @@ private val AppTypography = Typography().run {
  */
 val MaterialTheme.successColor: Color
     @Composable get() = if (colorScheme.background.luminance() < 0.5f) Color(0xFF7DDC8C) else Color(0xFF1B7F3B)
+
+/** Whether the app is dark with this theme, given whether the phone is. */
+@Composable
+fun AppTheme.isDark(): Boolean = when (this) {
+    AppTheme.SYSTEM -> isSystemInDarkTheme()
+    AppTheme.LIGHT -> false
+    AppTheme.DARK -> true
+}
 
 /**
  * The app's Material 3 theme: a passport-navy primary, rounded shapes and semibold titles, following the system

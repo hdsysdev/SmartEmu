@@ -70,7 +70,7 @@ sealed class SimulatorError(
         return when (this) {
             is ValidationError.InvalidPassportNumber -> "Please enter a valid passport number (6-9 alphanumeric characters)"
             is ValidationError.InvalidDateOfBirth -> "Please enter a valid date of birth in the past"
-            is ValidationError.InvalidExpiryDate -> "Please enter a valid expiry date in the future"
+            is ValidationError.InvalidExpiryDate -> "Please enter a valid expiry date"
             is ValidationError.InvalidCountryCode -> "Please select a valid country"
             is ValidationError.InvalidNames -> "Please enter valid first and last names"
             is ValidationError.MissingRequiredFields -> "Please fill in all required fields"
