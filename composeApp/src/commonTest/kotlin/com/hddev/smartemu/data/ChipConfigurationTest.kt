@@ -118,6 +118,84 @@ class ChipConfigurationTest {
         }
     }
 
+    private val widerPassportIds = listOf(
+        "fr-passport-2008-study", "be-passport-2006-study", "es-passport-2008-study", "it-passport-2008-study",
+        "ch-passport-2007-study", "ca-passport-2013", "au-passport-2005-m", "au-passport-2009-n", "es-passport-third-generation"
+    )
+
+    @Test
+    fun `wider generation profiles have linked scoped evidence and automatically generated valid presets`() {
+        val today = LocalDate(2026, 9, 30)
+        for (id in widerPassportIds) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(id, profile.id, "lookup must not silently fall back to generic")
+            assertEquals(DocumentType.PASSPORT, profile.documentType)
+            assertTrue(profile in ChipProfiles.forDocumentType(DocumentType.PASSPORT), id)
+            assertFalse(profile in ChipProfiles.forDocumentType(DocumentType.ID_CARD), id)
+            assertTrue(profile.evidence.isNotEmpty(), id)
+            profile.evidence.forEach {
+                assertTrue(it.url.startsWith("https://"), id)
+                assertTrue(it.claim.isNotBlank() && it.sourceTitle.isNotBlank() && it.locator.isNotBlank(), id)
+                assertTrue(it.provenance != Provenance.ASSUMED, "evidence is a sourced claim: $id")
+            }
+            val data = PassportPresets.all.single { it.id == "profile-$id" }.build(today)
+            assertEquals(id, data.chipProfileId)
+            assertEquals(profile.country, data.issuingCountry)
+            assertTrue(data.isValid(), id)
+            assertEquals(profile.accessControl, data.accessControl)
+        }
+    }
+
+    @Test
+    fun `partial protocol evidence never upgrades unknown algorithms or disabled features`() {
+        for (id in widerPassportIds) {
+            val profile = ChipProfiles.byId(id)
+            listOf(
+                ProfileAspect.ACCESS_CONTROL, ProfileAspect.PACE_CRYPTOGRAPHY, ProfileAspect.EXTENDED_ACCESS_CONTROL,
+                ProfileAspect.SIGNATURE, ProfileAspect.DATA_GROUPS, ProfileAspect.MRZ
+            ).forEach { assertEquals(Provenance.ASSUMED, profile.provenanceOf(it), "$id $it") }
+            val expectedAa = if (id in listOf("be-passport-2006-study", "ch-passport-2007-study", "au-passport-2005-m")) {
+                Provenance.REPORTED
+            } else {
+                Provenance.ASSUMED
+            }
+            assertEquals(expectedAa, profile.provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION), id)
+        }
+        assertTrue(ChipProfiles.byId("es-passport-third-generation").accessControl.supportsPace)
+        assertTrue(ChipProfiles.byId("ca-passport-2013").accessControl.supportsBac)
+        assertFalse(ChipProfiles.byId("ca-passport-2013").accessControl.supportsPace)
+        val canadian = holder.withChipProfile(ChipProfiles.byId("ca-passport-2013")).chipConfiguration()
+        assertEquals(KeySpec.Ec(EcCurve.NIST_P256), canadian.activeAuthentication)
+        assertEquals(listOf(1, 2, 14, 15), canadian.dataGroups)
+        assertTrue(canadian.profile.evidence.any { it.aspect == ProfileAspect.ACTIVE_AUTHENTICATION })
+    }
+
+    @Test
+    fun `Belgian measured AA and DS keys stay distinct and unimplemented files stay explicit`() {
+        val profile = ChipProfiles.byId("be-passport-2006-study")
+        val config = holder.withChipProfile(profile).chipConfiguration()
+        assertEquals(KeySpec.Rsa(1024), config.activeAuthentication)
+        assertEquals(KeySpec.Rsa(2048), config.sod.signerKey)
+        assertEquals("SHA-1", config.sod.digestAlgorithm)
+        assertEquals(listOf(1, 2, 11, 12, 15), config.dataGroups)
+        assertTrue(profile.notes.any { "DG7 is omitted" in it })
+        assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.SIGNATURE), "padding and LDS hash unknown")
+
+        val swiss = holder.withChipProfile(ChipProfiles.byId("ch-passport-2007-study")).chipConfiguration()
+        assertNull(swiss.activeAuthentication)
+        assertEquals(listOf(1, 2), swiss.dataGroups)
+    }
+
+    @Test
+    fun `malformed study probes are not confused with a correctly sized request before challenge`() {
+        assertEquals(0x6985, ChipProfiles.byId("de-passport-2005").errorResponses.outOfSequence)
+        assertEquals(0x6300, ChipProfiles.byId("es-passport-2008-study").errorResponses.outOfSequence)
+        assertEquals(Provenance.REPORTED, ChipProfiles.byId("es-passport-2008-study").provenanceOf(ProfileAspect.ERROR_RESPONSES))
+        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("nl-passport-2006").provenanceOf(ProfileAspect.ERROR_RESPONSES))
+        assertEquals(Provenance.ASSUMED, ChipProfiles.default.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY))
+        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("de-passport-2017").provenanceOf(ProfileAspect.SIGNATURE))
+    }
+
     @Test
     fun `exact cryptography needs developer mode`() {
         assertFalse(AppSettings().usesExactCryptography)

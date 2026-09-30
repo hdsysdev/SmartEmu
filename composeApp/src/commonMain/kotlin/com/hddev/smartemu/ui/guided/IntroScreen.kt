@@ -50,10 +50,9 @@ private class IntroPage(
 
 private val introPages = listOf(
     IntroPage(
-        title = "This phone becomes a passport",
-        text = "It works like the chip in a real passport, with details you choose, so apps that read passports " +
-            "can read it just as they would a real one.",
-        illustration = { PassportPhoneIllustration() }
+        title = "Welcome to PassportEmu",
+        text = "Your phone becomes a virtual passport or ID card. Another phone scans the page and reads the chip.",
+        illustration = { PassportEmuMascot() }
     ),
     IntroPage(
         title = "You'll need a second phone",
@@ -112,7 +111,7 @@ fun IntroScreen(onFinished: () -> Unit, modifier: Modifier = Modifier) {
                 val page = introPages[index]
                 BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                     // Small screens give the words room first, so the picture shrinks to fit
-                    val illustrationHeight = maxHeight * 0.4f
+                    val illustrationHeight = maxHeight * if (index == 0) 0.32f else 0.4f
                     Column(
                         modifier = Modifier
                             .widthIn(max = 520.dp)

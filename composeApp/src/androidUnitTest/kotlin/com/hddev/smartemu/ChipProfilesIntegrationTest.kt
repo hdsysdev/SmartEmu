@@ -296,7 +296,10 @@ class ChipProfilesIntegrationTest {
 
     @Test
     fun `EXTERNAL AUTHENTICATE with no challenge gets the profile's status word`() {
-        val expected = mapOf("generic" to 0x6985, "de-passport-2005" to 0x6700, "nl-passport-2006" to 0x6982)
+        val expected = mapOf(
+            "generic" to 0x6985, "de-passport-2005" to 0x6985, "nl-passport-2006" to 0x6982,
+            "es-passport-2008-study" to 0x6300
+        )
         for ((id, statusWord) in expected) {
             val data = documentFor(ChipProfiles.byId(id)).copy(accessControl = com.hddev.smartemu.data.AccessControl.BAC_ONLY)
             PassportHceService.setSharedPassportData(data)
@@ -306,6 +309,22 @@ class ChipProfilesIntegrationTest {
                 hceService.processCommandApdu(CommandAPDU(0x00, 0x82, 0x00, 0x00, ByteArray(40), 40).bytes, null)
             )
             assertEquals(statusWord, response.sw, id)
+        }
+    }
+
+    @Test
+    fun `new hybrid passport profiles can also be read with BAC fallback`() {
+        for (id in listOf("es-passport-third-generation")) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(id, profile.id)
+            val data = documentFor(profile)
+            PassportHceService.setSharedPassportData(data)
+            val service = HceCardService.openPassportService(hceService)
+            service.sendSelectApplet(false)
+            service.doBAC(BACKey(data.passportNumber, data.mrzDateOfBirth(), data.mrzExpiryDate()))
+            val mrzInfo = DG1File(ByteArrayInputStream(readFile(service, PassportService.EF_DG1))).mrzInfo
+            assertEquals(data.toMrzData(), mrzInfo.toString().replace("\n", ""), id)
+            assertPassiveAuthentication(profile, service, data.chipConfiguration().dataGroups)
         }
     }
 

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.hddev.smartemu.data.ChipConfiguration
 import com.hddev.smartemu.data.ChipProfile
@@ -75,6 +77,7 @@ fun ChipProfilePicker(
 @Composable
 fun ChipProfileDetails(configuration: ChipConfiguration) {
     val profile = configuration.profile
+    val uriHandler = LocalUriHandler.current
     var expanded by rememberSaveable { mutableStateOf(false) }
     SectionCard(
         title = "What the profile does",
@@ -103,16 +106,42 @@ fun ChipProfileDetails(configuration: ChipConfiguration) {
             }
         }
 
+        Text(
+            text = "ASSUMED means an emulator default, including disabled features. A source may establish one " +
+                "part of a row while its remaining choices are unknown. Evidence below applies to the preset generation.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         ProfileAspect.entries.forEach { aspect ->
             AspectRow(
                 aspect = aspect,
                 value = aspectValue(configuration, aspect),
-                provenance = profile.provenanceOf(aspect)
+                provenance = if (when (aspect) {
+                    ProfileAspect.ACCESS_CONTROL -> configuration.accessControl != profile.accessControl
+                    ProfileAspect.PACE_CRYPTOGRAPHY -> configuration.pace != profile.pace || configuration.paceMapping != profile.paceMapping
+                    ProfileAspect.ACTIVE_AUTHENTICATION -> configuration.activeAuthentication != profile.activeAuthentication
+                    else -> false
+                }) Provenance.ASSUMED else profile.provenanceOf(aspect)
             )
         }
 
+        if (profile.evidence.isNotEmpty()) {
+            Text(text = "Primary evidence for this generation", style = MaterialTheme.typography.titleSmall)
+            profile.evidence.forEach { evidence ->
+                Text(
+                    text = "${evidence.provenance.displayName}: ${evidence.claim}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                TextButton(onClick = { uriHandler.openUri(evidence.url) }) {
+                    Text(
+                        text = "${evidence.sourceTitle} · ${evidence.locator}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
         if (profile.notes.isNotEmpty()) {
-            Text(text = "Not emulated", style = MaterialTheme.typography.titleSmall)
+            Text(text = "Accuracy limits and emulator choices", style = MaterialTheme.typography.titleSmall)
             profile.notes.forEach { note ->
                 Text(
                     text = "• $note",
@@ -177,16 +206,16 @@ private fun aspectValue(configuration: ChipConfiguration, aspect: ProfileAspect)
         ProfileAspect.ACCESS_CONTROL -> configuration.accessControl.displayName
         ProfileAspect.PACE_CRYPTOGRAPHY -> if (configuration.supportsPace) {
             val pace = configuration.pace
-            val real = profile.pace.curve.takeIf { it != pace.curve }?.let { " (real chips: ${it.displayName})" } ?: ""
+            val real = profile.pace.curve.takeIf { it != pace.curve }?.let { " (preset curve: ${it.displayName})" } ?: ""
             "PACE-${configuration.paceMapping.abbreviation} on ${pace.curve.displayName}$real, ${pace.cipher.displayName}"
         } else {
-            "No PACE"
+            "PACE disabled in this configuration"
         }
-        ProfileAspect.ACTIVE_AUTHENTICATION -> configuration.activeAuthentication?.displayName ?: "None"
+        ProfileAspect.ACTIVE_AUTHENTICATION -> configuration.activeAuthentication?.displayName ?: "Disabled in this configuration"
         ProfileAspect.EXTENDED_ACCESS_CONTROL -> buildList {
             configuration.chipAuthentication?.let { add("Chip Authentication on ${it.curve.displayName}, ${it.cipher.displayName}") }
             if (configuration.terminalAuthentication) add("Terminal Authentication guards the fingerprints, which stay locked")
-        }.ifEmpty { listOf("None") }.joinToString(". ")
+        }.ifEmpty { listOf("Disabled in this configuration") }.joinToString(". ")
         ProfileAspect.DATA_GROUPS -> configuration.dataGroups.joinToString { "DG$it" }
         ProfileAspect.SIGNATURE ->
             "${configuration.sod.signerKey.displayName} with ${configuration.sod.digestAlgorithm}, under ${configuration.sod.csca}"

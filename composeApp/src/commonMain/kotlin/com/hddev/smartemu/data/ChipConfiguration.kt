@@ -54,7 +54,7 @@ fun PassportData.chipConfiguration(): ChipConfiguration {
     if (accessControl.supportsPace && !exactCryptography && !pace.curve.isNist) {
         val nist = pace.curve.nistEquivalent
         adaptations += "PACE runs on ${nist.displayName} rather than ${pace.curve.displayName}: the r2w nfc-library " +
-            "supports NIST curves only. Turn on exact cryptography in developer settings for the real curve."
+            "supports NIST curves only. Turn on exact cryptography in developer settings for the preset curve."
         pace = pace.copy(curve = nist)
     }
 

@@ -59,6 +59,20 @@ fun SettingsScreen(
         }
     ) { padding ->
         ScreenColumn(modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
+            SectionCard(title = "About PassportEmu") {
+                Text(
+                    text = "PassportEmu turns this phone into a virtual passport or ID card for another app to read. " +
+                        "The documents use test certificates and can't be used as real ID.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (settings.developerMode) Text(
+                    text = "The test certificates keep their legacy SmartEmu names. Readers must trust the matching " +
+                        "test CSCA certificate to verify their signatures.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             SectionCard(title = "Appearance", icon = Icons.Outlined.LightMode) {
                 ChoiceGroup {
                     AppTheme.entries.forEach { theme ->
@@ -115,11 +129,11 @@ fun SettingsScreen(
                     SettingSwitch(
                         title = "Exact cryptography",
                         description = if (settings.exactCryptography) {
-                            "The chip uses its profile's cryptography as it is, such as Brainpool curves for PACE on " +
-                                "German documents. Apps built on the r2w nfc-library can't read those chips."
+                            "Uses the preset's cryptography without compatibility substitutions. Brainpool PACE " +
+                                "requires a reader that supports Brainpool. Assumed profile details remain approximations."
                         } else {
                             "The chip swaps Brainpool PACE curves for the NIST curve of the same strength, so that " +
-                                "apps built on the r2w nfc-library can read every profile. Signatures, Active " +
+                                "readers limited to NIST curves can use PACE. Signatures, Active " +
                                 "Authentication and Chip Authentication stay as the profile has them."
                         },
                         checked = settings.exactCryptography,
@@ -127,8 +141,8 @@ fun SettingsScreen(
                     )
                 } else {
                     Text(
-                        text = "Out of developer mode, the chip adapts its cryptography to what the r2w " +
-                            "nfc-library can read.",
+                        text = "Profiles use compatible settings by default. Turn on developer mode for detailed " +
+                            "chip controls and the sources behind each profile.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

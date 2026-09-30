@@ -1,4 +1,12 @@
+# PassportEmu
+
+PassportEmu emulates passport and ID card chips on Android for testing document readers.
 This is a Kotlin Multiplatform project targeting Android.
+
+The documents use test certificates whose subjects and resource names retain the legacy SmartEmu branding.
+Existing test CSCA trust anchors, app identity (`com.hddev.smartemu`), saved preferences and exported JSON fields
+stay compatible. New text reports and export filenames use PassportEmu; the legacy `SmartEmuEvents` Logcat tag
+remains available to existing tools.
 
 * [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
   It contains several subfolders:
@@ -46,7 +54,7 @@ Both modes offer the same chip; developer mode names things in ICAO 9303 terms, 
 
 | Feature | What it does | Where |
 |---|---|---|
-| Chip profiles | How a real kind of document's chip behaves: generic ICAO, EU passport and ID card, Germany (2005 and 2017 passports, ID card), the Netherlands (2006 and 2014 passports, ID card), the UK and the US. Each sets the access control, PACE curve and cipher, Active Authentication key, Chip and Terminal Authentication, data groups, Document Signer, MRZ conventions and one error response | Developer: Chip > Chip profile. Guided: Choose a ready-made one > Documents like real countries' ones |
+| Chip profiles | 20 generation-specific and generic configurations, including France, Belgium, Spain, Italy, Switzerland, Canada and Australia alongside the existing EU, German, Dutch, UK and US presets. Published claims and assumed emulator choices are shown separately. Each sets the access control, PACE curve and cipher, Active Authentication key, Chip and Terminal Authentication, data groups, Document Signer, MRZ conventions and one error response | Developer: Chip > Chip profile. Guided: Choose a ready-made one > By country and generation |
 | Presets | Ready-made documents for common and awkward cases: expired, a child's, long or accented names, sex X, a stateless holder, look-alike characters, each access control, every fault below, and a specimen for each country profile | Developer: ⋮ > Load a preset. Guided: Choose a ready-made one / Try another |
 | ID cards and residence permits | TD1 documents (codes `ID` and `IR`, or a profile's own, such as the Dutch `I`): a three-line, 30-character MRZ in DG1, drawn on the back of the card, and signed by the ID Document Signer | Document type, on the passport form |
 | Active Authentication | DG15 and INTERNAL AUTHENTICATE, under secure messaging only: ECDSA with a plain signature (and DG14 naming the algorithm), or RSA with an ISO 9796-2 SHA-1 signature, as the profile has it | Developer: Chip > Active Authentication. Guided: More options > Anti-copy check, which also turns on PACE-CAM |
@@ -58,13 +66,16 @@ Both modes offer the same chip; developer mode names things in ICAO 9303 terms, 
 
 #### How far the profiles can be trusted
 
-Each part of a profile is marked with where its facts come from, shown under Chip > What the profile does:
+[Profile evidence and generation boundaries](./docs/chip-profile-evidence.md) records the primary sources and known limits. Each part of a profile is marked with where its facts come from, shown under Chip > What the profile does:
 **Specification** (required by ICAO 9303, BSI TR-03110 or EU regulation 2252/2004 for that document),
 **Reported** (in public sources, not checked against a real chip) or **Assumed** (a common choice standing in
 until someone checks). Much of what varies between issuers, such as the Document Signer's key and the exact chip
-answers, is Assumed. To settle the signing keys for a state, run [`tools/pkd_profile.py`](./tools/pkd_profile.py)
-on the ICAO PKD downloads (see the script for how to get them and the terms that apply); it reports the key types
-and signature algorithms by country and year.
+answers, is Assumed. [`tools/pkd_profile.py`](./tools/pkd_profile.py) extracts key types and certificate signature
+algorithms from local ICAO PKD downloads or published master lists, by country and year. A CSCA key does not
+establish the Document Signer's key or any chip protocol, and a certificate's signature algorithm does not
+establish the signature algorithm in EF.SOD. The tool extracts metadata; it does not verify certificate or
+master-list signatures. See the script for the download terms and `python3 -m unittest discover -s tools/tests`
+for its focused parser tests.
 
 A phone can't copy everything about a chip: Android's HCE fixes the ATS, the UID and the NFC type, so readers that
 tell chips apart by those still see a phone.
@@ -76,6 +87,12 @@ where the profile has a Brainpool curve (brainpoolP256r1 becomes P-256, brainpoo
 P-521), because the r2w nfc-library supports NIST curves only. The event log says so when a chip is adapted. The
 Document Signer, Active Authentication and Chip Authentication keep the profile's curves either way, as the library
 doesn't verify them.
+
+### Logo and mascot
+
+The PassportEmu mark is an emu holding a passport. The same graphic appears on the launcher and in the animated
+welcome screen. [Artwork sources and export instructions](./composeApp/branding/README.md) include the transparent
+logo, a one-color SVG, the generation prompt, and a macOS script to regenerate the Android icon sizes.
 
 ---
 

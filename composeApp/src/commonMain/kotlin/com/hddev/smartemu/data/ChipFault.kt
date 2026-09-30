@@ -33,7 +33,7 @@ enum class ChipFault(
     ),
     UNTRUSTED_SIGNER(
         "Untrusted CSCA",
-        "EF.SOD is signed by a Document Signer issued by an unknown CSCA, not the SmartEmu Test CSCA"
+        "EF.SOD is signed by a Document Signer issued by an unknown CSCA, not the legacy SmartEmu Test CSCA"
     ),
     CLONED_CHIP(
         "Cloned chip",

@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "research_checked_on": "2026-09-30",
+  "scope": "Primary source facts supporting 20-profile catalogue; nine added generation/sample presets.",
+  "artifact_policy": "Full downloaded third-party works are cached outside the repository; no redistribution licence established. Cached paths are local conveniences and may expire. Source URLs and locators remain authoritative; notes are authored summaries, not original evidence.",
+  "sources": [
+    {
+      "title": "Fingerprinting Passports",
+      "author_or_issuer": "Henning Richter, Wojciech Mostowski, Erik Poll",
+      "url": "https://cs.ru.nl/E.Poll/papers/nluug.pdf",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "Sections 1–3, pages 1–5: sampled countries and BAC",
+        "Page 5, paragraph below Table 1: EXTERNAL AUTHENTICATE with Lc=40; compare malformed Table 1 probes"
+      ],
+      "profile_ids": [
+        "fr-passport-2008-study",
+        "it-passport-2008-study",
+        "es-passport-2008-study",
+        "de-passport-2005",
+        "nl-passport-2006"
+      ],
+      "generation_boundary": "Historical studied samples; issue dates are not specified for all samples.",
+      "downloaded_source": {
+        "filename": "richter-mostowski-poll-2008.pdf",
+        "local_cache_path": "/tmp/passportemu-source-cache/richter-mostowski-poll-2008.pdf",
+        "sha256": "7416bf42860228ec6df2a2f86fe1efc85116aa05a23ba179543f67912083cafa",
+        "bytes": 164756,
+        "retained_in_repository": false
+      },
+      "authored_repository_notes": "source-notes.md#richter-mostowski-and-poll-2008"
+    },
+    {
+      "title": "ePassport: Securing International Contacts with Contactless Chips",
+      "author_or_issuer": "Gildas Avoine, Kassem Kalach, Jean-Jacques Quisquater",
+      "url": "https://sites.uclouvain.be/security/download/papers/AvoineKQ-2008-fc.pdf",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "Section 3.3, PDF page 10: mid-2006 BAC generation",
+        "Section 4, PDF page 11: DG7/11/12",
+        "Table 2, PDF page 14: separate AA/DS key sizes and signature hash; Table 3 recommendations excluded"
+      ],
+      "profile_ids": [
+        "be-passport-2006-study"
+      ],
+      "generation_boundary": "Belgian generation introduced mid-2006 and studied by the authors; excludes earlier no-BAC generation.",
+      "downloaded_source": {
+        "filename": "avoine-kalach-quisquater-2008.pdf",
+        "local_cache_path": "/tmp/passportemu-source-cache/avoine-kalach-quisquater-2008.pdf",
+        "sha256": "778fd746e22ac84e312fa4e9b8fe88a7468148a21357681bcab3f64f3f611b4d",
+        "bytes": 208692,
+        "retained_in_repository": false
+      },
+      "authored_repository_notes": "source-notes.md#avoine-kalach-and-quisquater-2008"
+    },
+    {
+      "title": "E-Passport Survey, Eurocrypt 2007",
+      "author_or_issuer": "Serge Vaudenay, Martin Vuagnoux",
+      "url": "https://www.iacr.org/conferences/eurocrypt2007/slides/rumpt05.pdf",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "Slide 7 of 13: one sample per country",
+        "Slide 10 of 13: Swiss BAC present",
+        "Slide 12 of 13: Swiss AA absent"
+      ],
+      "profile_ids": [
+        "ch-passport-2007-study"
+      ],
+      "generation_boundary": "One Swiss sample in the 2007 firsthand survey; not a modern national suite.",
+      "downloaded_source": {
+        "filename": "vaudenay-vuagnoux-2007.pdf",
+        "local_cache_path": "/tmp/passportemu-source-cache/vaudenay-vuagnoux-2007.pdf",
+        "sha256": "2afc402965464a63ca740282a962aaf864afc87aa06ee7319923ea97307c3599",
+        "bytes": 66110,
+        "retained_in_repository": false
+      },
+      "authored_repository_notes": "source-notes.md#vaudenay-and-vuagnoux-eurocrypt-2007"
+    },
+    {
+      "title": "Technical information about the Canadian ePassport",
+      "author_or_issuer": "Government of Canada",
+      "url": "https://www.canada.ca/en/news/archive/2014/05/technical-information-about-canadian-epassport.html",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "Unauthorized reading: Basic access control",
+        "Cloning: Active authentication, second paragraph: AA implemented; key type unspecified",
+        "Tampering and inauthenticity: Passive authentication: RSA-PSS-2048/SHA-256 examples"
+      ],
+      "profile_ids": [
+        "ca-passport-2013"
+      ],
+      "generation_boundary": "2014 issuer backgrounder paired with rollout history; no 2023-generation claim.",
+      "downloaded_source": {
+        "filename": "canada-technical-2014.html",
+        "local_cache_path": "/tmp/passportemu-source-cache/canada-technical-2014.html",
+        "sha256": "f18420430084f77383783f91e1dad1810f3df32b84273aa39bd68b4d0f731943",
+        "bytes": 29099,
+        "retained_in_repository": false
+      },
+      "authored_repository_notes": "source-notes.md#government-of-canada-2014-backgrounders"
+    },
+    {
+      "title": "History of the ePassport",
+      "author_or_issuer": "Government of Canada",
+      "url": "https://www.canada.ca/en/news/archive/2014/05/history-epassport.html",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "The ePassport project and the User Fees Act, final paragraph: adult ten-year option available 1 July 2013"
+      ],
+      "profile_ids": [
+        "ca-passport-2013"
+      ],
+      "generation_boundary": "2013 general rollout; not the redesigned 2023 passport.",
+      "downloaded_source": {
+        "filename": "canada-history-2014.html",
+        "local_cache_path": "/tmp/passportemu-source-cache/canada-history-2014.html",
+        "sha256": "7353f5a1f88ee908c499e1dea28652c313b7c800af3f19b158245852261cc2b6",
+        "bytes": 27402,
+        "retained_in_repository": false
+      },
+      "authored_repository_notes": "source-notes.md#government-of-canada-2014-backgrounders"
+    },
+    {
+      "title": "Official DNIe reader examples",
+      "author_or_issuer": "Policía Nacional, Gobierno de España",
+      "url": "https://www.dnielectronico.es/PortalDNIe/PRF1_Cons02.action?id_menu=20&pag=REF_035",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "Ejemplo DNIe Lectura Datos: third-generation passports using PACE"
+      ],
+      "profile_ids": [
+        "es-passport-third-generation"
+      ],
+      "generation_boundary": "Third-generation passport as named by issuer; no date or exact passport suite given.",
+      "downloaded_source": {
+        "filename": "spain-official-reader.html",
+        "local_cache_path": "/tmp/passportemu-source-cache/spain-official-reader.html",
+        "sha256": "ec6cf26992efa8206a7867e86ed42a5abc96ae8e0f38714b08384cf05910ea81",
+        "bytes": 45722,
+        "retained_in_repository": false
+      },
+      "authored_repository_notes": "source-notes.md#policía-nacional-reader-documentation"
+    },
+    {
+      "title": "Management of ePassports, Audit Report No. 33, 2011–12",
+      "author_or_issuer": "Australian National Audit Office",
+      "url": "https://www.anao.gov.au/sites/default/files/201112%20Audit%20Report%20No%2033.pdf",
+      "retrieved_on": "2026-09-30",
+      "locators": [
+        "Summary paragraph 6, printed page 14: M/N introduction dates",
+        "Paragraph 5.6, printed page 74: BAC",
+        "Paragraph 5.16, printed page 78: AA introduced with N Series"
+      ],
+      "profile_ids": [
+        "au-passport-2005-m",
+        "au-passport-2009-n"
+      ],
+      "generation_boundary": "M Series from 24 October 2005; N Series from May 2009. No P/R extrapolation.",
+      "downloaded_source": null,
+      "original_download_status": "Direct HTTP retrieval failed; inspected through web tool. No original-source hash available.",
+      "authored_repository_notes": "anao-australia-2012-notes.md",
+      "authored_notes_sha256": "1bfd36eae144c6831f4f1e777429734d98b6116fac49a33ec3c68681ab2815bf"
+    }
+  ]
+}

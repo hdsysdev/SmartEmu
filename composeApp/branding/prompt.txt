@@ -1,0 +1,5 @@
+Use case: logo-brand.
+Create a MINIMAL VECTOR LOGO MARK for an app called PassportEmu: an emu bird holding a passport.
+This is a professional brand symbol, NOT a character illustration, NOT a realistic cartoon.
+Design using only FIVE or SIX bold geometric filled shapes and THREE solid colors: midnight navy, warm ochre, cream. A long curved emu neck with small side-profile head, a single small dot eye, distinctive two-stroke feather tuft, simple short beak. A rounded navy passport rectangle held against the chest by ONE smooth curved wing crossing its lower edge. The passport has a small simple gold globe mark. Compact balanced silhouette, memorable negative space, large forms recognizable at 24px.
+Flat SVG-like graphic design, no gradients, NO outlines, no shading, NO feather texture, no facial expression rendering, NO big cartoon eyes, no detail on wings, no photorealism, no 3D. Single centered logo, generous padding, true transparent background. No text, no typography, no border or badge. Limit detail severely. Design suitable for reproduction as one-color silhouette.

@@ -12,7 +12,7 @@ import kotlin.time.Instant
 object ReadHistoryFormatter {
 
     fun text(records: List<ReadRecord>, timeZone: TimeZone = TimeZone.currentSystemDefault()): String = buildString {
-        appendLine("SmartEmu read history: ${records.size} ${if (records.size == 1) "read" else "reads"}")
+        appendLine("PassportEmu read history: ${records.size} ${if (records.size == 1) "read" else "reads"}")
         records.forEach { record ->
             appendLine()
             appendLine("${dateTime(record.startedAt, timeZone)}  ${record.outcome.displayName}")
@@ -27,7 +27,7 @@ object ReadHistoryFormatter {
     }
 
     fun fileName(generatedAt: Instant): String =
-        "smartemu-reads-${generatedAt.toString().substringBefore('.').replace(":", "").replace("Z", "")}.txt"
+        "passportemu-reads-${generatedAt.toString().substringBefore('.').replace(":", "").replace("Z", "")}.txt"
 
     /** The day and time, to the second, as "2026-09-30 14:05:09". */
     fun dateTime(instant: Instant, timeZone: TimeZone = TimeZone.currentSystemDefault()): String {

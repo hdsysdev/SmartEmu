@@ -52,6 +52,11 @@ kotlin {
     }
 }
 
+// Keep generated resource imports stable when the app's display name changes.
+compose.resources {
+    packageOfResClass = "smartemu.composeapp.generated.resources"
+}
+
 // The dev signing key's location and passwords, from local.properties; see keystore/
 val devSigning = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use(::load)

@@ -61,7 +61,7 @@ fun HomeScreen(
     val readiness = readiness(uiState, nfcSwitch)
 
     GuidedScaffold(
-        title = "Virtual Passport",
+        title = "PassportEmu",
         actions = {
             IconButton(onClick = onShowHistory) {
                 Icon(Icons.Outlined.History, contentDescription = "Past reads")

@@ -1,8 +1,9 @@
-# SmartEmu test PKI
+# PassportEmu test PKI
 
-A test ICAO 9303 part 12 PKI for passport passive authentication. SmartEmu signs the EF.SOD of every
-emulated passport with the Document Signer below, and with PACE-CAM also EF.CardSecurity, so any system
-that trusts the **SmartEmu Test CSCA** can verify SmartEmu passports end to end. ID cards and residence
+A test ICAO 9303 part 12 PKI for passport passive authentication. PassportEmu signs EF.SOD with the
+chosen profile's Document Signer, and with PACE-CAM also EF.CardSecurity. A verifier trusting the
+matching test CSCA can verify these signatures. The generic anchor retains its existing subject,
+**SmartEmu Test CSCA**. ID cards and residence
 permits (TD1) are signed by a second Document Signer whose document type list allows them.
 
 The chip faults the app can inject use three more certificates on purpose: a Document Signer that has
@@ -17,13 +18,13 @@ should reject documents signed by either.
 |---|---|
 | `csca/smartemu-test-csca.cert.pem` / `.der` | Country Signing CA certificate, self-signed. The trust anchor to install in test environments |
 | `csca/smartemu-test-csca.key.pem` | CSCA private key (PKCS#8, unencrypted), for issuing more test Document Signers |
-| `document-signer/smartemu-test-ds.cert.pem` / `.der` | Document Signer certificate issued by the CSCA; embedded in every EF.SOD and EF.CardSecurity |
+| `document-signer/smartemu-test-ds.cert.pem` / `.der` | Generic profile's Document Signer certificate issued by the CSCA; embedded in its EF.SOD and EF.CardSecurity |
 | `document-signer/smartemu-test-ds.key.pem` | Document Signer private key (PKCS#8, unencrypted); the app signs EF.SOD and EF.CardSecurity with it |
 | `document-signer/smartemu-test-ds.p12` | Document Signer key, certificate and CSCA chain as PKCS#12, password `smartemu` |
 | `document-signer/smartemu-test-ds-id.*` | Document Signer for ID cards and residence permits (document types `ID` and `IR`), issued by the CSCA |
 | `document-signer/smartemu-test-ds-expired.*` | Issued by the CSCA, but valid for one day only; the "Expired Document Signer" fault signs with it |
 | `document-signer/smartemu-test-ds-untrusted.*` | Issued by the Unknown CSCA; the "Untrusted CSCA" fault signs with it |
-| `csca/smartemu-test-csca-<cc>.*`, `document-signer/smartemu-test-ds-<cc>*.*` | Test CSCAs and Document Signers for the country chip profiles (DE, NL, GB, US); see [Country test PKIs](#country-test-pkis) |
+| `csca/smartemu-test-csca-<cc>.*`, `document-signer/smartemu-test-ds-<cc>*.*` | Test CSCAs and Document Signers for country chip profiles (DE, NL, GB, US, FR, BE, ES, IT, CH, CA, AU); see [Country test PKIs](#country-test-pkis) |
 | `untrusted-csca/smartemu-unknown-csca.*` | A second self-signed CSCA. Never install it: it's there to be untrusted |
 | `openssl.cnf`, `generate.sh` | Certificate profiles and the script that generated everything |
 
@@ -51,10 +52,14 @@ The other certificates share those profiles, keys (EC P-256) and signatures:
 
 ### Country test PKIs
 
-The chip profiles for real countries sign with a test PKI of that country's own, so that a verifier matching the
-CSCA's country to the document's issuing state accepts them. Every certificate has `TEST` or `Test` in its CN and
-`O=SmartEmu, OU=Test PKI`, so none can be mistaken for a state's. They follow the profiles above, and each profile's
-Document Signer key type follows its chip profile, which is mostly an assumption (see the main README).
+Country profiles use test certificates whose country code matches the configured issuing state.
+Every certificate has `TEST` or `Test` in its CN and `OU=Test PKI`. Existing generic and DE/NL/GB/US subjects
+retain `O=SmartEmu`; new FR/BE/ES/IT/CH/CA/AU subjects use `O=PassportEmu`. Legacy resource basenames
+remain `smartemu-test-*`. These are emulator trust anchors and signers, not real issuer certificates.
+
+CSCA keys do not establish document signer, SOD, AA, CA or PACE algorithms. Most configured suites are
+ASSUMED; [profile evidence and generation boundaries](../docs/chip-profile-evidence.md) explain the
+specific supported claims. The legacy certificate details below are preserved.
 
 | Certificate | Subject CN (C) | Key | Valid | Document types | SHA-256 fingerprint |
 |---|---|---|---|---|---|
@@ -70,12 +75,31 @@ Document Signer key type follows its chip profile, which is mostly an assumption
 | `csca/smartemu-test-csca-us` | SmartEmu Test CSCA US (US) | EC P-256 | 2026-09-30 to 2046-09-30 | | `C6:51:4A:FE:49:B2:59:83:9A:B9:F6:C8:45:ED:9E:1F:7C:39:43:52:1D:9E:E4:10:81:6C:0F:F3:FA:8E:34:ED` |
 | `document-signer/smartemu-test-ds-us` | SmartEmu TEST Document Signer US (US) | EC P-256 | 2026-09-30 to 2036-09-29 | `P` | `69:C4:9D:2B:4C:8C:48:A9:09:C7:63:A4:76:D2:71:1C:67:86:4F:98:02:94:CA:3A:CE:70:1C:3B:99:03:1E:BA` |
 
-All are signed with ecdsa-with-SHA256 by their country's CSCA. The Dutch RSA signer is for the 2006 passport
+All are signed with ecdsa-with-SHA256 by their matching test CSCA. The Dutch RSA signer is for the 2006 passport
 profile, whose EF.SOD is signed with SHA256withRSA (PKCS#1 v1.5). To check a chain:
 `openssl verify -CAfile csca/smartemu-test-csca-de.cert.pem document-signer/smartemu-test-ds-de.cert.pem`.
 
+The nine added passport profiles share seven new country PKIs. Each includes `.key.pem`, `.cert.pem`
+and `.cert.der` for both CSCA and Document Signer. Their CNs are `PassportEmu TEST CSCA XX` and
+`PassportEmu TEST Document Signer XX`, with the uppercase country code in place of `XX`.
+
+| Country | Resource suffix | CSCA key | Document Signer key | Scope |
+|---|---|---|---|---|
+| France | `fr` | EC P-256 | EC P-256 | ASSUMED signer for the historical 2008 study preset |
+| Belgium | `be` | EC P-256 | RSA 2048 | DS key size from the 2008 authors' Table 2; SOD padding and separate LDS digest remain ASSUMED |
+| Spain | `es` | EC P-256 | EC P-256 | ASSUMED signer shared by the historical study and third-generation presets |
+| Italy | `it` | EC P-256 | EC P-256 | ASSUMED signer for the historical 2008 study preset |
+| Switzerland | `ch` | EC P-256 | EC P-256 | ASSUMED signer for the 2007 study sample |
+| Canada | `ca` | EC P-256 | RSA 2048 | ASSUMED PKCS#1 v1.5 stand-in; issuer gives RSA-PSS/SHA-256 examples |
+| Australia | `au` | EC P-256 | EC P-256 | ASSUMED signer shared by M and N Series presets |
+
+All seven new CSCA keys are emulator choices. Certificate issuer signatures use ECDSA/SHA-256,
+including certificates carrying an RSA DS public key; this certificate signature does not establish
+the SOD signature. For Belgium the test SOD uses SHA-1 with RSA, and for Canada SHA-256 with RSA,
+both with PKCS#1 v1.5 padding. No algorithm is inferred from a master-list CSCA.
+
 `UT` ("Utopia") is the country ICAO uses for specimen documents. The issuing state of an emulated
-passport is whatever the SmartEmu form says, so verifiers that match the CSCA country to the document's
+passport is whatever the PassportEmu form says, so verifiers that match the CSCA country to the document's
 issuing state will flag a mismatch; configure them to accept this CSCA for any state in test environments.
 
 ## Using it elsewhere
