@@ -3,6 +3,8 @@ package com.hddev.smartemu.repository
 import android.content.Context
 import android.util.Base64
 import com.hddev.smartemu.data.AccessControl
+import com.hddev.smartemu.data.ChipFault
+import com.hddev.smartemu.data.DocumentType
 import com.hddev.smartemu.data.PaceMapping
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.Portrait
@@ -37,7 +39,18 @@ class AndroidPassportStore(context: Context) : PassportStore {
                 paceMapping = preferences.getString(KEY_PACE_MAPPING, null)
                     ?.let { name -> PaceMapping.entries.find { it.name == name } } ?: defaults.paceMapping,
                 can = preferences.getString(KEY_CAN, null) ?: defaults.can,
-                portrait = loadPortrait()
+                portrait = loadPortrait(),
+                documentType = preferences.getString(KEY_DOCUMENT_TYPE, null)
+                    ?.let { name -> DocumentType.entries.find { it.name == name } } ?: defaults.documentType,
+                activeAuthentication = preferences.getBoolean(KEY_ACTIVE_AUTHENTICATION, defaults.activeAuthentication),
+                chipFault = preferences.getString(KEY_CHIP_FAULT, null)
+                    ?.let { name -> ChipFault.entries.find { it.name == name } } ?: defaults.chipFault,
+                // An id no profile has any more resolves to the generic profile
+                chipProfileId = preferences.getString(KEY_CHIP_PROFILE, null) ?: defaults.chipProfileId,
+                personalNumber = preferences.getString(KEY_PERSONAL_NUMBER, null) ?: defaults.personalNumber,
+                placeOfBirth = preferences.getString(KEY_PLACE_OF_BIRTH, null) ?: defaults.placeOfBirth,
+                issuingAuthority = preferences.getString(KEY_ISSUING_AUTHORITY, null) ?: defaults.issuingAuthority,
+                dateOfIssue = preferences.getString(KEY_DATE_OF_ISSUE, null)?.toLocalDateOrNull()
             )
         }
     }
@@ -57,6 +70,14 @@ class AndroidPassportStore(context: Context) : PassportStore {
                 putString(KEY_ACCESS_CONTROL, passportData.accessControl.name)
                 putString(KEY_PACE_MAPPING, passportData.paceMapping.name)
                 putString(KEY_CAN, passportData.can)
+                putString(KEY_DOCUMENT_TYPE, passportData.documentType.name)
+                putBoolean(KEY_ACTIVE_AUTHENTICATION, passportData.activeAuthentication)
+                putString(KEY_CHIP_FAULT, passportData.chipFault.name)
+                putString(KEY_CHIP_PROFILE, passportData.chipProfileId)
+                putString(KEY_PERSONAL_NUMBER, passportData.personalNumber)
+                putString(KEY_PLACE_OF_BIRTH, passportData.placeOfBirth)
+                putString(KEY_ISSUING_AUTHORITY, passportData.issuingAuthority)
+                putString(KEY_DATE_OF_ISSUE, passportData.dateOfIssue?.toString())
 
                 val portrait = passportData.portrait
                 if (portrait != null) {
@@ -104,6 +125,14 @@ class AndroidPassportStore(context: Context) : PassportStore {
         const val KEY_ACCESS_CONTROL = "access_control"
         const val KEY_PACE_MAPPING = "pace_mapping"
         const val KEY_CAN = "can"
+        const val KEY_DOCUMENT_TYPE = "document_type"
+        const val KEY_ACTIVE_AUTHENTICATION = "active_authentication"
+        const val KEY_CHIP_FAULT = "chip_fault"
+        const val KEY_CHIP_PROFILE = "chip_profile"
+        const val KEY_PERSONAL_NUMBER = "personal_number"
+        const val KEY_PLACE_OF_BIRTH = "place_of_birth"
+        const val KEY_ISSUING_AUTHORITY = "issuing_authority"
+        const val KEY_DATE_OF_ISSUE = "date_of_issue"
         const val KEY_PORTRAIT_JPEG = "portrait_jpeg"
         const val KEY_PORTRAIT_WIDTH = "portrait_width"
         const val KEY_PORTRAIT_HEIGHT = "portrait_height"

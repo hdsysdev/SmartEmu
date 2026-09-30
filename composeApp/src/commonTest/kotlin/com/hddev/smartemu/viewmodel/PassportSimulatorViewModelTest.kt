@@ -1,6 +1,16 @@
 package com.hddev.smartemu.viewmodel
 
 import com.hddev.smartemu.data.AccessControl
+import com.hddev.smartemu.data.AppSettings
+import com.hddev.smartemu.data.AppTheme
+import com.hddev.smartemu.data.ChipProfiles
+import com.hddev.smartemu.repository.SettingsStore
+import com.hddev.smartemu.data.ChipFault
+import com.hddev.smartemu.data.DocumentType
+import com.hddev.smartemu.data.PassportPresets
+import com.hddev.smartemu.data.Portrait
+import com.hddev.smartemu.data.ReadOutcome
+import com.hddev.smartemu.repository.ReadHistoryStore
 import com.hddev.smartemu.data.PaceMapping
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
@@ -519,6 +529,160 @@ class PassportSimulatorViewModelTest {
         assertEquals(PassportData.empty(), state.passportData)
         assertTrue(state.errorMessage!!.contains("Failed to restore passport"))
     }
+
+    @Test
+    fun `applying a preset keeps the portrait and gives the chip a CAN`() = runTest {
+        val portrait = Portrait(byteArrayOf(1, 2, 3), 1, 1)
+        viewModel.updatePortrait(portrait)
+
+        viewModel.applyPreset(PassportPresets.byId("id-card")!!)
+        advanceUntilIdle()
+
+        val data = viewModel.uiState.value.passportData
+        assertEquals(DocumentType.ID_CARD, data.documentType)
+        assertEquals(portrait, data.portrait)
+        assertEquals(PassportData.CAN_LENGTH, data.can.length)
+        assertTrue(viewModel.uiState.value.validationErrors.isEmpty())
+    }
+
+    @Test
+    fun `a cloned chip turns Active Authentication on, and turning it off clears the fault`() = runTest {
+        viewModel.updateChipFault(ChipFault.CLONED_CHIP)
+        assertTrue(viewModel.uiState.value.passportData.activeAuthentication)
+
+        viewModel.updateActiveAuthentication(false)
+
+        val data = viewModel.uiState.value.passportData
+        assertFalse(data.activeAuthentication)
+        assertEquals(ChipFault.NONE, data.chipFault)
+    }
+
+    @Test
+    fun `other faults survive turning Active Authentication off`() = runTest {
+        viewModel.updateChipFault(ChipFault.SWAPPED_PHOTO)
+        viewModel.updateActiveAuthentication(true)
+        viewModel.updateActiveAuthentication(false)
+
+        assertEquals(ChipFault.SWAPPED_PHOTO, viewModel.uiState.value.passportData.chipFault)
+    }
+
+    @Test
+    fun `a finished reader session is added to the read history and saved`() = runTest {
+        val historyStore = ReadHistoryStore.InMemory()
+        val recordingViewModel = PassportSimulatorViewModel(mockRepository, passportStore, historyStore)
+        advanceUntilIdle()
+        val now = Clock.System.now()
+
+        listOf(
+            NfcEvent.connectionEstablished(now, NfcEvent.READER_CONNECTED),
+            NfcEvent.authenticationSuccess(now, "BAC"),
+            NfcEvent.connectionEstablished(now, NfcEvent.READING_PREFIX + "EF.DG1"),
+            NfcEvent.connectionLost(now)
+        ).forEach { mockRepository.nfcEventsFlow.emit(it) }
+        advanceUntilIdle()
+
+        val record = recordingViewModel.uiState.value.readHistory.single()
+        assertEquals("BAC", record.accessProtocol)
+        assertEquals(ReadOutcome.PARTIAL, record.outcome)
+        assertEquals(listOf(record), historyStore.load().getOrThrow())
+
+        recordingViewModel.clearReadHistory()
+        advanceUntilIdle()
+        assertTrue(recordingViewModel.uiState.value.readHistory.isEmpty())
+        assertTrue(historyStore.load().getOrThrow().isEmpty())
+    }
+
+    private val readyPassport = PassportData(
+        passportNumber = "AB1234567",
+        dateOfBirth = LocalDate(1990, 1, 1),
+        expiryDate = LocalDate(2030, 1, 1),
+        firstName = "John",
+        lastName = "Doe"
+    )
+
+    private suspend fun kotlinx.coroutines.test.TestScope.startWith(model: PassportSimulatorViewModel): PassportData? {
+        mockRepository.setNfcAvailable(true)
+        mockRepository.setHasPermissions(true)
+        model.updatePassportData(readyPassport)
+        model.refreshNfcStatus()
+        advanceUntilIdle()
+        model.startSimulation()
+        advanceUntilIdle()
+        return mockRepository.lastPassportData
+    }
+
+    @Test
+    fun `exact cryptography reaches the chip only in developer mode`() = runTest {
+        val cases = mapOf(
+            AppSettings() to false,
+            AppSettings(developerMode = true) to true,
+            AppSettings(developerMode = true, exactCryptography = false) to false
+        )
+        for ((settings, exact) in cases) {
+            val model = PassportSimulatorViewModel(
+                mockRepository, passportStore, settingsStore = SettingsStore.InMemory(settings)
+            )
+            assertEquals(exact, startWith(model)!!.exactCryptography, settings.toString())
+        }
+    }
+
+    @Test
+    fun `settings changes are saved`() = runTest {
+        val settingsStore = SettingsStore.InMemory()
+        val model = PassportSimulatorViewModel(mockRepository, passportStore, settingsStore = settingsStore)
+
+        model.updateSettings(model.settings.value.copy(developerMode = true, keepScreenOn = false))
+
+        assertEquals(AppSettings(developerMode = true, keepScreenOn = false), settingsStore.load())
+        assertEquals(settingsStore.load(), model.settings.value)
+    }
+
+    @Test
+    fun `settings load from the store`() = runTest {
+        val settingsStore = SettingsStore.InMemory()
+        settingsStore.save(AppSettings(developerMode = true, theme = AppTheme.DARK, introSeen = true))
+
+        val model = PassportSimulatorViewModel(mockRepository, passportStore, settingsStore = settingsStore)
+
+        assertEquals(AppSettings(developerMode = true, theme = AppTheme.DARK, introSeen = true), model.settings.value)
+    }
+
+    @Test
+    fun `a chip profile sets the chip and country, and a PACE-only one gets a CAN`() = runTest {
+        viewModel.updatePassportData(readyPassport)
+        viewModel.updateChipProfile(ChipProfiles.byId("de-id-card"))
+        advanceUntilIdle()
+
+        val data = viewModel.uiState.value.passportData
+        assertEquals("de-id-card", data.chipProfileId)
+        assertEquals(AccessControl.PACE_ONLY, data.accessControl)
+        assertEquals(DocumentType.ID_CARD, data.documentType)
+        assertEquals("DEU", data.issuingCountry)
+        assertEquals(PassportData.CAN_LENGTH, data.can.length)
+        assertEquals("John", data.firstName)
+    }
+
+    @Test
+    fun `changing to a document type the profile doesn't fit returns to the generic profile`() = runTest {
+        viewModel.updatePassportData(readyPassport)
+        viewModel.updateChipProfile(ChipProfiles.byId("de-passport-2017"))
+        viewModel.updateDocumentType(DocumentType.ID_CARD)
+        advanceUntilIdle()
+
+        assertEquals(ChipProfiles.GENERIC_ID, viewModel.uiState.value.passportData.chipProfileId)
+    }
+
+    @Test
+    fun `turning off the read history clears it and stops recording`() = runTest {
+        val historyStore = ReadHistoryStore.InMemory()
+        val model = PassportSimulatorViewModel(mockRepository, passportStore, historyStore)
+        model.updateSettings(model.settings.value.copy(keepReadHistory = false))
+        advanceUntilIdle()
+
+        assertTrue(model.uiState.value.readHistory.isEmpty())
+        assertFalse(model.settings.value.keepReadHistory)
+    }
+
 }
 
 /**

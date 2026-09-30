@@ -87,7 +87,8 @@ class PassportValidatorTest {
         val validExpiryDates = listOf(
             LocalDate(2030, 5, 15),
             LocalDate(2025, 1, 1),
-            LocalDate(2040, 12, 31)
+            LocalDate(2040, 12, 31),
+            LocalDate(2020, 1, 1) // Expired passports can be emulated
         )
         
         validExpiryDates.forEach { date ->
@@ -99,10 +100,10 @@ class PassportValidatorTest {
     @Test
     fun `validateExpiryDate rejects invalid expiry dates`() {
         val birthDate = LocalDate(1990, 5, 15)
-        val pastDate = LocalDate(2020, 1, 1)
+        val beforeBirthDate = LocalDate(1985, 1, 1)
         
         assertNotNull(PassportValidator.validateExpiryDate(null, birthDate))
-        assertNotNull(PassportValidator.validateExpiryDate(pastDate, birthDate))
+        assertNotNull(PassportValidator.validateExpiryDate(beforeBirthDate, birthDate))
     }
     
     @Test

@@ -15,7 +15,7 @@ class SimulatorErrorTest {
             SimulatorError.ValidationError.InvalidDateOfBirth to 
                 "Please enter a valid date of birth in the past",
             SimulatorError.ValidationError.InvalidExpiryDate to 
-                "Please enter a valid expiry date in the future",
+                "Please enter a valid expiry date",
             SimulatorError.ValidationError.InvalidCountryCode to 
                 "Please select a valid country",
             SimulatorError.ValidationError.InvalidNames to 

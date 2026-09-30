@@ -1,5 +1,6 @@
 package com.hddev.smartemu
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,10 +10,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hddev.smartemu.di.AndroidAppModule
+import com.hddev.smartemu.ui.theme.isDark
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 
 class MainActivity : ComponentActivity() {
@@ -62,8 +67,30 @@ fun PassportSimulatorApp() {
         })
     }
     
-    // Main App composable
-    App(viewModel = viewModel)
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Keeps the phone from locking in the middle of a read, while the chip is on
+    val view = LocalView.current
+    val keepScreenOn = settings.keepScreenOn && uiState.simulationStatus.isActiveOrStarting()
+    DisposableEffect(view, keepScreenOn) {
+        view.keepScreenOn = keepScreenOn
+        onDispose { view.keepScreenOn = false }
+    }
+
+    // The status and navigation bar icons follow the app's theme, which can differ from the phone's
+    val darkTheme = settings.theme.isDark()
+    val activity = context as? Activity
+    SideEffect {
+        activity?.window?.let { window ->
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
+
+    SmartEmuApp(viewModel = viewModel)
 }
 
 @Composable

@@ -3,8 +3,12 @@ package com.hddev.smartemu.di
 import android.content.Context
 import com.hddev.smartemu.repository.AndroidNfcSimulatorRepository
 import com.hddev.smartemu.repository.AndroidPassportStore
+import com.hddev.smartemu.repository.AndroidReadHistoryStore
+import com.hddev.smartemu.repository.AndroidSettingsStore
 import com.hddev.smartemu.repository.NfcSimulatorRepository
 import com.hddev.smartemu.repository.PassportStore
+import com.hddev.smartemu.repository.ReadHistoryStore
+import com.hddev.smartemu.repository.SettingsStore
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 
 /**
@@ -29,12 +33,24 @@ object AndroidAppModule {
      * Provides the store that keeps the passport across app restarts.
      */
     fun providePassportStore(context: Context): PassportStore = AndroidPassportStore(context)
+
+    /**
+     * Provides the store that keeps the read history across app restarts.
+     */
+    fun provideReadHistoryStore(context: Context): ReadHistoryStore = AndroidReadHistoryStore(context)
+
+    /**
+     * Provides the store that keeps the app settings across app restarts.
+     */
+    fun provideSettingsStore(context: Context): SettingsStore = AndroidSettingsStore(context)
     
     /**
      * Provides a fully configured PassportSimulatorViewModel for Android.
      */
     fun providePassportSimulatorViewModel(context: Context): PassportSimulatorViewModel {
         val repository = provideNfcSimulatorRepository(context)
-        return AppModule.providePassportSimulatorViewModel(repository, providePassportStore(context))
+        return AppModule.providePassportSimulatorViewModel(
+            repository, providePassportStore(context), provideReadHistoryStore(context), provideSettingsStore(context)
+        )
     }
 }

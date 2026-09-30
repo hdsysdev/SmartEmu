@@ -2,6 +2,8 @@ package com.hddev.smartemu.di
 
 import com.hddev.smartemu.repository.NfcSimulatorRepository
 import com.hddev.smartemu.repository.PassportStore
+import com.hddev.smartemu.repository.ReadHistoryStore
+import com.hddev.smartemu.repository.SettingsStore
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 import com.hddev.smartemu.viewmodel.ViewModelFactory
 
@@ -12,13 +14,15 @@ import com.hddev.smartemu.viewmodel.ViewModelFactory
 object AppModule {
     
     /**
-     * Creates a PassportSimulatorViewModel with the provided repository and passport store.
+     * Creates a PassportSimulatorViewModel with the provided repository and stores.
      * This is the main entry point for creating the ViewModel with its dependencies.
      */
     fun providePassportSimulatorViewModel(
         repository: NfcSimulatorRepository,
-        passportStore: PassportStore
+        passportStore: PassportStore,
+        readHistoryStore: ReadHistoryStore,
+        settingsStore: SettingsStore = SettingsStore.InMemory()
     ): PassportSimulatorViewModel {
-        return ViewModelFactory.createPassportSimulatorViewModel(repository, passportStore)
+        return ViewModelFactory.createPassportSimulatorViewModel(repository, passportStore, readHistoryStore, settingsStore)
     }
 }

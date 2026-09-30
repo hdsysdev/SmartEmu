@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Rotate90DegreesCcw
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.hddev.smartemu.data.DocumentType
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.Portrait
 import kotlinx.datetime.LocalDate
@@ -69,21 +71,48 @@ private val FullScreenBackground = Color(0xFF101214)
 
 private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
-// Geometry of the ID-3 (TD3) data page, in millimetres, from ICAO Doc 9303-4 Figures 3 and 7
-private const val PAGE_WIDTH = 125f
-private const val PAGE_HEIGHT = 88f
-private const val CORNER_RADIUS = 3.18f
-private const val HEADER_HEIGHT = 9f
-private const val PADDING = 4f
+/**
+ * The size and layout of a document format, in millimetres: its outline, the portrait, the text, and the MRZ, with
+ * the left-hand edge of each line's first character and the lines' centre lines, from the bottom edge.
+ */
+private class DocumentGeometry(
+    val width: Float,
+    val height: Float,
+    val headerHeight: Float,
+    val padding: Float,
+    val portraitWidth: Float,
+    val portraitHeight: Float,
+    val labelTextSize: Float,
+    val valueTextSize: Float,
+    val mrzHeight: Float,
+    val mrzLeft: Float,
+    val mrzCentreLines: List<Float>
+) {
+    val cornerRadius = 3.18f
 
-/** The portrait, at the 35 x 45 mm of a passport photo. */
-private const val PORTRAIT_WIDTH = 35f
-private const val PORTRAIT_HEIGHT = 45f
+    companion object {
+        /** The ID-3 (TD3) passport data page, from ICAO Doc 9303-4 Figures 3 and 7; a 35 x 45 mm passport photo. */
+        val TD3 = DocumentGeometry(
+            width = 125f, height = 88f, headerHeight = 9f, padding = 4f,
+            portraitWidth = 35f, portraitHeight = 45f,
+            labelTextSize = 2.6f, valueTextSize = 4.2f,
+            mrzHeight = 23.2f, mrzLeft = 6f, mrzCentreLines = listOf(15.75f, 9.4f)
+        )
 
-/** The MRZ: the left-hand edge of each line's first character and their centre lines, from the bottom edge. */
-private const val MRZ_HEIGHT = 23.2f
-private const val MRZ_LEFT = 6f
-private val MRZ_CENTRE_LINES = listOf(15.75f, 9.4f)
+        /** The ID-1 (TD1) card, the size of a bank card, from ICAO Doc 9303-5; its three MRZ lines 6 to the inch. */
+        val TD1 = DocumentGeometry(
+            width = 85.6f, height = 53.98f, headerHeight = 6.5f, padding = 3f,
+            portraitWidth = 22f, portraitHeight = 28f,
+            labelTextSize = 1.9f, valueTextSize = 3f,
+            mrzHeight = 18.5f, mrzLeft = 4.7f, mrzCentreLines = listOf(14.63f, 10.4f, 6.17f)
+        )
+
+        fun of(documentType: DocumentType) = if (documentType.isCard) TD1 else TD3
+    }
+}
+
+/** A side of a TD1 card: the front with the holder's details, or the back with the MRZ. Passports have one side. */
+enum class CardSide { FRONT, BACK }
 
 /** OCR-B size 1, at 10 characters per inch. */
 private const val MRZ_CHARACTER_PITCH = 2.54f
@@ -91,9 +120,6 @@ private const val MRZ_CHARACTER_PITCH = 2.54f
 /** Advance width and the centre of the capitals, above the baseline, of the bundled OCR-B, as fractions of its em. */
 private const val OCR_B_ADVANCE = 0.723f
 private const val OCR_B_CAPITALS_CENTRE = 0.3515f
-
-private const val LABEL_TEXT_SIZE = 2.6f
-private const val VALUE_TEXT_SIZE = 4.2f
 
 /** Width the full-screen page is laid out at before it's scaled to fit, so that it looks as it does in the preview. */
 private val FullScreenLayoutWidth = 360.dp
@@ -108,14 +134,20 @@ fun PassportPreview(
     onOpenFullScreen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isCard = passportData.documentType.isCard
     SectionCard(
-        title = "Data page",
-        subtitle = "Updates as you edit. Show it full screen so that a reader app's camera can scan the MRZ, " +
-            "the two lines of code at the bottom.",
+        title = if (isCard) "Card" else "Data page",
+        subtitle = if (isCard) {
+            "Updates as you edit. Show it full screen so that a reader app's camera can scan the MRZ, the three " +
+                "lines of code on the back."
+        } else {
+            "Updates as you edit. Show it full screen so that a reader app's camera can scan the MRZ, " +
+                "the two lines of code at the bottom."
+        },
         icon = Icons.Outlined.Badge,
         modifier = modifier
     ) {
-        PassportDataPage(passportData = passportData, onClick = onOpenFullScreen)
+        DocumentImages(passportData = passportData, onClick = onOpenFullScreen)
         AppButton(
             text = "Show full screen",
             onClick = onOpenFullScreen,
@@ -126,9 +158,30 @@ fun PassportPreview(
 }
 
 /**
+ * Every side of the document that has something printed on it: a passport's data page, or both sides of a card,
+ * one above the other. Tapping one calls [onClick].
+ */
+@Composable
+fun DocumentImages(
+    passportData: PassportData,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    if (!passportData.documentType.isCard) {
+        PassportDataPage(passportData = passportData, modifier = modifier, onClick = onClick)
+        return
+    }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        CardSide.entries.forEach { side ->
+            PassportDataPage(passportData = passportData, side = side, onClick = onClick)
+        }
+    }
+}
+
+/**
  * The [PassportDataPage] alone on a dark background, scaled to fill as much of the screen as it can, at full
  * brightness, so that a reader app's camera can scan the MRZ. At first the page is turned to whichever way shows it
- * largest; the rotate buttons turn it a quarter at a time.
+ * largest; the rotate buttons turn it a quarter at a time. A card shows its back, with the MRZ, and turns over.
  */
 @Composable
 fun PassportFullScreenDialog(
@@ -137,6 +190,7 @@ fun PassportFullScreenDialog(
 ) {
     // Quarter turns clockwise, or null until the user rotates the page
     var quarterTurns by rememberSaveable { mutableStateOf<Int?>(null) }
+    var side by rememberSaveable { mutableStateOf(CardSide.BACK) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -154,6 +208,7 @@ fun PassportFullScreenDialog(
 
             PassportDataPage(
                 passportData = passportData,
+                side = side,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(8.dp)
@@ -175,6 +230,13 @@ fun PassportFullScreenDialog(
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (passportData.documentType.isCard) {
+                    AppIconButton(
+                        icon = Icons.Filled.Flip,
+                        contentDescription = if (side == CardSide.BACK) "Show the front" else "Show the back",
+                        onClick = { side = if (side == CardSide.BACK) CardSide.FRONT else CardSide.BACK }
+                    )
+                }
                 AppIconButton(
                     icon = Icons.Filled.Rotate90DegreesCcw,
                     contentDescription = "Rotate left",
@@ -210,23 +272,27 @@ private fun Modifier.fitTurned(quarterTurns: Int, layoutWidth: Dp): Modifier = l
 }
 
 /**
- * Sample image of the emulated passport's data page (ICAO 9303 TD3), at the proportions of a real one: the visual
- * inspection zone with the holder's details and the Card Access Number, and the machine readable zone in OCR-B at
- * the size and position that reader apps expect, so that they can scan it from the screen.
+ * Sample image of the emulated document at the proportions of a real one: a passport's data page (ICAO 9303 TD3),
+ * or the [side] of a card (TD1). It has the visual inspection zone with the holder's details and the Card Access
+ * Number, and the machine readable zone in OCR-B at the size and position that reader apps expect, so that they can
+ * scan it from the screen: at the bottom of the data page, or on the back of a card.
  */
 @Composable
 fun PassportDataPage(
     passportData: PassportData,
     modifier: Modifier = Modifier,
+    side: CardSide = CardSide.FRONT,
     onClick: (() -> Unit)? = null
 ) {
+    val geometry = DocumentGeometry.of(passportData.documentType)
+    val isCard = passportData.documentType.isCard
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val page = PageScale(millimetre = maxWidth / PAGE_WIDTH, density = LocalDensity.current)
-        val pageShape = RoundedCornerShape(page.dp(CORNER_RADIUS))
+        val page = PageScale(millimetre = maxWidth / geometry.width, density = LocalDensity.current, geometry = geometry)
+        val pageShape = RoundedCornerShape(page.dp(geometry.cornerRadius))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(PAGE_WIDTH / PAGE_HEIGHT)
+                .aspectRatio(geometry.width / geometry.height)
                 .clip(pageShape)
                 .background(PageColor)
                 .border(1.dp, LabelColor.copy(alpha = 0.4f), pageShape)
@@ -234,8 +300,17 @@ fun PassportDataPage(
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 DataPageHeader(passportData, page)
-                VisualInspectionZone(passportData, page, modifier = Modifier.weight(1f))
-                MachineReadableZone(passportData, page)
+                when {
+                    !isCard -> {
+                        VisualInspectionZone(passportData, page, modifier = Modifier.weight(1f))
+                        MachineReadableZone(passportData, page)
+                    }
+                    side == CardSide.FRONT -> CardFront(passportData, page, modifier = Modifier.weight(1f))
+                    else -> {
+                        CardBack(passportData, page, modifier = Modifier.weight(1f))
+                        MachineReadableZone(passportData, page)
+                    }
+                }
             }
             Text(
                 text = "SPECIMEN",
@@ -253,7 +328,7 @@ fun PassportDataPage(
  * Converts millimetres on the data page to the sizes it is laid out at, [millimetre] to each. Text sizes ignore
  * the user's font scale, so that the page keeps its proportions.
  */
-private class PageScale(private val millimetre: Dp, private val density: Density) {
+private class PageScale(private val millimetre: Dp, private val density: Density, val geometry: DocumentGeometry) {
     fun dp(mm: Float): Dp = millimetre * mm
 
     fun sp(mm: Float): TextUnit = with(density) { dp(mm).toSp() }
@@ -264,19 +339,25 @@ private fun DataPageHeader(passportData: PassportData, page: PageScale) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(page.dp(HEADER_HEIGHT))
+            .height(page.dp(page.geometry.headerHeight))
             .background(HeaderColor)
-            .padding(horizontal = page.dp(PADDING)),
+            .padding(horizontal = page.dp(page.geometry.padding)),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // The header's text is sized to the header, so a card's is smaller in proportion to its width
+        val textScale = page.geometry.headerHeight / DocumentGeometry.TD3.headerHeight
         Text(
-            text = "PASSPORT",
-            style = TextStyle(fontSize = page.sp(3.8f), fontWeight = FontWeight.Bold, letterSpacing = page.sp(0.8f)),
+            text = passportData.documentType.displayName.uppercase(),
+            style = TextStyle(
+                fontSize = page.sp(3.8f * textScale),
+                fontWeight = FontWeight.Bold,
+                letterSpacing = page.sp(0.8f * textScale)
+            ),
             color = Color.White
         )
         Text(
             text = countryName(passportData.issuingCountry).uppercase(),
-            style = TextStyle(fontSize = page.sp(3.4f)),
+            style = TextStyle(fontSize = page.sp(3.4f * textScale)),
             color = Color.White,
             modifier = Modifier
                 .weight(1f)
@@ -284,7 +365,10 @@ private fun DataPageHeader(passportData: PassportData, page: PageScale) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        ChipSymbol(color = Color.White, modifier = Modifier.size(width = page.dp(8f), height = page.dp(5.5f)))
+        ChipSymbol(
+            color = Color.White,
+            modifier = Modifier.size(width = page.dp(8f * textScale), height = page.dp(5.5f * textScale))
+        )
     }
 }
 
@@ -293,24 +377,24 @@ private fun VisualInspectionZone(passportData: PassportData, page: PageScale, mo
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = page.dp(PADDING)),
-        horizontalArrangement = Arrangement.spacedBy(page.dp(PADDING)),
+            .padding(horizontal = page.dp(page.geometry.padding)),
+        horizontalArrangement = Arrangement.spacedBy(page.dp(page.geometry.padding)),
         verticalAlignment = Alignment.CenterVertically
     ) {
         PortraitImage(
             portrait = passportData.portrait,
-            modifier = Modifier.size(width = page.dp(PORTRAIT_WIDTH), height = page.dp(PORTRAIT_HEIGHT))
+            modifier = Modifier.size(width = page.dp(page.geometry.portraitWidth), height = page.dp(page.geometry.portraitHeight))
         )
 
         Column(
             modifier = Modifier
                 .weight(1f)
-                .height(page.dp(PORTRAIT_HEIGHT)),
+                .height(page.dp(page.geometry.portraitHeight)),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            val fieldSpacing = Arrangement.spacedBy(page.dp(PADDING))
+            val fieldSpacing = Arrangement.spacedBy(page.dp(page.geometry.padding))
             Row(horizontalArrangement = fieldSpacing) {
-                DataField("Type", "P", page)
+                DataField("Type", passportData.documentType.documentCode, page)
                 DataField("Code", passportData.issuingCountry, page)
                 DataField("Passport No.", passportData.passportNumber.uppercase(), page)
             }
@@ -337,21 +421,82 @@ private fun VisualInspectionZone(passportData: PassportData, page: PageScale, mo
 }
 
 /**
- * The two MRZ lines in OCR-B size 1, 2.54 mm to a character, each centred on its reference line.
+ * The front of a card: the portrait and the holder's details, and the CAN, which cards print on the front.
+ */
+@Composable
+private fun CardFront(passportData: PassportData, page: PageScale, modifier: Modifier = Modifier) {
+    val geometry = page.geometry
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = page.dp(geometry.padding)),
+        horizontalArrangement = Arrangement.spacedBy(page.dp(geometry.padding)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PortraitImage(
+            portrait = passportData.portrait,
+            modifier = Modifier.size(width = page.dp(geometry.portraitWidth), height = page.dp(geometry.portraitHeight))
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .height(page.dp(geometry.portraitHeight + geometry.padding * 2)),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            val fieldSpacing = Arrangement.spacedBy(page.dp(geometry.padding))
+            DataField("Surname", passportData.lastName.uppercase(), page, modifier = Modifier.fillMaxWidth())
+            DataField("Given names", passportData.firstName.uppercase(), page, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = fieldSpacing) {
+                DataField("Sex", passportData.gender.uppercase(), page)
+                DataField("Nationality", passportData.nationality, page)
+                DataField("Date of birth", formatDate(passportData.dateOfBirth), page)
+            }
+            Row(horizontalArrangement = fieldSpacing) {
+                DataField("Document No.", passportData.passportNumber.uppercase(), page)
+                DataField("Date of expiry", formatDate(passportData.expiryDate), page)
+            }
+            if (passportData.accessControl.supportsPace && passportData.hasCan()) {
+                DataField("CAN", passportData.can, page, emphasized = true)
+            }
+        }
+    }
+}
+
+/**
+ * The back of a card, above the MRZ: who issued it, and the document's type and number again.
+ */
+@Composable
+private fun CardBack(passportData: PassportData, page: PageScale, modifier: Modifier = Modifier) {
+    val geometry = page.geometry
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = page.dp(geometry.padding), vertical = page.dp(geometry.padding / 2)),
+        horizontalArrangement = Arrangement.spacedBy(page.dp(geometry.padding))
+    ) {
+        DataField("Type", passportData.documentType.documentCode, page)
+        DataField("Code", passportData.issuingCountry, page)
+        DataField("Document No.", passportData.passportNumber.uppercase(), page)
+        DataField("Authority", countryName(passportData.issuingCountry).uppercase(), page, modifier = Modifier.weight(1f))
+    }
+}
+
+/**
+ * The MRZ lines in OCR-B size 1, 2.54 mm to a character, each centred on its reference line.
  */
 @Composable
 private fun MachineReadableZone(passportData: PassportData, page: PageScale) {
     val zoneModifier = Modifier
         .fillMaxWidth()
-        .height(page.dp(MRZ_HEIGHT))
+        .height(page.dp(page.geometry.mrzHeight))
         .background(MrzZoneColor)
         .semantics { contentDescription = "Machine readable zone" }
 
     if (!passportData.isValid()) {
         Box(modifier = zoneModifier, contentAlignment = Alignment.Center) {
             Text(
-                text = "The MRZ appears once the passport details are valid",
-                style = TextStyle(fontSize = page.sp(LABEL_TEXT_SIZE)),
+                text = "The MRZ appears once the ${passportData.documentType.displayName.lowercase()} details are valid",
+                style = TextStyle(fontSize = page.sp(page.geometry.labelTextSize)),
                 color = LabelColor
             )
         }
@@ -361,17 +506,18 @@ private fun MachineReadableZone(passportData: PassportData, page: PageScale) {
     val lines = passportData.toMrzLines()
     val textMeasurer = rememberTextMeasurer()
     val ocrB = FontFamily(Font(Res.font.ocr_b))
+    val geometry = page.geometry
     Canvas(modifier = zoneModifier) {
-        val millimetre = size.width / PAGE_WIDTH
+        val millimetre = size.width / geometry.width
         val style = TextStyle(
             fontFamily = ocrB,
             fontSize = (MRZ_CHARACTER_PITCH / OCR_B_ADVANCE * millimetre).toSp(),
             color = InkColor
         )
-        lines.zip(MRZ_CENTRE_LINES).forEach { (line, centreLine) ->
+        lines.zip(geometry.mrzCentreLines).forEach { (line, centreLine) ->
             val layout = textMeasurer.measure(line, style, softWrap = false, maxLines = 1)
             val baseline = size.height - centreLine * millimetre + OCR_B_CAPITALS_CENTRE * style.fontSize.toPx()
-            drawText(layout, topLeft = Offset(MRZ_LEFT * millimetre, baseline - layout.firstBaseline))
+            drawText(layout, topLeft = Offset(geometry.mrzLeft * millimetre, baseline - layout.firstBaseline))
         }
     }
 }
@@ -388,7 +534,7 @@ private fun DataField(
     Column(modifier = modifier) {
         Text(
             text = label,
-            style = TextStyle(fontSize = page.sp(LABEL_TEXT_SIZE)),
+            style = TextStyle(fontSize = page.sp(page.geometry.labelTextSize)),
             color = LabelColor,
             maxLines = 1
         )
@@ -403,8 +549,8 @@ private fun DataField(
             maxLines = 1,
             softWrap = false,
             autoSize = TextAutoSize.StepBased(
-                minFontSize = page.sp(VALUE_TEXT_SIZE / 2),
-                maxFontSize = page.sp(VALUE_TEXT_SIZE),
+                minFontSize = page.sp(page.geometry.valueTextSize / 2),
+                maxFontSize = page.sp(page.geometry.valueTextSize),
                 stepSize = 0.25.sp
             )
         )

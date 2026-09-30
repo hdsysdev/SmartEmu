@@ -13,6 +13,9 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,7 +31,9 @@ import androidx.compose.ui.unit.dp
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportData
+import com.hddev.smartemu.data.ChipFault
 import com.hddev.smartemu.data.PassportSimulatorUiState
+import com.hddev.smartemu.data.ReadRecord
 import com.hddev.smartemu.data.SimulationStatus
 import com.hddev.smartemu.ui.components.AppButton
 import com.hddev.smartemu.ui.components.ButtonEmphasis
@@ -42,6 +47,8 @@ import com.hddev.smartemu.ui.navigation.AppDestination
 import com.hddev.smartemu.ui.theme.successColor
 import com.hddev.smartemu.utils.EventLogFormatter
 import com.hddev.smartemu.utils.EventLogFormatter.Format
+import com.hddev.smartemu.utils.ReadHistoryFormatter
+import kotlin.time.Clock
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 
 /**
@@ -111,6 +118,20 @@ fun EmulatorScreen(
                         onNavigate = onNavigate
                     )
                 }
+            }
+
+            item {
+                ReadHistorySection(
+                    records = uiState.readHistory,
+                    onShare = {
+                        exporter.share(
+                            ReadHistoryFormatter.fileName(Clock.System.now()),
+                            "text/plain",
+                            ReadHistoryFormatter.text(uiState.readHistory)
+                        )
+                    },
+                    onClear = viewModel::clearReadHistory
+                )
             }
 
             item {
@@ -238,6 +259,9 @@ private fun PassportSummary(passportData: PassportData) {
         add(passportData.accessControl.displayName)
         if (pace) add("PACE-${passportData.paceMapping.abbreviation}")
         if (pace && passportData.hasCan()) add("CAN ${passportData.can}")
+        if (passportData.documentType.isCard) add("${passportData.documentType.displayName} (TD1)")
+        if (passportData.activeAuthentication) add("AA")
+        if (passportData.chipFault != ChipFault.NONE) add("Fault: ${passportData.chipFault.displayName}")
     }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -253,6 +277,82 @@ private fun PassportSummary(passportData: PassportData) {
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
+    }
+}
+
+/**
+ * Each reader session so far, newest first: how it ended, how the reader unlocked the chip and what it read.
+ * Collapsed to the latest few until expanded.
+ */
+@Composable
+private fun ReadHistorySection(records: List<ReadRecord>, onShare: () -> Unit, onClear: () -> Unit) {
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    SectionCard(
+        title = "Read history",
+        subtitle = when (records.size) {
+            0 -> "Each time a reader connects, what it did is recorded here"
+            1 -> "1 read, kept between runs"
+            else -> "${records.size} reads, newest first, kept between runs"
+        },
+        icon = Icons.Outlined.History,
+        expanded = expanded,
+        onToggleExpanded = { expanded = !expanded },
+        action = if (records.isEmpty()) null else ({
+            Row {
+                IconButton(onClick = onShare) {
+                    Icon(Icons.Outlined.Share, contentDescription = "Share read history")
+                }
+                IconButton(onClick = onClear) {
+                    Icon(Icons.Outlined.DeleteSweep, contentDescription = "Clear read history")
+                }
+            }
+        })
+    ) {
+        val shown = if (showAll) records else records.take(HISTORY_PREVIEW_COUNT)
+        shown.forEachIndexed { index, record ->
+            if (index > 0) HorizontalDivider()
+            ReadRecordRow(record)
+        }
+        if (records.size > HISTORY_PREVIEW_COUNT) {
+            TextButton(onClick = { showAll = !showAll }) {
+                Text(if (showAll) "Show fewer" else "Show all ${records.size}")
+            }
+        }
+    }
+}
+
+private const val HISTORY_PREVIEW_COUNT = 3
+
+@Composable
+private fun ReadRecordRow(record: ReadRecord) {
+    val outcomeColor = if (record.outcome.succeeded) MaterialTheme.successColor else MaterialTheme.colorScheme.error
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = record.outcome.displayName,
+                style = MaterialTheme.typography.titleSmall,
+                color = outcomeColor
+            )
+            Text(
+                text = ReadHistoryFormatter.dateTime(record.startedAt) + " · " +
+                    ReadHistoryFormatter.duration(record.durationMillis),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        val details = buildList {
+            add(record.accessProtocol ?: "Not unlocked")
+            if (record.activeAuthentication) add("AA")
+            if (record.chipFault != ChipFault.NONE) add("Fault: ${record.chipFault.displayName}")
+            add("${record.documentType.displayName} ${record.documentNumber}")
+        }
+        Text(text = details.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = record.failureReason ?: record.filesRead.joinToString().ifEmpty { "No files read" },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -4,6 +4,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -15,30 +16,78 @@ import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportSimulatorUiState
 import com.hddev.smartemu.data.SimulationStatus
 import com.hddev.smartemu.ui.components.PassportFullScreenDialog
+import com.hddev.smartemu.ui.components.PresetDialog
+import com.hddev.smartemu.ui.guided.GuidedApp
 import com.hddev.smartemu.ui.navigation.AppDestination
 import com.hddev.smartemu.ui.navigation.PlatformBackHandler
 import com.hddev.smartemu.ui.screens.ChipScreen
 import com.hddev.smartemu.ui.screens.EmulatorScreen
 import com.hddev.smartemu.ui.screens.PassportScreen
+import com.hddev.smartemu.ui.screens.SettingsScreen
 import com.hddev.smartemu.ui.theme.SmartEmuTheme
+import com.hddev.smartemu.ui.theme.isDark
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /** Windows at least this wide show a navigation rail instead of a bottom navigation bar. */
 private val RailMinWidth = 600.dp
 
 /**
- * Root of the app: one screen per [AppDestination], switched with a navigation bar, or a rail on wide windows.
- * Errors from the ViewModel appear as snackbars.
+ * Root of the app, in the theme the settings choose: the guided screens, or in developer mode the developer ones,
+ * with the settings over either. Each keeps its place while the settings are open.
+ */
+@Composable
+fun SmartEmuApp(
+    viewModel: PassportSimulatorViewModel,
+    modifier: Modifier = Modifier
+) {
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    val modeStateHolder = rememberSaveableStateHolder()
+
+    PlatformBackHandler(enabled = showSettings) { showSettings = false }
+
+    SmartEmuTheme(darkTheme = settings.theme.isDark()) {
+        when {
+            showSettings -> SettingsScreen(
+                settings = settings,
+                onSettingsChange = viewModel::updateSettings,
+                onBack = { showSettings = false },
+                modifier = modifier
+            )
+            settings.developerMode -> modeStateHolder.SaveableStateProvider("developer") {
+                App(viewModel = viewModel, onOpenSettings = { showSettings = true }, modifier = modifier)
+            }
+            else -> modeStateHolder.SaveableStateProvider("guided") {
+                GuidedApp(
+                    viewModel = viewModel,
+                    showIntro = !settings.introSeen,
+                    onIntroFinished = { viewModel.updateSettings(viewModel.settings.value.copy(introSeen = true)) },
+                    onOpenSettings = { showSettings = true },
+                    modifier = modifier
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The developer screens: one screen per [AppDestination], switched with a navigation bar, or a rail on wide
+ * windows. Errors from the ViewModel appear as snackbars.
  */
 @Composable
 fun App(
     viewModel: PassportSimulatorViewModel,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(AppDestination.start) }
     var showDataPage by rememberSaveable { mutableStateOf(false) }
+    var showPresets by rememberSaveable { mutableStateOf(false) }
     var selectedEventTypes by remember { mutableStateOf(setOf<NfcEventType>()) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -59,7 +108,7 @@ fun App(
         viewModel.clearError()
     }
 
-    SmartEmuTheme {
+    Box(modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(modifier = modifier.fillMaxSize()) {
             val useRail = maxWidth >= RailMinWidth
 
@@ -86,8 +135,10 @@ fun App(
                             destination = destination,
                             uiState = uiState,
                             onFillSampleData = viewModel::autofillPassportData,
+                            onLoadPreset = { showPresets = true },
                             onClearPassportDetails = viewModel::clearPassportDetails,
-                            onOpenEmulator = { destination = AppDestination.EMULATOR }
+                            onOpenEmulator = { destination = AppDestination.EMULATOR },
+                            onOpenSettings = onOpenSettings
                         )
                     },
                     bottomBar = {
@@ -143,6 +194,17 @@ fun App(
             }
         }
 
+        if (showPresets) {
+            PresetDialog(
+                today = Clock.System.todayIn(TimeZone.currentSystemDefault()),
+                onSelected = { preset ->
+                    viewModel.applyPreset(preset)
+                    showMessage("Loaded preset: ${preset.title}")
+                },
+                onDismiss = { showPresets = false }
+            )
+        }
+
         if (showDataPage) {
             PassportFullScreenDialog(
                 passportData = uiState.passportData,
@@ -158,8 +220,10 @@ private fun AppTopBar(
     destination: AppDestination,
     uiState: PassportSimulatorUiState,
     onFillSampleData: () -> Unit,
+    onLoadPreset: () -> Unit,
     onClearPassportDetails: () -> Unit,
-    onOpenEmulator: () -> Unit
+    onOpenEmulator: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     TopAppBar(
         title = {
@@ -182,8 +246,12 @@ private fun AppTopBar(
                 PassportMenu(
                     enabled = uiState.isPassportFormEnabled(),
                     onFillSampleData = onFillSampleData,
+                    onLoadPreset = onLoadPreset,
                     onClearPassportDetails = onClearPassportDetails
                 )
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(imageVector = Icons.Outlined.Settings, contentDescription = "Settings")
             }
         }
     )
@@ -193,6 +261,7 @@ private fun AppTopBar(
 private fun PassportMenu(
     enabled: Boolean,
     onFillSampleData: () -> Unit,
+    onLoadPreset: () -> Unit,
     onClearPassportDetails: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -207,6 +276,14 @@ private fun PassportMenu(
                 onClick = {
                     expanded = false
                     onFillSampleData()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Load a preset…") },
+                enabled = enabled,
+                onClick = {
+                    expanded = false
+                    onLoadPreset()
                 }
             )
             DropdownMenuItem(

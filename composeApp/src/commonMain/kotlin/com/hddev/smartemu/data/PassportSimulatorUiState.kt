@@ -13,6 +13,8 @@ data class PassportSimulatorUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val nfcEvents: List<NfcEvent> = emptyList(),
+    /** Past reader sessions, newest first. */
+    val readHistory: List<ReadRecord> = emptyList(),
     // Room for the APDU trace of a few complete reads, each a few hundred commands with DG2
     val maxEventCount: Int = 2000
 ) {
@@ -126,6 +128,13 @@ data class PassportSimulatorUiState(
         return copy(nfcEvents = emptyList())
     }
     
+    /**
+     * Returns a copy with the given read history, newest first.
+     */
+    fun withReadHistory(records: List<ReadRecord>): PassportSimulatorUiState {
+        return copy(readHistory = records)
+    }
+
     /**
      * Returns a copy with updated loading state.
      */

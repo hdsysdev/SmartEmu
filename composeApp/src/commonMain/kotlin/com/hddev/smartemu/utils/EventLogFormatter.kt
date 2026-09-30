@@ -87,11 +87,14 @@ object EventLogFormatter {
             put("Emulation", state.simulationStatus.name)
             put("NFC available", state.nfcAvailable.toString())
             put("NFC permission", state.hasNfcPermission.toString())
+            put("Document type", "${passport.documentType.displayName} (${passport.documentType.formatName})")
             put("Access control", passport.accessControl.displayName)
             if (passport.accessControl.supportsPace) {
                 put("PACE mapping", passport.paceMapping.abbreviation)
                 put("CAN", passport.can.ifBlank { "none" })
             }
+            put("Active Authentication", passport.activeAuthentication.toString())
+            put("Chip fault", passport.chipFault.displayName)
             put("Document number", passport.passportNumber.ifBlank { "none" })
             put("Date of birth", passport.dateOfBirth?.toString() ?: "none")
             put("Expiry date", passport.expiryDate?.toString() ?: "none")

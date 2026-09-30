@@ -3,12 +3,14 @@ package com.hddev.smartemu
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import com.hddev.smartemu.data.ChipFault
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.domain.SimulatorError
 import com.hddev.smartemu.utils.ApduParser
 import com.hddev.smartemu.utils.BacProtocol
+import com.hddev.smartemu.utils.ChipAuthenticationProtocol
 import com.hddev.smartemu.utils.ChipSecureMessaging
 import com.hddev.smartemu.utils.PaceProtocol
 import com.hddev.smartemu.utils.PassportLdsFiles
@@ -31,6 +33,7 @@ import net.sf.scuba.smartcards.CommandAPDU
 import org.jmrtd.PassportService
 import net.sf.scuba.smartcards.ResponseAPDU
 import net.sf.scuba.smartcards.ISO7816
+import java.security.SecureRandom
 import java.util.UUID
 
 /**
@@ -39,13 +42,20 @@ import java.util.UUID
  * - PACE: EF.CardAccess in the master file (readable in plain), MSE:Set AT and GENERAL AUTHENTICATE, with the
  *   mapping chosen by [PassportData.paceMapping]; with CAM, EF.CardSecurity in the master file (read under PACE)
  * - BAC: GET CHALLENGE and EXTERNAL AUTHENTICATE
- * Either establishes secure messaging, under which the eMRTD application's EF.COM, EF.SOD, EF.DG1 and EF.DG2
- * can be selected and read.
+ * Either establishes secure messaging, under which the eMRTD application's EF.COM, EF.SOD and data groups can be
+ * selected and read, and INTERNAL AUTHENTICATE runs Active Authentication if the chip has it.
+ *
+ * What else the chip does follows its [com.hddev.smartemu.data.ChipConfiguration]: EAC Chip Authentication
+ * (MSE:Set AT or KAT and GENERAL AUTHENTICATE under secure messaging) restarts secure messaging with new keys; and
+ * a chip with Terminal Authentication holds fingerprints in EF.DG3, answering the Terminal Authentication commands as
+ * a real chip answers a terminal whose certificates it can't verify, so DG3 stays locked. The status word for an
+ * EXTERNAL AUTHENTICATE out of sequence is the profile's.
  */
 class PassportHceService : HostApduService() {
     
     companion object {
         private const val TAG = "PassportHceService"
+        private const val CHIP_AUTHENTICATION_DONE = "Chip Authentication done; secure messaging restarted with new keys"
         
         // Shared event flow for communication with the app. Emitted without suspending, so events keep their order
         // and a slow collector never holds up a reader; if it falls this far behind, the oldest events are dropped
@@ -90,6 +100,8 @@ class PassportHceService : HostApduService() {
     // Access control protocol handlers
     private val bacProtocol = BacProtocol()
     private val paceProtocol = PaceProtocol()
+    private var chipAuthenticationProtocol: ChipAuthenticationProtocol? = null
+    private val secureRandom = SecureRandom()
     
     // Secure messaging session established by the last successful BAC or PACE run
     private var secureMessaging: ChipSecureMessaging? = null
@@ -229,6 +241,7 @@ class PassportHceService : HostApduService() {
         0x82 -> "EXTERNAL AUTHENTICATE"
         0x88 -> "INTERNAL AUTHENTICATE"
         0x22 -> "MSE"
+        0x2A -> "PSO"
         0x86, 0x87 -> "GENERAL AUTHENTICATE"
         else -> "INS %02X".format(ins)
     }
@@ -265,7 +278,7 @@ class PassportHceService : HostApduService() {
                     context = mapOf("apdu" to apduHex),
                     correlationId = sessionCorrelationId
                 )
-                emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "NFC reader connected"))
+                emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), NfcEvent.READER_CONNECTED))
             }
             
             refreshPassportData()
@@ -338,7 +351,16 @@ class PassportHceService : HostApduService() {
         
         val plainResponse = processPlainCommand(plainApdu, isSecure = true)
         plainExchange = plainApdu to plainResponse
-        return secureMessaging.wrapResponse(plainResponse)
+        val response = secureMessaging.wrapResponse(plainResponse)
+        // Chip Authentication answers under the old keys; secure messaging restarts with the new ones afterwards
+        chipAuthenticationProtocol?.takeSecureMessaging()?.let { newSecureMessaging ->
+            if (this.secureMessaging === secureMessaging) {
+                this.secureMessaging = newSecureMessaging
+                // Not an access protocol: the read history keeps BAC or PACE as what unlocked the chip
+                emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), CHIP_AUTHENTICATION_DONE))
+            }
+        }
+        return response
     }
     
     /**
@@ -447,6 +469,9 @@ class PassportHceService : HostApduService() {
         
         val bacInitResult = bacProtocol.initialize(passportData)
         val paceInitResult = paceProtocol.initialize(passportData, files.chipAuthenticationKeyPair)
+        chipAuthenticationProtocol = files.configuration.chipAuthentication?.let { spec ->
+            files.eacChipAuthenticationKeyPair?.let { ChipAuthenticationProtocol(spec, it) }
+        }
         if (!bacInitResult.success || !paceInitResult.success) {
             val message = if (!bacInitResult.success) bacInitResult.message else paceInitResult.message
             Log.e(TAG, "Failed to initialize access control: $message")
@@ -454,14 +479,20 @@ class PassportHceService : HostApduService() {
             return null
         }
         
-        val configuration = if (passportData.accessControl.supportsPace) {
-            "${passportData.accessControl.displayName}, PACE-${passportData.paceMapping.abbreviation}" +
-                if (passportData.hasCan()) ", CAN ${passportData.can}" else ""
-        } else {
-            passportData.accessControl.displayName
-        }
+        val chip = files.configuration
+        val configuration = buildList {
+            add(chip.profile.title)
+            add(passportData.documentType.formatName)
+            add(chip.summary)
+            if (passportData.accessControl.supportsPace && passportData.hasCan()) add("CAN ${passportData.can}")
+            if (passportData.chipFault != ChipFault.NONE) add("fault: ${passportData.chipFault.displayName}")
+        }.joinToString()
         Log.d(TAG, "Chip ready with $configuration")
         emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Chip ready ($configuration)"))
+        chip.adaptations.forEach { Log.i(TAG, "Adapted: $it") }
+        if (chip.adaptations.isNotEmpty()) {
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Adapted for the r2w nfc-library: " + chip.adaptations.joinToString(" ")))
+        }
         return files
     }
     
@@ -472,6 +503,7 @@ class PassportHceService : HostApduService() {
         secureMessaging = null
         bacProtocol.reset()
         paceProtocol.reset()
+        chipAuthenticationProtocol?.reset()
     }
     
     /**
@@ -536,16 +568,25 @@ class PassportHceService : HostApduService() {
         return when (parseResult.commandType) {
             ApduParser.ApduCommandType.SELECT -> handleSelectCommandWithScuba(parseResult, isSecure)
             ApduParser.ApduCommandType.READ_BINARY -> handleReadBinaryCommandWithScuba(parseResult, isSecure)
-            ApduParser.ApduCommandType.GET_CHALLENGE -> handleGetChallengeCommandWithScuba(parseResult)
-            ApduParser.ApduCommandType.EXTERNAL_AUTHENTICATE -> handleExternalAuthenticateCommandWithScuba(parseResult)
-            ApduParser.ApduCommandType.MSE_SET_AT -> handleMseSetAtCommand(parseResult)
-            ApduParser.ApduCommandType.GENERAL_AUTHENTICATE -> handleGeneralAuthenticateCommand(parseResult)
-            ApduParser.ApduCommandType.INTERNAL_AUTHENTICATE -> {
-                // Active Authentication needs a chip key pair in DG15, which this chip does not have
-                Log.w(TAG, "Unsupported authentication command: ${parseResult.commandType}")
-                emitEvent(NfcEvent.error(Clock.System.now(), "Active Authentication not supported"))
-                createErrorResponse(ISO7816.SW_INS_NOT_SUPPORTED.toInt())
+            ApduParser.ApduCommandType.GET_CHALLENGE ->
+                if (isSecure) handleTerminalAuthenticationChallenge() else handleGetChallengeCommandWithScuba(parseResult)
+            ApduParser.ApduCommandType.EXTERNAL_AUTHENTICATE ->
+                if (isSecure) terminalAuthenticationRefused("EXTERNAL AUTHENTICATE", ErrorCodeMapper.SW_CONDITIONS_NOT_SATISFIED)
+                else handleExternalAuthenticateCommandWithScuba(parseResult)
+            ApduParser.ApduCommandType.INTERNAL_AUTHENTICATE -> handleInternalAuthenticateCommand(parseResult, isSecure)
+            ApduParser.ApduCommandType.MSE_SET_AT -> when (parseResult.p1) {
+                ApduParser.MSE_P1_CHIP_AUTHENTICATION -> handleChipAuthenticationCommand(parseResult, isSecure)
+                ApduParser.MSE_P1_TERMINAL_AUTHENTICATION ->
+                    terminalAuthenticationRefused("MSE:Set AT", ErrorCodeMapper.SW_REFERENCED_DATA_NOT_FOUND)
+                else -> handleMseSetAtCommand(parseResult)
             }
+            ApduParser.ApduCommandType.MSE_SET_KAT -> handleChipAuthenticationCommand(parseResult, isSecure)
+            ApduParser.ApduCommandType.MSE_SET_DST -> handleMseSetDstCommand(parseResult, isSecure)
+            ApduParser.ApduCommandType.PSO_VERIFY_CERTIFICATE ->
+                terminalAuthenticationRefused("PSO:Verify Certificate", ErrorCodeMapper.SW_WRONG_DATA)
+            ApduParser.ApduCommandType.GENERAL_AUTHENTICATE ->
+                if (isSecure && chipAuthenticationProtocol != null) handleChipAuthenticationCommand(parseResult, isSecure)
+                else handleGeneralAuthenticateCommand(parseResult)
             ApduParser.ApduCommandType.UNSUPPORTED -> {
                 Log.w(TAG, "Unsupported APDU command")
                 emitEvent(NfcEvent.error(Clock.System.now(), "Unsupported APDU command"))
@@ -688,6 +729,13 @@ class PassportHceService : HostApduService() {
             return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
         }
         
+        // The fingerprints need Terminal Authentication, which no reader can complete with SmartEmu's chip
+        if (files.needsTerminalAuthentication(fileId)) {
+            Log.w(TAG, "READ BINARY of ${files.fileName(fileId, isApplicationSelected)} without Terminal Authentication")
+            emitEvent(NfcEvent.error(Clock.System.now(), "Fingerprints (DG3) need Terminal Authentication"))
+            return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
+        }
+        
         if (offset >= fileContent.size) {
             return createErrorResponse(ISO7816.SW_WRONG_P1P2.toInt())
         }
@@ -701,7 +749,7 @@ class PassportHceService : HostApduService() {
         Log.d(TAG, "READ BINARY success: File=$fileName, Offset=$offset, Length=$bytesToRead")
         // Only emit event for first chunk to avoid spamming
         if (offset == 0) {
-            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Reading $fileName"))
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), NfcEvent.READING_PREFIX + fileName))
         }
         
         return createSuccessResponse(responseData)
@@ -784,6 +832,15 @@ class PassportHceService : HostApduService() {
                 return errorResponse.toByteArray()
             }
             
+            // Chips differ in how they answer EXTERNAL AUTHENTICATE with no challenge to answer, and readers have
+            // been seen to tell issuers apart by it; the profile says which status word
+            if (bacProtocol.getCurrentState() != BacProtocol.BacState.CHALLENGE_GENERATED) {
+                val statusWord = ldsFiles?.configuration?.errorResponses?.outOfSequence ?: ErrorCodeMapper.SW_CONDITIONS_NOT_SATISFIED
+                Log.w(TAG, "EXTERNAL AUTHENTICATE without GET CHALLENGE")
+                emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "BAC", "EXTERNAL AUTHENTICATE without GET CHALLENGE"))
+                return createErrorResponse(statusWord)
+            }
+            
             Log.d(TAG, "Processing BAC external authentication with ${authData.size} bytes of data")
             emitEvent(NfcEvent.bacAuthenticationRequest(Clock.System.now(), "Processing external authentication"))
             
@@ -837,6 +894,110 @@ class PassportHceService : HostApduService() {
             val errorResponse = ErrorCodeMapper.mapError(SimulatorError.SystemError.UnexpectedError(e))
             return errorResponse.toByteArray()
         }
+    }
+    
+    /**
+     * INTERNAL AUTHENTICATE runs Active Authentication, ICAO 9303-11 section 6.1: the chip signs the reader's
+     * challenge with the private key that goes with EF.DG15, proving it isn't a copy. The reader checks the
+     * signature, so the chip can't tell whether it passed.
+     */
+    private fun handleInternalAuthenticateCommand(parseResult: ApduParser.ApduParseResult, isSecure: Boolean): ByteArray {
+        val files = ldsFiles
+        if (files == null || !files.hasActiveAuthentication) {
+            Log.w(TAG, "INTERNAL AUTHENTICATE on a chip without Active Authentication")
+            emitEvent(NfcEvent.error(Clock.System.now(), "Active Authentication not supported"))
+            return createErrorResponse(ISO7816.SW_INS_NOT_SUPPORTED.toInt())
+        }
+        // Like the data groups, Active Authentication is only for a reader that has unlocked the chip
+        if (!isSecure) {
+            emitEvent(NfcEvent.error(Clock.System.now(), "Authentication required for Active Authentication"))
+            return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
+        }
+        val challenge = parseResult.data ?: return createErrorResponse(ISO7816.SW_WRONG_LENGTH.toInt())
+        val signature = try {
+            files.signActiveAuthenticationChallenge(challenge)
+        } catch (e: Exception) {
+            Log.e(TAG, "Active Authentication signature failed", e)
+            null
+        } ?: run {
+            emitEvent(NfcEvent.error(Clock.System.now(), "Active Authentication signature failed"))
+            return createErrorResponse(ISO7816.SW_UNKNOWN.toInt())
+        }
+        emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), NfcEvent.ACTIVE_AUTHENTICATION_ANSWERED))
+        return createSuccessResponse(signature)
+    }
+    
+    /**
+     * EAC Chip Authentication: MSE:Set AT (41 A4) and GENERAL AUTHENTICATE with AES, MSE:Set KAT with 3DES, all
+     * under secure messaging. The secure messaging switch happens in [processSecureMessagingCommand], once this
+     * command's response is wrapped with the old keys.
+     */
+    private fun handleChipAuthenticationCommand(parseResult: ApduParser.ApduParseResult, isSecure: Boolean): ByteArray {
+        val protocol = chipAuthenticationProtocol
+        if (protocol == null) {
+            emitEvent(NfcEvent.error(Clock.System.now(), "Chip Authentication not supported"))
+            return createErrorResponse(ErrorCodeMapper.SW_REFERENCED_DATA_NOT_FOUND)
+        }
+        if (!isSecure) {
+            emitEvent(NfcEvent.error(Clock.System.now(), "Chip Authentication needs secure messaging"))
+            return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
+        }
+        val data = parseResult.data ?: byteArrayOf()
+        val result = when (parseResult.commandType) {
+            ApduParser.ApduCommandType.MSE_SET_AT -> protocol.processMseSetAt(data)
+            ApduParser.ApduCommandType.MSE_SET_KAT -> protocol.processMseSetKat(data)
+            else -> protocol.processGeneralAuthenticate(data)
+        }
+        if (!result.success) {
+            emitEvent(NfcEvent.error(Clock.System.now(), "Chip Authentication failed: ${result.message}"))
+            return createErrorResponse(result.statusWord)
+        }
+        Log.d(TAG, result.message)
+        return createSuccessResponse(result.data)
+    }
+    
+    /**
+     * MSE:Set DST starts Terminal Authentication by naming the key the terminal's certificate chain starts from.
+     * The chip knows its test CVCA's reference, from EF.CVCA, and nothing else.
+     */
+    private fun handleMseSetDstCommand(parseResult: ApduParser.ApduParseResult, isSecure: Boolean): ByteArray {
+        val files = ldsFiles
+        if (files == null || !files.configuration.terminalAuthentication || !isSecure) {
+            return terminalAuthenticationRefused("MSE:Set DST", ErrorCodeMapper.SW_REFERENCED_DATA_NOT_FOUND)
+        }
+        val data = parseResult.data ?: byteArrayOf()
+        // 83 <length> <certification authority reference>
+        val reference = if (data.size >= 2 && (data[0].toInt() and 0xFF) == 0x83) {
+            String(data.copyOfRange(2, minOf(data.size, 2 + (data[1].toInt() and 0xFF))), Charsets.ISO_8859_1)
+        } else {
+            null
+        }
+        return if (reference != null && reference == files.cvcaReference) {
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Terminal Authentication started with $reference"))
+            createSuccessResponse()
+        } else {
+            terminalAuthenticationRefused("MSE:Set DST for ${reference ?: "no key"}", ErrorCodeMapper.SW_REFERENCED_DATA_NOT_FOUND)
+        }
+    }
+    
+    /**
+     * GET CHALLENGE under secure messaging, the challenge a terminal signs in Terminal Authentication: eight random
+     * bytes, which no terminal can answer, as the chip verifies no terminal certificate.
+     */
+    private fun handleTerminalAuthenticationChallenge(): ByteArray {
+        val challenge = ByteArray(8).also(secureRandom::nextBytes)
+        return createSuccessResponse(challenge)
+    }
+    
+    /**
+     * A Terminal Authentication step the chip refuses: SmartEmu has no terminal certificates a reader could chain
+     * to its test CVCA, so DG3 stays locked, as on a real chip for a terminal without the issuer's authorisation.
+     */
+    private fun terminalAuthenticationRefused(step: String, statusWord: Int): ByteArray {
+        Log.w(TAG, "Terminal Authentication refused at $step")
+        // Informational: the reader still unlocked the chip, and reads everything else
+        emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Terminal Authentication refused at $step"))
+        return createErrorResponse(statusWord)
     }
     
     /**

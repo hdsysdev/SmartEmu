@@ -1,8 +1,12 @@
 package com.hddev.smartemu.utils
 
 import android.util.Log
+import com.hddev.smartemu.data.EcCurve
 import com.hddev.smartemu.data.PaceMapping
+import com.hddev.smartemu.data.PaceSpec
 import com.hddev.smartemu.data.PassportData
+import com.hddev.smartemu.data.SessionCipher
+import com.hddev.smartemu.data.chipConfiguration
 import net.sf.scuba.tlv.TLVUtil
 import org.jmrtd.BACKey
 import org.jmrtd.PACEKeySpec
@@ -25,8 +29,9 @@ import javax.crypto.spec.IvParameterSpec
 /**
  * Chip side of PACE (Password Authenticated Connection Establishment), ICAO 9303 part 11 section 4.4, with the
  * MRZ or the CAN as password. Mirrors the reader side in JMRTD's PACEProtocol and reuses its key derivation,
- * nonce mapping and authentication token helpers. The chip offers one protocol, ECDH on NIST P-256 with
- * AES-128 and the mapping chosen by [PassportData.paceMapping], as advertised in EF.CardAccess by [paceInfo]:
+ * nonce mapping and authentication token helpers. The chip offers one protocol, ECDH on the curve and with the
+ * cipher of the chip's configuration (see [PassportData.chipConfiguration]) and the mapping chosen by
+ * [PassportData.paceMapping], as advertised in EF.CardAccess by [paceInfo]:
  * - Generic Mapping (GM): G~ = s * G + H, with H from an ECDH exchange of mapping keys
  * - Chip Authentication Mapping (CAM): GM, and the chip proves it holds the private key for the public key
  *   in EF.CardSecurity by sending CA = SK_map * SK_chip^-1 mod n, encrypted, with its authentication token
@@ -39,12 +44,9 @@ class PaceProtocol {
     companion object {
         private const val TAG = "PaceProtocol"
 
-        /** The r2w nfc-library reader only supports the NIST curves, not Brainpool. */
+        /** The domain parameters of the generic profile, NIST P-256. */
         const val PARAMETER_ID = PACEInfo.PARAM_ID_ECP_NIST_P256_R1
         private const val PACE_VERSION = 2
-        private const val CIPHER_ALGORITHM = "AES"
-        private const val KEY_LENGTH = 128
-        private const val NONCE_LENGTH = 16
 
         private const val TAG_CRYPTOGRAPHIC_MECHANISM = 0x80
         private const val TAG_PASSWORD_REFERENCE = 0x83
@@ -71,25 +73,36 @@ class PaceProtocol {
         const val SW_AUTHENTICATION_FAILED = 0x6300
 
         /**
-         * The PACE protocol identifier for a mapping.
+         * The PACE protocol identifier for a mapping and cipher. ICAO 9303-11 defines CAM with AES only.
          */
-        fun oid(mapping: PaceMapping): String = when (mapping) {
-            PaceMapping.GENERIC -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_128
-            PaceMapping.CHIP_AUTHENTICATION -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_128
+        fun oid(mapping: PaceMapping, cipher: SessionCipher = SessionCipher.AES_128): String = when (mapping) {
+            PaceMapping.GENERIC -> when (cipher) {
+                SessionCipher.TDES -> PACEInfo.ID_PACE_ECDH_GM_3DES_CBC_CBC
+                SessionCipher.AES_128 -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_128
+                SessionCipher.AES_192 -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_192
+                SessionCipher.AES_256 -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_256
+            }
+            PaceMapping.CHIP_AUTHENTICATION -> when (cipher) {
+                SessionCipher.TDES -> throw IllegalArgumentException("PACE-CAM is defined with AES only")
+                SessionCipher.AES_128 -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_128
+                SessionCipher.AES_192 -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_192
+                SessionCipher.AES_256 -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_256
+            }
         }
 
         /**
-         * The PACEInfo published in EF.CardAccess.
+         * The PACEInfo published in EF.CardAccess, and copied to EF.DG14.
          */
-        fun paceInfo(mapping: PaceMapping): PACEInfo = PACEInfo(oid(mapping), PACE_VERSION, PARAMETER_ID)
+        fun paceInfo(mapping: PaceMapping, spec: PaceSpec = PaceSpec()): PACEInfo =
+            PACEInfo(oid(mapping, spec.cipher), PACE_VERSION, spec.curve.paceParameterId)
 
         /**
          * A static chip key pair for PACE-CAM. It must be on the PACE domain parameters; the public key goes in
          * EF.CardSecurity.
          */
-        fun generateChipAuthenticationKeyPair(): KeyPair {
+        fun generateChipAuthenticationKeyPair(curve: EcCurve = EcCurve.NIST_P256): KeyPair {
             val keyPairGenerator = Util.getKeyPairGenerator("EC")
-            keyPairGenerator.initialize(PACEInfo.toParameterSpec(PARAMETER_ID), SecureRandom())
+            keyPairGenerator.initialize(PACEInfo.toParameterSpec(curve.paceParameterId), SecureRandom())
             return keyPairGenerator.generateKeyPair()
         }
     }
@@ -149,7 +162,11 @@ class PaceProtocol {
     private class PaceStepException(message: String, val statusWord: Int) : Exception(message)
 
     private val secureRandom = SecureRandom()
-    private val staticParameters = PACEInfo.toParameterSpec(PARAMETER_ID) as ECParameterSpec
+
+    // The protocol the chip offers, set by initialize()
+    private var spec = PaceSpec()
+    private var staticParameters = PACEInfo.toParameterSpec(PARAMETER_ID) as ECParameterSpec
+    private val cipherAlgorithm: String get() = if (spec.cipher.isAes) "AES" else "DESede"
 
     private var currentState = PaceState.INITIAL
     private var mapping = PaceMapping.GENERIC
@@ -157,8 +174,11 @@ class PaceProtocol {
     private var canPasswordKey: SecretKey? = null
     private var chipAuthenticationKeyPair: KeyPair? = null
 
-    /** Protocol identifier of the mapping the chip offers. */
-    val oid: String get() = oid(mapping)
+    /** Protocol identifier of the mapping and cipher the chip offers. */
+    val oid: String get() = oid(mapping, spec.cipher)
+
+    /** The domain parameters the chip offers, as in "brainpoolP256r1". */
+    val curve: EcCurve get() = spec.curve
 
     // Per-run values, discarded by reset()
     private var passwordKey: SecretKey? = null
@@ -187,6 +207,8 @@ class PaceProtocol {
                 PaceResult(false, "Missing chip authentication key for PACE-CAM", newState = PaceState.FAILED)
             } else {
                 mapping = passportData.paceMapping
+                spec = passportData.chipConfiguration().pace
+                staticParameters = PACEInfo.toParameterSpec(spec.curve.paceParameterId) as ECParameterSpec
                 this.chipAuthenticationKeyPair = chipAuthenticationKeyPair
                 val mrzKey = BACKey(passportData.passportNumber, passportData.mrzDateOfBirth(), passportData.mrzExpiryDate())
                 mrzPasswordKey = PACEProtocol.deriveStaticPACEKey(mrzKey, oid)
@@ -196,7 +218,7 @@ class PaceProtocol {
                     null
                 }
                 reset()
-                Log.d(TAG, "PACE-${mapping.abbreviation} initialized")
+                Log.d(TAG, "PACE-${mapping.abbreviation} on ${spec.curve.displayName} with ${spec.cipher.displayName} initialized")
                 PaceResult(true, "PACE initialized", newState = PaceState.INITIAL)
             }
         } catch (e: Exception) {
@@ -239,7 +261,7 @@ class PaceProtocol {
         }
 
         val domainParameterId = dataObjects[TAG_DOMAIN_PARAMETER_ID]
-        if (domainParameterId != null && Util.os2i(domainParameterId).toInt() != PARAMETER_ID) {
+        if (domainParameterId != null && Util.os2i(domainParameterId).toInt() != spec.curve.paceParameterId) {
             return fail("Unsupported PACE domain parameters", SW_REFERENCED_DATA_NOT_FOUND)
         }
 
@@ -322,8 +344,9 @@ class PaceProtocol {
     private fun sendEncryptedNonce(dataObjects: Map<Int, ByteArray>): ByteArray {
         if (dataObjects.isNotEmpty()) throw PaceStepException("Unexpected data in PACE step 1", SW_WRONG_DATA)
 
-        val s = ByteArray(NONCE_LENGTH).also { secureRandom.nextBytes(it) }
-        val cipher = Util.getCipher("$CIPHER_ALGORITHM/CBC/NoPadding")
+        val cipher = Util.getCipher("$cipherAlgorithm/CBC/NoPadding")
+        // One block of nonce: 16 bytes with AES, 8 with 3DES
+        val s = ByteArray(cipher.blockSize).also { secureRandom.nextBytes(it) }
         cipher.init(Cipher.ENCRYPT_MODE, passwordKey, IvParameterSpec(ByteArray(cipher.blockSize)))
         val encryptedNonce = cipher.doFinal(s)
 
@@ -370,8 +393,8 @@ class PaceProtocol {
         keyAgreement.init(chipKeyPair.private)
         keyAgreement.doPhase(PACEProtocol.updateParameterSpec(readerKey, chipKeyPair.private), true)
         val sharedSecret = keyAgreement.generateSecret()
-        ksEnc = Util.deriveKey(sharedSecret, CIPHER_ALGORITHM, KEY_LENGTH, Util.ENC_MODE)
-        ksMac = Util.deriveKey(sharedSecret, CIPHER_ALGORITHM, KEY_LENGTH, Util.MAC_MODE)
+        ksEnc = Util.deriveKey(sharedSecret, cipherAlgorithm, spec.cipher.keyLength, Util.ENC_MODE)
+        ksMac = Util.deriveKey(sharedSecret, cipherAlgorithm, spec.cipher.keyLength, Util.MAC_MODE)
 
         chipEphemeralKeyPair = chipKeyPair
         readerEphemeralPublicKey = readerKey
@@ -408,7 +431,7 @@ class PaceProtocol {
         } else {
             chipToken
         }
-        secureMessaging = ChipSecureMessaging(encKey, macKey, 0L, ChipSecureMessaging.Algorithm.AES)
+        secureMessaging = ChipSecureMessaging(encKey, macKey, 0L, ChipSecureMessaging.algorithmFor(spec.cipher))
         currentState = PaceState.AUTHENTICATED
         Log.d(TAG, "PACE-${mapping.abbreviation} authentication successful")
         return response
@@ -428,8 +451,8 @@ class PaceProtocol {
         val order = staticParameters.order
         val chipAuthenticationData = mappingKey.s.multiply(staticKey.s.modInverse(order)).mod(order)
 
-        val iv = Util.getCipher("$CIPHER_ALGORITHM/ECB/NoPadding", Cipher.ENCRYPT_MODE, encKey).doFinal(MINUS_ONE_BLOCK)
-        val cipher = Util.getCipher("$CIPHER_ALGORITHM/CBC/NoPadding")
+        val iv = Util.getCipher("AES/ECB/NoPadding", Cipher.ENCRYPT_MODE, encKey).doFinal(MINUS_ONE_BLOCK)
+        val cipher = Util.getCipher("AES/CBC/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, encKey, IvParameterSpec(iv))
         val encoded = Util.i2os(chipAuthenticationData, (order.bitLength() + 7) / 8)
         return cipher.doFinal(Util.pad(encoded, cipher.blockSize))
