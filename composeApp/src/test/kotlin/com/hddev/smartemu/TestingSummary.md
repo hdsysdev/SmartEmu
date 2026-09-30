@@ -1,6 +1,6 @@
-# Comprehensive Testing and Validation Summary
+# PassportEmu Testing and Validation Summary
 
-This document summarizes the comprehensive testing implementation for the Passport NFC Simulator application.
+This document summarizes the comprehensive testing implementation for the PassportEmu application.
 
 ## Test Coverage Overview
 

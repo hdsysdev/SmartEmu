@@ -1,4 +1,4 @@
-rootProject.name = "SmartEmu"
+rootProject.name = "PassportEmu"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

@@ -12,7 +12,7 @@ import kotlin.time.Instant
  */
 object EventLogFormatter {
 
-    /** Logcat tag each event is mirrored under, one JSON object per line; see [eventJson]. */
+    /** Legacy Logcat tag retained for existing reader tools, one JSON object per line; see [eventJson]. */
     const val LOGCAT_TAG = "SmartEmuEvents"
 
     /**
@@ -37,7 +37,7 @@ object EventLogFormatter {
     }
 
     fun text(events: List<NfcEvent>, context: ReportContext): String = buildString {
-        appendLine("SmartEmu event log")
+        appendLine("PassportEmu event log")
         appendLine("Generated: ${context.generatedAt}")
         summary(context).forEach { (key, value) -> appendLine("$key: $value") }
         appendLine()
@@ -76,7 +76,7 @@ object EventLogFormatter {
     fun fileName(generatedAt: Instant, extension: String): String {
         // Colons aren't allowed in file names on every platform
         val stamp = generatedAt.toString().substringBefore('.').replace(":", "").replace("Z", "")
-        return "smartemu-log-$stamp.$extension"
+        return "passportemu-log-$stamp.$extension"
     }
 
     private fun summary(context: ReportContext): Map<String, String> {

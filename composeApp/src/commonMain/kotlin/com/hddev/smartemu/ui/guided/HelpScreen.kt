@@ -79,8 +79,8 @@ private val questions = listOf(
         Icons.Outlined.PrivacyTip,
         "Is this a real passport?",
         listOf(
-            "No. It's a virtual passport with the details you gave it, marked as a specimen. It can't be used as ID and " +
-                "doesn't copy any real passport.",
+            "No. PassportEmu creates a virtual passport with the details you gave it, marked as a specimen. " +
+                "It can't be used as ID and doesn't copy any real passport.",
             "The details and photo stay on this phone, unless you send a report."
         )
     )

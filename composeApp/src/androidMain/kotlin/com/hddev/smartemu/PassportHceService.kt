@@ -820,16 +820,17 @@ class PassportHceService : HostApduService() {
             
             // Extract authentication data from APDU
             val authData = parseResult.data ?: byteArrayOf()
-            if (authData.isEmpty()) {
+            // BAC carries 32 encrypted bytes and an 8-byte MAC. Validate length before applying a profile's
+            // out-of-sequence response: the measured Spanish 6300 response was specifically for Lc=40.
+            if (authData.size != 40) {
                 ErrorLogger.logAuthenticationError(
                     protocol = "BAC",
-                    message = "No authentication data provided in EXTERNAL AUTHENTICATE",
-                    error = SimulatorError.ProtocolError.InvalidApduCommand("No authentication data"),
+                    message = "EXTERNAL AUTHENTICATE needs 40 bytes, received ${authData.size}",
+                    error = SimulatorError.ProtocolError.InvalidApduCommand("Wrong authentication data length"),
                     correlationId = sessionCorrelationId
                 )
-                emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "BAC", "No authentication data"))
-                val errorResponse = ErrorCodeMapper.mapError(SimulatorError.ProtocolError.InvalidApduCommand("No authentication data"))
-                return errorResponse.toByteArray()
+                emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "BAC", "Wrong authentication data length"))
+                return createErrorResponse(ErrorCodeMapper.SW_WRONG_LENGTH)
             }
             
             // Chips differ in how they answer EXTERNAL AUTHENTICATE with no challenge to answer, and readers have

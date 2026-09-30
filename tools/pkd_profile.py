@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Summarise which keys and signature algorithms each country's document PKI uses, from ICAO PKD downloads.
 
-SmartEmu's chip profiles mark what a document's Document Signer (the key that signs EF.SOD) uses as ASSUMED
-until someone checks. The ICAO Public Key Directory publishes every participating state's Document Signer
-certificates and CSCA master lists, which settles that for any state that uploads them: the key type, curve or
-size, and the algorithm its CSCA signs with, by the year each certificate was issued.
+PassportEmu's chip profiles distinguish documented facts from emulator defaults. Document Signer certificates
+can establish their public key type and size; CSCA master lists describe certificate authorities only. Neither
+establishes PACE, Active Authentication, Chip Authentication, data groups, or the signature algorithm in EF.SOD.
+This script extracts X.509 metadata; it does not verify signatures, trust paths, or master-list authenticity.
 
 Download the LDIF files from https://download.pkd.icao.int/ yourself; the ICAO PKD terms of use apply to them and
 to what you publish from them. This script only reads local files and sends nothing anywhere:
@@ -25,6 +25,7 @@ use each key, and the signature algorithms. Only the Python standard library is 
 import argparse
 import base64
 import collections
+import hashlib
 import json
 import re
 import sys
@@ -63,18 +64,17 @@ OIDS = {
 OID_COUNTRY = "2.5.4.6"
 OID_SIGNED_DATA = "1.2.840.113549.1.7.2"
 
-# Many states encode curves with explicit parameters rather than a name; they are recognised by their prime
-# (RFC 5639 for Brainpool, FIPS 186 for NIST)
-PRIMES = {
-    2**256 - 2**224 + 2**192 + 2**96 - 1: "P-256",
-    2**384 - 2**128 - 2**96 + 2**32 - 1: "P-384",
-    2**521 - 1: "P-521",
-    int("A9FB57DBA1EEA9BC3E660A909D838D726E3BF623D52620282013481D1F6E5377", 16): "brainpoolP256r1",
-    int("D35E472036BC4FB7E13C785ED201E065F98FCFA6F6F40DEF4F92B9EC7893EC28FCD412B1F1B32E27", 16): "brainpoolP320r1",
-    int("8CB91E82A3386D280F5D6F7E50E641DF152F7109ED5456B412B1DA197FB71123ACD3A729901D1A71874700133107EC53", 16):
-        "brainpoolP384r1",
-    int("AADD9DB8DBE9C48B3FD4E6AE33C9FC07CB308DB3B3C9D20ED6639CCA703308717D4D9B009BC66842AECDA12AE6A380E62881FF2F"
-        "2D82C68528AA6056583A48F3", 16): "brainpoolP512r1",
+# Fingerprints of (p, a, b, uncompressed generator, order, cofactor), each rendered with hex() and joined by '|'.
+# Derived from OpenSSL 3.6.4 standard EC parameters; fixtures under tests/fixtures permit independent inspection.
+# Matching the prime alone incorrectly identifies Brainpool's twisted curves as their r1 counterparts.
+EXPLICIT_CURVES = {
+    "b2ec45b3f014d91963aa536a9091c3b8b3a010ea85e13afb5bb61fb1153fda26": "P-256",
+    "f4f0b73608a985353776340503941409d8ad7d76c407fe0088777045a95a7391": "P-384",
+    "d20ec01fda904e7b3602690e40ade01bb87140e115efeab09767bc2bf33b4fae": "P-521",
+    "83d0413023f38eca0ba0ecedb92fc6a536170894af9c71065f34ab60f90104f5": "brainpoolP256r1",
+    "501721a174e05e04e7252f9e83434e6bda2dde9967420f06255aab002b53177d": "brainpoolP320r1",
+    "2294cb4bb4562b07f1d83ebb3338dfb8fcf82b2142c43e44e6a8b415db437912": "brainpoolP384r1",
+    "7b641135b0427a3c0cc67f993c01eec5e57d7e44837d92092c3106db3946f222": "brainpoolP512r1",
 }
 
 
@@ -89,15 +89,19 @@ def read_tlv(data, offset=0):
     tag = data[offset]
     offset += 1
     if tag & 0x1F == 0x1F:
-        while data[offset] & 0x80:
+        while offset < len(data) and data[offset] & 0x80:
             offset += 1
         offset += 1
+    if offset >= len(data):
+        raise DerError("truncated tag or length")
     length = data[offset]
     offset += 1
     if length & 0x80:
         count = length & 0x7F
         if count == 0 or count > 4:
             raise DerError("unsupported length")
+        if offset + count > len(data):
+            raise DerError("truncated length")
         length = int.from_bytes(data[offset:offset + count], "big")
         offset += count
     if offset + length > len(data):
@@ -111,6 +115,8 @@ def children(data, start, end):
     offset = start
     while offset < end:
         tag, value_start, value_end = read_tlv(data, offset)
+        if value_end > end:
+            raise DerError("child exceeds its container")
         result.append((tag, value_start, value_end))
         offset = value_end
     return result
@@ -124,6 +130,8 @@ def decode_oid(value):
         if not byte & 0x80:
             parts.append(number)
             number = 0
+    if not parts or value[-1] & 0x80:
+        raise DerError("invalid OID")
     first = min(parts[0] // 40, 2)
     return ".".join(str(p) for p in [first, parts[0] - first * 40] + parts[1:])
 
@@ -163,10 +171,17 @@ def describe_key(data, start, end):
             return f"EC {OIDS.get(oid, oid)}"
         if tag == 0x30:
             # ECParameters: version, fieldID { prime-field, p }, curve, base, order, cofactor
-            field = children(data, param_start, param_end)[1]
-            _, prime_start, prime_end = children(data, field[1], field[2])[1]
-            prime = int.from_bytes(data[prime_start:prime_end], "big")
-            return f"EC {PRIMES.get(prime, f'unrecognised {prime.bit_length()}-bit curve')} (explicit)"
+            params = children(data, param_start, param_end)
+            field = children(data, params[1][1], params[1][2])
+            if decode_oid(data[field[0][1]:field[0][2]]) != "1.2.840.10045.1.1":
+                return "EC unrecognised binary-field curve (explicit)"
+            coefficients = children(data, params[2][1], params[2][2])
+            elements = [field[1], coefficients[0], coefficients[1], params[3], params[4]]
+            values = [int.from_bytes(data[s:e], "big") for _, s, e in elements]
+            values.append(int.from_bytes(data[params[5][1]:params[5][2]], "big") if len(params) > 5 else 1)
+            fingerprint = hashlib.sha256("|".join(hex(v) for v in values).encode("ascii")).hexdigest()
+            name = EXPLICIT_CURVES.get(fingerprint, f"unrecognised {values[0].bit_length()}-bit curve")
+            return f"EC {name} (explicit)"
     return algorithm
 
 
@@ -186,7 +201,27 @@ def parse_certificate(der):
         "year": time_year(der, *not_before),
         "key": describe_key(der, public_key[1], public_key[2]),
         "signature": OIDS.get(sig_oid, sig_oid),
+        "is_ca": certificate_is_ca(der, fields),
     }
+
+
+def certificate_is_ca(der, fields):
+    """Classify a standalone certificate using basicConstraints; this does not validate it."""
+    for tag, start, end in fields:
+        if tag != 0xA3:
+            continue
+        _, seq_start, seq_end = read_tlv(der, start)
+        for _, ext_start, ext_end in children(der, seq_start, seq_end):
+            extension = children(der, ext_start, ext_end)
+            if decode_oid(der[extension[0][1]:extension[0][2]]) != "2.5.29.19":
+                continue
+            _, value_start, value_end = extension[-1]
+            encoded = der[value_start:value_end]
+            _, constraint_start, constraint_end = read_tlv(encoded)
+            constraints = children(encoded, constraint_start, constraint_end)
+            if constraints and constraints[0][0] == 0x01:
+                return any(encoded[constraints[0][1]:constraints[0][2]])
+    return False
 
 
 def master_list_certificates(der):
@@ -228,7 +263,7 @@ def ldif_entries(text):
 
 
 def read_certificates(path):
-    """(kind, DER) of every certificate in a file: DS for Document Signers, CSCA for master list entries."""
+    """(kind, DER) from a file. CERT means infer CA/leaf from basicConstraints, not a verified DS role."""
     data = path.read_bytes()
     if path.suffix.lower() == ".ldif":
         for entry in ldif_entries(data.decode("utf-8", "replace")):
@@ -250,9 +285,9 @@ def read_certificates(path):
         return
     if b"-----BEGIN CERTIFICATE-----" in data:
         for block in re.findall(rb"-----BEGIN CERTIFICATE-----(.+?)-----END CERTIFICATE-----", data, re.S):
-            yield "DS", base64.b64decode(b"".join(block.split()))
+            yield "CERT", base64.b64decode(b"".join(block.split()))
     else:
-        yield "DS", data
+        yield "CERT", data
 
 
 def main():
@@ -275,18 +310,21 @@ def main():
                 continue
             if countries and cert["country"] not in countries:
                 continue
+            if kind == "CERT":
+                kind = "CSCA" if cert["is_ca"] else "DS"
             counts[cert["country"]][kind][cert["year"]][(cert["key"], cert["signature"])] += 1
 
     print("# Document PKI by country\n")
-    print("From ICAO PKD data; subject to the ICAO PKD terms of use. `DS` is a Document Signer, the key that signs "
-          "EF.SOD; `CSCA` the country signing CA. The signature algorithm is the one the certificate is signed with, "
-          "by the CSCA.\n")
+    print("From the supplied local certificates/master lists. ICAO PKD terms apply to ICAO downloads. `DS` is a "
+          "Document Signer candidate; `CSCA` a country CA candidate. Standalone files are classified by "
+          "basicConstraints. The signature algorithm signs the certificate, not EF.SOD. Signatures and trust paths "
+          "have not been verified. CSCA keys do not establish DS, PACE, AA, CA, or chip contents.\n")
     for country in sorted(counts):
         print(f"## {country}\n")
         print("| Kind | Year | Key | Signed with | Certificates |")
         print("|---|---|---|---|---|")
         for kind in ("CSCA", "DS"):
-            for year in sorted(counts[country][kind]):
+            for year in sorted(counts[country].get(kind, {})):
                 for (key, signature), count in counts[country][kind][year].most_common():
                     print(f"| {kind} | {year} | {key} | {signature} | {count} |")
         print()

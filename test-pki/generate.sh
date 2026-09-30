@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Generates the SmartEmu test PKI: a self-signed test CSCA, the Document Signers it issues, and the flawed
+# Generates the PassportEmu test PKI: a self-signed test CSCA, the Document Signers it issues, and the flawed
 # Document Signers the app's chip faults sign with; and for each country with a chip profile, a test CSCA of that
 # country and the Document Signers it issues, with the key types the profile has. The app signs EF.SOD with a
 # Document Signer, so regenerating a CSCA changes the trust anchor every other test environment uses.
 #
-# Every certificate says SmartEmu and Test in its subject, so none can pass for a real issuer's.
+# Legacy subjects retain SmartEmu; new country certificates say PassportEmu and TEST.
 #
 # Files that exist are kept, so running it again only adds what's missing; FORCE=1 replaces everything.
 # Needs OpenSSL 3.4 or later, for -not_before and -not_after.
@@ -105,17 +105,21 @@ country_pki() {
   local lower
   lower=$(echo "$country" | tr '[:upper:]' '[:lower:]')
   local csca=csca/smartemu-test-csca-$lower
-  local prefix="/C=$country/O=SmartEmu/OU=Test PKI"
+  local brand=PassportEmu
+  case "$country" in DE|NL|GB|US) brand=SmartEmu ;; esac
+  local prefix="/C=$country/O=$brand/OU=Test PKI"
+  local csca_label="$brand TEST CSCA $country"
+  if [[ "$brand" == SmartEmu ]]; then csca_label="SmartEmu Test CSCA $country"; fi
   shift 2
   if wanted "$csca.key.pem"; then
-    new_csca "$csca" "SmartEmu Test CSCA $country" "$prefix" "${!csca_key}"
+    new_csca "$csca" "$csca_label" "$prefix" "${!csca_key}"
   fi
   while [[ $# -ge 3 ]]; do
     local suffix=$1 extensions=$2 key=$3[@]
     shift 3
     local ds=document-signer/smartemu-test-ds-$lower$suffix
     if wanted "$ds.key.pem"; then
-      local label="SmartEmu TEST Document Signer $country"
+      local label="$brand TEST Document Signer $country"
       case "$extensions" in
         ds_ext) ;;
         *) label="$label ID documents" ;;
@@ -130,11 +134,21 @@ country_pki() {
   done
 }
 
-# Germany signs with Brainpool keys, the Netherlands' first-generation passports with RSA
+# Emulator choices, not issuer facts: see docs/chip-profile-evidence.md. CSCA keys do not establish DS algorithms.
 country_pki DE EC_BRAINPOOL_P256 "" ds_ext EC_BRAINPOOL_P256 -id ds_id_ext EC_BRAINPOOL_P256
 country_pki NL EC_P256 "" ds_ext EC_P256 -id ds_nl_id_ext EC_P256 -rsa ds_ext RSA_2048
 country_pki GB EC_P256 "" ds_ext EC_P256
 country_pki US EC_P256 "" ds_ext EC_P256
+
+# Wider passport profiles. EC P-256 CSCAs are test trust anchors, including for RSA DS certificates.
+# The Belgian study explicitly names its DS key; Canada uses an RSA stand-in with different SOD padding.
+country_pki FR EC_P256 "" ds_ext EC_P256
+country_pki BE EC_P256 "" ds_ext RSA_2048
+country_pki ES EC_P256 "" ds_ext EC_P256
+country_pki IT EC_P256 "" ds_ext EC_P256
+country_pki CH EC_P256 "" ds_ext EC_P256
+country_pki CA EC_P256 "" ds_ext RSA_2048
+country_pki AU EC_P256 "" ds_ext EC_P256
 
 openssl verify -CAfile "$CSCA.cert.pem" "$DS.cert.pem" "$DS_ID.cert.pem"
 openssl verify -CAfile "$UNTRUSTED_CSCA.cert.pem" "$DS_UNTRUSTED.cert.pem"

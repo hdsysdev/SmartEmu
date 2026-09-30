@@ -45,7 +45,7 @@ internal val ChipFault.friendlyDescription: String
 internal val PresetGroup.friendlyTitle: String
     get() = when (this) {
         PresetGroup.EVERYDAY -> "Everyday passports"
-        PresetGroup.COUNTRIES -> "Documents like real countries' ones"
+        PresetGroup.COUNTRIES -> "By country and generation"
         PresetGroup.TRICKY_DETAILS -> "Unusual details"
         PresetGroup.OTHER_DOCUMENTS -> "ID cards and permits"
         PresetGroup.CHIP_SECURITY -> "Different chips"

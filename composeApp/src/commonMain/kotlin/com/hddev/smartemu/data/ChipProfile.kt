@@ -46,7 +46,9 @@ class ChipProfile(
     /** Where the reported facts come from. */
     val sources: List<String> = emptyList(),
     /** What the emulation leaves out or can't copy. */
-    val notes: List<String> = emptyList()
+    val notes: List<String> = emptyList(),
+    /** Specific claims, scoped to this generation, with direct primary-source links and section/page locators. */
+    val evidence: List<ProfileEvidence> = emptyList()
 ) {
     fun provenanceOf(aspect: ProfileAspect): Provenance = provenance[aspect] ?: Provenance.ASSUMED
 
@@ -70,8 +72,22 @@ enum class ProfileAspect(val displayName: String) {
 enum class Provenance(val displayName: String, val description: String) {
     SPECIFICATION("Specification", "Required by a standard or regulation that applies to this document"),
     REPORTED("Reported", "Described in public sources, but not checked against a real chip"),
-    ASSUMED("Assumed", "No source found: a common choice stands in until someone checks a real chip")
+    ASSUMED("ASSUMED", "Emulator default, including disabled features: not established for this generation")
 }
+
+/**
+ * A narrower claim than an aspect badge. For example BAC support can be reported while the absence of PACE is
+ * unknown, or EAC support can be specified while its curve is assumed. A null [aspect] describes the generation.
+ * An aspect containing any unverified choice keeps its ASSUMED badge even when some of its claims have evidence.
+ */
+data class ProfileEvidence(
+    val claim: String,
+    val sourceTitle: String,
+    val url: String,
+    val locator: String,
+    val aspect: ProfileAspect? = null,
+    val provenance: Provenance = Provenance.REPORTED
+)
 
 /**
  * The elliptic curves ICAO 9303 part 11 standardises for PACE, with their standardised domain parameter identifiers.

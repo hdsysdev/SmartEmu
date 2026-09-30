@@ -4,6 +4,7 @@ import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportSimulatorUiState
 import com.hddev.smartemu.data.isFailedApdu
+import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -57,14 +58,21 @@ class EventLogFormatterTest {
     fun textReportListsEventsWithDetails() {
         val text = EventLogFormatter.text(listOf(apdu), context)
 
-        assertTrue(text.startsWith("SmartEmu event log\nGenerated: 2022-01-01T00:00:00Z\n"))
+        assertTrue(text.startsWith("PassportEmu event log\nGenerated: 2022-01-01T00:00:00Z\n"))
         assertTrue("Events (1, oldest first)" in text)
         assertTrue("2022-01-01T00:00:00Z [APDU] SELECT → 9000\n    status: 9000\n    command: 00A4040C07A0000002471001" in text)
     }
 
     @Test
     fun fileNameHasNoColons() {
-        assertEquals("smartemu-log-2022-01-01T000000.json", EventLogFormatter.fileName(timestamp, "json"))
+        assertEquals("passportemu-log-2022-01-01T000000.json", EventLogFormatter.fileName(timestamp, "json"))
+        assertEquals("passportemu-log-2022-01-01T000000.txt", EventLogFormatter.fileName(timestamp, "txt"))
+        assertEquals("passportemu-reads-2022-01-01T000000.txt", ReadHistoryFormatter.fileName(timestamp))
+    }
+
+    @Test
+    fun readHistoryHeaderUsesAppName() {
+        assertEquals("PassportEmu read history: 0 reads\n", ReadHistoryFormatter.text(emptyList(), TimeZone.UTC))
     }
 
     @Test

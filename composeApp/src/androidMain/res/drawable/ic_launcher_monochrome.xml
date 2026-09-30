@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- One-color emu and passport mark for Android's themed launcher icons. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M52,30 C44,27 34,28 25,32 L25,78 C34,75 44,76 52,79 Z M56,30 C64,27 74,28 83,32 L83,78 C74,75 64,76 56,79 Z" />
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.6" android:scaleY="0.6" android:translateX="24" android:translateY="24">
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+            android:pathData="M49,12 C38,0 27,0 26,4 C24,9 34,10 49,12 Z M48,12 C38,7 29,7 29,12 C30,17 39,12 48,12 Z M49,13 C58,13 64,18 65,24 L81,31 Q84,34 80,34 L62,35 C51,36 49,44 55,53 L62,63 L76,66 Q81,67 80,72 L78,78 C84,85 78,93 65,97 L39,100 C30,97 19,91 18,82 C16,69 27,61 38,57 C43,48 38,43 34,34 C29,24 38,13 49,13 Z M57,21 A2.6,2.6 0,1 0,57,26.2 A2.6,2.6 0,1 0,57,21 Z M50,69 C40,74 52,87 74,85 C63,83 54,79 50,69 Z M69,69 A6,6 0,1 0,69,81 A6,6 0,1 0,69,69 Z" />
+    </group>
 </vector>
