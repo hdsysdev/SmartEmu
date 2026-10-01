@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:06,000
+Enable NFC on both phones
+
+2
+00:00:10,000 --> 00:00:16,000
+Precheck: open a passport test check
+
+3
+00:01:00,000 --> 00:01:06,000
+Precheck: capture the displayed page
+
+4
+00:01:09,000 --> 00:01:15,000
+Match the number, birth date and expiry
+
+5
+00:01:16,000 --> 00:01:22,000
+Hold the phones back to back
+
+6
+00:01:37,000 --> 00:01:43,000
+On PassportEmu, watch the read progress
+
+7
+00:02:25,000 --> 00:02:30,000
+Capture each new specimen again

@@ -92,6 +92,11 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            if (providers.gradleProperty("recordingFixtures").orNull == "true") {
+                applicationIdSuffix = ".recording"
+            }
+        }
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true

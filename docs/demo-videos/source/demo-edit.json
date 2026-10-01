@@ -1,0 +1,119 @@
+[
+  {
+    "source": "smart-home.mp4",
+    "timeline_start": 0,
+    "duration": 3,
+    "source_in": 0,
+    "source_out": 2.078122,
+    "playback_rate": 1.0,
+    "caption": ""
+  },
+  {
+    "source": "smart-create.mp4",
+    "timeline_start": 3,
+    "duration": 12,
+    "source_in": 2,
+    "source_out": 34,
+    "playback_rate": 2.6666666666666665,
+    "caption": ""
+  },
+  {
+    "source": "smart-show.mp4",
+    "timeline_start": 15,
+    "duration": 7,
+    "source_in": 2,
+    "source_out": 17.966789,
+    "playback_rate": 2.280969857142857,
+    "caption": ""
+  },
+  {
+    "source": "smart-page.mp4",
+    "timeline_start": 22,
+    "duration": 3,
+    "source_in": 0,
+    "source_out": 7.967722,
+    "playback_rate": 2.6559073333333334,
+    "caption": ""
+  },
+  {
+    "source": "precheck-capture.mp4",
+    "timeline_start": 25,
+    "duration": 8,
+    "source_in": 0,
+    "source_out": 8.545822,
+    "playback_rate": 1.06822775,
+    "caption": "Precheck: capture the displayed page"
+  },
+  {
+    "source": "precheck-details.mp4",
+    "timeline_start": 33,
+    "duration": 7,
+    "source_in": 0,
+    "source_out": 5.1146,
+    "playback_rate": 1.0,
+    "caption": "Confirm the matching details"
+  },
+  {
+    "source": "smart-hold.mp4",
+    "timeline_start": 40,
+    "duration": 5,
+    "source_in": 2,
+    "source_out": 11.967989,
+    "playback_rate": 1.9935978,
+    "caption": "Hold the phones back to back"
+  },
+  {
+    "source": "precheck-ready.mp4",
+    "timeline_start": 45,
+    "duration": 3,
+    "source_in": 2,
+    "source_out": 8,
+    "playback_rate": 2.0,
+    "caption": ""
+  },
+  {
+    "source": "precheck-read.mp4",
+    "timeline_start": 48,
+    "duration": 12,
+    "source_in": 2,
+    "source_out": 14,
+    "playback_rate": 1.0,
+    "caption": ""
+  },
+  {
+    "source": "smart-read.mp4",
+    "timeline_start": 60,
+    "duration": 6,
+    "source_in": 9,
+    "source_out": 16.649422,
+    "playback_rate": 1.2749036666666669,
+    "caption": ""
+  },
+  {
+    "source": "precheck-finished.mp4",
+    "timeline_start": 66,
+    "duration": 4,
+    "source_in": 0,
+    "source_out": 0.473267,
+    "playback_rate": 1.0,
+    "caption": ""
+  },
+  {
+    "source": "smart-result.mp4",
+    "timeline_start": 70,
+    "duration": 3,
+    "source_in": 0,
+    "source_out": 3.176111,
+    "playback_rate": 1.0587036666666667,
+    "caption": ""
+  },
+  {
+    "source": "smart-presets.mp4",
+    "timeline_start": 73,
+    "duration": 2,
+    "source_in": 7,
+    "source_out": 9,
+    "playback_rate": 1.0,
+    "caption": ""
+  }
+]

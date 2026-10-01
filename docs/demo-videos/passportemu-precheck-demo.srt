@@ -1,0 +1,11 @@
+1
+00:00:25,000 --> 00:00:31,000
+Precheck: capture the displayed page
+
+2
+00:00:33,000 --> 00:00:39,000
+Confirm the matching details
+
+3
+00:00:40,000 --> 00:00:45,000
+Hold the phones back to back

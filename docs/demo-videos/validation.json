@@ -1,0 +1,32 @@
+{
+  "device": "Google Pixel 4a",
+  "capture": "physical Android device screenrecord",
+  "fixtures": "production UI with deterministic camera, check and NFC callbacks",
+  "checks": {
+    "fixture_builds": "both successful",
+    "full_decode": "both passed ffmpeg -xerror",
+    "visual_review": "actual specimen, Precheck capture/details/progress/completion, SmartEmu result/preset/history/help, and final contact sheets reviewed"
+  },
+  "videos": {
+    "demo": {
+      "file": "passportemu-precheck-demo.mp4",
+      "duration_seconds": 75.0,
+      "width": 1080,
+      "height": 2340,
+      "frame_rate": "24/1",
+      "codec": "h264",
+      "audio_streams": 0,
+      "bytes": 4723645
+    },
+    "tutorial": {
+      "file": "passportemu-precheck-tutorial.mp4",
+      "duration_seconds": 180.0,
+      "width": 1080,
+      "height": 2340,
+      "frame_rate": "24/1",
+      "codec": "h264",
+      "audio_streams": 0,
+      "bytes": 8697888
+    }
+  }
+}
