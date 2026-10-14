@@ -46,6 +46,11 @@ fun PassportData.chipConfiguration(): ChipConfiguration {
     val adaptations = mutableListOf<String>()
 
     var pace = profile.pace
+    // A profile without PACE has no PACE suite of its own: the default stands in once the document is switched to it
+    if (accessControl.supportsPace && !profile.accessControl.supportsPace) {
+        adaptations += "The profile's chip has no PACE, so PACE runs on the emulator's stand-in suite " +
+            "(${pace.curve.displayName}, ${pace.cipher.displayName}), not one sampled from this document."
+    }
     // ICAO 9303-11 defines Chip Authentication Mapping with AES only
     if (paceMapping == PaceMapping.CHIP_AUTHENTICATION && !pace.cipher.isAes) {
         pace = pace.copy(cipher = SessionCipher.AES_128)

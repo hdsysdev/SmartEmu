@@ -10,6 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Fullscreen
@@ -179,9 +182,10 @@ fun DocumentImages(
 }
 
 /**
- * The [PassportDataPage] alone on a dark background, scaled to fill as much of the screen as it can, at full
- * brightness, so that a reader app's camera can scan the MRZ. At first the page is turned to whichever way shows it
- * largest; the rotate buttons turn it a quarter at a time. A card shows its back, with the MRZ, and turns over.
+ * The [PassportDataPage] alone on a dark background, scaled to fill as much of the screen as it can, at half
+ * brightness, so that a reader app's camera can scan the MRZ; the brightness button steps through half, full, and
+ * the device's own. At first the page is turned to whichever way shows it largest; the rotate buttons turn it a
+ * quarter at a time. A card shows its back, with the MRZ, and turns over.
  */
 @Composable
 fun PassportFullScreenDialog(
@@ -191,12 +195,13 @@ fun PassportFullScreenDialog(
     // Quarter turns clockwise, or null until the user rotates the page
     var quarterTurns by rememberSaveable { mutableStateOf<Int?>(null) }
     var side by rememberSaveable { mutableStateOf(CardSide.BACK) }
+    var brightness by rememberSaveable { mutableStateOf(ScreenBrightness.HALF) }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        ScanningDisplayEffect()
+        ScanningDisplayEffect(brightness)
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -237,6 +242,20 @@ fun PassportFullScreenDialog(
                         onClick = { side = if (side == CardSide.BACK) CardSide.FRONT else CardSide.BACK }
                     )
                 }
+                val nextBrightness = when (brightness) {
+                    ScreenBrightness.HALF -> ScreenBrightness.FULL
+                    ScreenBrightness.FULL -> ScreenBrightness.CURRENT
+                    ScreenBrightness.CURRENT -> ScreenBrightness.HALF
+                }
+                AppIconButton(
+                    icon = when (brightness) {
+                        ScreenBrightness.HALF -> Icons.Filled.BrightnessMedium
+                        ScreenBrightness.FULL -> Icons.Filled.BrightnessHigh
+                        ScreenBrightness.CURRENT -> Icons.Filled.BrightnessAuto
+                    },
+                    contentDescription = "Brightness: ${brightness.label}. Switch to ${nextBrightness.label}",
+                    onClick = { brightness = nextBrightness }
+                )
                 AppIconButton(
                     icon = Icons.Filled.Rotate90DegreesCcw,
                     contentDescription = "Rotate left",
@@ -251,6 +270,13 @@ fun PassportFullScreenDialog(
         }
     }
 }
+
+private val ScreenBrightness.label: String
+    get() = when (this) {
+        ScreenBrightness.CURRENT -> "current"
+        ScreenBrightness.HALF -> "half"
+        ScreenBrightness.FULL -> "full"
+    }
 
 /**
  * Lays the content out at [layoutWidth], then turns it [quarterTurns] times clockwise and scales it to the largest

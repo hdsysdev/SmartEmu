@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.GppBad
@@ -50,7 +49,6 @@ fun HomeScreen(
     onShowHistory: () -> Unit,
     onMakeGenuine: () -> Unit,
     onEdit: () -> Unit,
-    onShowPhotoPage: () -> Unit,
     onUsePassport: () -> Unit,
     onRequestPermission: () -> Unit,
     onHelp: () -> Unit,
@@ -117,7 +115,6 @@ fun HomeScreen(
         if (hasPassport) {
             PassportCard(
                 passportData = passportData,
-                onShowPhotoPage = onShowPhotoPage,
                 onEdit = onEdit,
                 onChoosePreset = onChoosePreset
             )
@@ -225,14 +222,14 @@ private fun CreatePassportCard(onUseSampleDetails: () -> Unit, onChoosePreset: (
 }
 
 /**
- * The passport's photo page, or the card, as the other app will see it, with the ways to show it large, change it,
+ * The passport's photo page, or the card, as the other app will see it, with the ways to change it,
  * or swap it for a ready-made one.
  */
 @Composable
-private fun PassportCard(passportData: PassportData, onShowPhotoPage: () -> Unit, onEdit: () -> Unit, onChoosePreset: () -> Unit) {
+private fun PassportCard(passportData: PassportData, onEdit: () -> Unit, onChoosePreset: () -> Unit) {
     val noun = passportData.documentType.noun
     GuidedCard(title = "Your $noun") {
-        DocumentImages(passportData = passportData, onClick = onShowPhotoPage)
+        DocumentImages(passportData = passportData)
         AnimatedVisibility(visible = !passportData.isValid()) {
             NoticeCard(
                 title = "Some details need finishing",
@@ -243,7 +240,6 @@ private fun PassportCard(passportData: PassportData, onShowPhotoPage: () -> Unit
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AppButton(text = "Edit details", onClick = onEdit, icon = Icons.Filled.Edit)
-            AppButton(text = "Show large", onClick = onShowPhotoPage, icon = Icons.Filled.Fullscreen, emphasis = ButtonEmphasis.Low)
             AppButton(text = "Try another", onClick = onChoosePreset, icon = Icons.Outlined.CollectionsBookmark, emphasis = ButtonEmphasis.Low)
         }
     }

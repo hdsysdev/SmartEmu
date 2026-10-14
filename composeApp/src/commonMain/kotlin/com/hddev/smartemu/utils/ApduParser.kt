@@ -286,8 +286,16 @@ object ApduParser {
      * Authentication.
      */
     private fun parseInternalAuthenticateCommand(apdu: ByteArray): ApduParseResult {
-        val lc = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
-        if (lc == 0 || apdu.size < 5 + lc) {
+        // An extended-length APDU (00, then a two-byte Lc) is what a reader sends for an RSA key too large for a
+        // short Le, such as an RSA-2048 Active Authentication signature
+        val extended = apdu.size >= 7 && apdu[4].toInt() == 0
+        val dataOffset = if (extended) 7 else 5
+        val lc = when {
+            extended -> ((apdu[5].toInt() and 0xFF) shl 8) or (apdu[6].toInt() and 0xFF)
+            apdu.size > 4 -> apdu[4].toInt() and 0xFF
+            else -> 0
+        }
+        if (lc == 0 || apdu.size < dataOffset + lc) {
             return ApduParseResult(
                 commandType = ApduCommandType.INTERNAL_AUTHENTICATE,
                 isValid = false,
@@ -297,7 +305,7 @@ object ApduParser {
         return ApduParseResult(
             commandType = ApduCommandType.INTERNAL_AUTHENTICATE,
             isValid = true,
-            data = apdu.sliceArray(5 until 5 + lc)
+            data = apdu.sliceArray(dataOffset until dataOffset + lc)
         )
     }
     

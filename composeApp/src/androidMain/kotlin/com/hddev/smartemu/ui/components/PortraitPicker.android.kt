@@ -222,13 +222,26 @@ actual fun Portrait.toImageBitmap(): ImageBitmap? =
     BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size)?.asImageBitmap()
 
 @Composable
-actual fun ScanningDisplayEffect() {
+actual fun ScanningDisplayEffect(brightness: ScreenBrightness) {
     val view = LocalView.current
-    DisposableEffect(view) {
-        // Inside a dialog the dialog has its own window, which is the one shown on top
-        val dialogWindow = (view.parent as? DialogWindowProvider)?.window
-        val window = dialogWindow ?: view.context.findActivity()?.window ?: return@DisposableEffect onDispose {}
-        val previousBrightness = window.attributes.screenBrightness
+    // Inside a dialog the dialog has its own window, which is the one shown on top
+    val window = (view.parent as? DialogWindowProvider)?.window ?: view.context.findActivity()?.window
+    // Read while composing, before any effect changes it
+    val previousBrightness = remember(window) { window?.attributes?.screenBrightness }
+    DisposableEffect(window, brightness) {
+        if (window == null || previousBrightness == null) return@DisposableEffect onDispose {}
+        window.attributes = window.attributes.apply {
+            screenBrightness = when (brightness) {
+                ScreenBrightness.CURRENT -> previousBrightness
+                ScreenBrightness.HALF -> 0.5f
+                ScreenBrightness.FULL -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+            }
+        }
+        onDispose {}
+    }
+    DisposableEffect(window) {
+        if (window == null || previousBrightness == null) return@DisposableEffect onDispose {}
+        val dialogWindow = if (view.parent is DialogWindowProvider) window else null
         if (dialogWindow != null) {
             // A dialog's window otherwise stops at the system bars, leaving the screen behind showing where they were
             WindowCompat.setDecorFitsSystemWindows(dialogWindow, false)
@@ -239,7 +252,6 @@ actual fun ScanningDisplayEffect() {
                 }
             }
         }
-        window.attributes = window.attributes.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val insetsController = WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

@@ -101,7 +101,6 @@ fun GuidedApp(
                         onShowHistory = { screen = GuidedScreen.HISTORY },
                         onMakeGenuine = { viewModel.updateChipFault(ChipFault.NONE) },
                         onEdit = { screen = GuidedScreen.EDIT },
-                        onShowPhotoPage = { showPhotoPage = true },
                         onUsePassport = { screen = GuidedScreen.USE },
                         onRequestPermission = viewModel::requestNfcPermissions,
                         onHelp = { screen = GuidedScreen.HELP },
