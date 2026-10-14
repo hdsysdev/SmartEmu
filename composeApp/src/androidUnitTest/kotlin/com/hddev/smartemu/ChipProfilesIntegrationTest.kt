@@ -114,6 +114,19 @@ class ChipProfilesIntegrationTest {
         return service
     }
 
+    private fun readPaceInfo(data: PassportData): PACEInfo {
+        PassportHceService.setSharedPassportData(data)
+        val service = HceCardService.openPassportService(hceService)
+        return CardAccessFile(ByteArrayInputStream(readFile(service, PassportService.EF_CARD_ACCESS)))
+            .securityInfos.filterIsInstance<PACEInfo>().single()
+    }
+
+    private val PACEInfo.cipherName: String
+        get() = when (PACEInfo.toCipherAlgorithm(objectIdentifier)) {
+            "AES" -> "AES-${PACEInfo.toKeyLength(objectIdentifier)}"
+            else -> "3DES"
+        }
+
     private fun cardAccessParameterId(data: PassportData): Int {
         PassportHceService.setSharedPassportData(data)
         val service = HceCardService.openPassportService(hceService)
@@ -123,7 +136,10 @@ class ChipProfilesIntegrationTest {
 
     /** The test CSCA that issued [signer], found by the country suffix of its file name. */
     private fun cscaFor(profile: ChipProfile): X509Certificate {
-        val country = profile.sod.passportSigner.removePrefix("smartemu-test-ds").substringBefore("-rsa")
+        // "smartemu-test-ds-nl-rsa", "-de-p384" and "-fi-id" chain to the CSCA of their country, "-nl", "-de" or "-fi".
+        // "-idn" keeps its own CSCA (csca-idn), and the generic "smartemu-test-ds-id" resolves as it always did.
+        val suffix = profile.sod.passportSigner.removePrefix("smartemu-test-ds").substringBefore("-rsa").substringBefore("-p384")
+        val country = if (suffix.length > "-id".length) suffix.removeSuffix("-id") else suffix
         val name = "smartemu-test-csca$country"
         return File("../test-pki/csca/$name.cert.pem").inputStream().use {
             CertificateFactory.getInstance("X.509").generateCertificate(it) as X509Certificate
@@ -329,6 +345,62 @@ class ChipProfilesIntegrationTest {
     }
 
     @Test
+    fun `a PACE-only profile answers BAC commands with a status word that makes readers use PACE`() {
+        for (profile in ChipProfiles.all.filter { !it.accessControl.supportsBac }) {
+            PassportHceService.setSharedPassportData(documentFor(profile))
+            val service = HceCardService.openPassportService(hceService)
+            service.sendSelectApplet(false)
+            val challenge = ResponseAPDU(hceService.processCommandApdu(CommandAPDU(0x00, 0x84, 0x00, 0x00, 8).bytes, null))
+            val externalAuthenticate = ResponseAPDU(
+                hceService.processCommandApdu(CommandAPDU(0x00, 0x82, 0x00, 0x00, ByteArray(40), 40).bytes, null)
+            )
+            // The r2w nfc-library falls back to PACE only on these four
+            val accepted = setOf(0x6D00, 0x6A81, 0x6982, 0x6A88)
+            assertTrue(challenge.sw in accepted, "GET CHALLENGE on ${profile.id}: ${challenge.sw.toString(16)}")
+            assertTrue(externalAuthenticate.sw in accepted, "EXTERNAL AUTHENTICATE on ${profile.id}: ${externalAuthenticate.sw.toString(16)}")
+        }
+    }
+
+    @Test
+    fun `the new generation profiles read with the mechanisms their sources give`() {
+        val british = ChipProfiles.byId("gb-passport")
+        val britishInfo = readPaceInfo(documentFor(british, exact = true))
+        assertEquals(EcCurve.NIST_P256.paceParameterId, britishInfo.parameterId.toInt())
+        assertEquals("AES-256", britishInfo.cipherName)
+
+        val german = ChipProfiles.byId("de-passport-2023")
+        val germanInfo = readPaceInfo(documentFor(german, exact = true))
+        assertEquals(EcCurve.BRAINPOOL_P256R1.paceParameterId, germanInfo.parameterId.toInt())
+        assertEquals(PACEInfo.MappingType.CAM, PACEInfo.toMappingType(germanInfo.objectIdentifier))
+
+        val dutch = ChipProfiles.byId("nl-passport-2024")
+        val dutchExact = readPaceInfo(documentFor(dutch, exact = true))
+        assertEquals(EcCurve.BRAINPOOL_P320R1.paceParameterId, dutchExact.parameterId.toInt())
+        assertEquals("AES-256", dutchExact.cipherName)
+        assertEquals(EcCurve.NIST_P384.paceParameterId, readPaceInfo(documentFor(dutch, exact = false)).parameterId.toInt())
+
+        val canadian = readPaceInfo(documentFor(ChipProfiles.byId("ca-passport-2023"), exact = false))
+        assertEquals(EcCurve.NIST_P384.paceParameterId, canadian.parameterId.toInt())
+        assertEquals("AES-128", canadian.cipherName)
+    }
+
+    @Test
+    fun `the US and Australian P Series chips are BAC only with no Chip Authentication`() {
+        for (id in listOf("us-passport-2021", "au-passport-2016-p")) {
+            val profile = ChipProfiles.byId(id)
+            val data = documentFor(profile)
+            assertEquals(com.hddev.smartemu.data.AccessControl.BAC_ONLY, data.accessControl, id)
+            PassportHceService.setSharedPassportData(data)
+            val service = HceCardService.openPassportService(hceService)
+            // No EF.CardAccess to offer PACE, and no DG14 to hold a Chip Authentication key
+            assertFailsWith<CardServiceException> { readFile(service, PassportService.EF_CARD_ACCESS) }
+            service.sendSelectApplet(false)
+            service.doBAC(BACKey(data.passportNumber, data.mrzDateOfBirth(), data.mrzExpiryDate()))
+            assertFailsWith<CardServiceException> { readFile(service, PassportService.EF_DG14) }
+        }
+    }
+
+    @Test
     fun `the Dutch ID card uses the document code I`() {
         val data = documentFor(ChipProfiles.byId("nl-id-card"))
         assertEquals(DocumentType.ID_CARD, data.documentType)
@@ -345,7 +417,8 @@ class ChipProfilesIntegrationTest {
                 ASN1Integer(BigInteger(1, signature.copyOfRange(half, signature.size)))
             )
         ).encoded
-        return Signature.getInstance("${curve.digestAlgorithm.replace("-", "")}withECDSA").run {
+        // Bouncy Castle, since the JDK provider does not know the Brainpool curves (Hong Kong signs AA on brainpoolP256r1)
+        return Signature.getInstance("${curve.digestAlgorithm.replace("-", "")}withECDSA", Util.getBouncyCastleProvider()).run {
             initVerify(publicKey)
             update(challenge)
             verify(der)
@@ -354,9 +427,17 @@ class ChipProfilesIntegrationTest {
 
     /** Verifies an ISO 9796-2 scheme 1 signature with SHA-1, as JMRTD-based readers verify RSA AA. */
     private fun verifiesIso9796(publicKey: PublicKey, challenge: ByteArray, signature: ByteArray): Boolean {
-        val plaintext = Cipher.getInstance("RSA/NONE/NoPadding", Util.getBouncyCastleProvider()).run {
+        val recovered = Cipher.getInstance("RSA/NONE/NoPadding", Util.getBouncyCastleProvider()).run {
             init(Cipher.DECRYPT_MODE, publicKey)
             doFinal(signature)
+        }
+        // ISO 9796-2 signs the smaller of s and n-s, so a verifier takes n minus the result when the trailer is off
+        val plaintext = if ((recovered.last().toInt() and 0xF) == 0xC) {
+            recovered
+        } else {
+            val modulus = (publicKey as RSAPublicKey).modulus
+            val flipped = modulus.subtract(BigInteger(1, recovered)).toByteArray().dropWhile { it == 0.toByte() }.toByteArray()
+            ByteArray(recovered.size - flipped.size) + flipped
         }
         val m1 = Util.recoverMessage(20, plaintext)
         return Signature.getInstance("SHA1WithRSA/ISO9796-2", Util.getBouncyCastleProvider()).run {

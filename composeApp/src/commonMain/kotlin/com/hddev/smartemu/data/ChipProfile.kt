@@ -90,9 +90,12 @@ data class ProfileEvidence(
 )
 
 /**
- * The elliptic curves ICAO 9303 part 11 standardises for PACE, with their standardised domain parameter identifiers.
+ * The elliptic curves ICAO 9303 part 11 standardises for PACE, with their standardised domain parameter identifiers,
+ * and NIST P-192, which only Chip Authentication uses here: see [usableForPace].
  */
 enum class EcCurve(val displayName: String, val paceParameterId: Int, val bits: Int, val isNist: Boolean) {
+    /** Only for Chip Authentication, as on the sampled Russian passport. PACE never runs on it: see [usableForPace]. */
+    NIST_P192("NIST P-192", 8, 192, true),
     NIST_P256("NIST P-256", 12, 256, true),
     NIST_P384("NIST P-384", 15, 384, true),
     NIST_P521("NIST P-521", 18, 521, true),
@@ -109,6 +112,12 @@ enum class EcCurve(val displayName: String, val paceParameterId: Int, val bits: 
             bits <= 384 -> NIST_P384
             else -> NIST_P521
         }
+
+    /**
+     * Whether a profile may run PACE on this curve. P-192 is too weak for the key exchange that protects the whole
+     * session, so a profile uses it for Chip Authentication only, and the r2w nfc-library does not read it either.
+     */
+    val usableForPace: Boolean get() = this != NIST_P192
 
     /** Bytes in a coordinate, and in each half of a plain ECDSA signature. */
     val fieldSize: Int get() = (bits + 7) / 8

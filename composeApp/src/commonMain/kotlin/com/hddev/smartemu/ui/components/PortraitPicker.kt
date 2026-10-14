@@ -30,9 +30,17 @@ expect fun rememberPortraitPicker(onPicked: (Portrait) -> Unit, onFailed: (Strin
  */
 expect fun Portrait.toImageBitmap(): ImageBitmap?
 
+/** How bright the screen is while something is shown for a camera to read. */
+enum class ScreenBrightness {
+    /** Whatever the device is set to. */
+    CURRENT,
+    HALF,
+    FULL
+}
+
 /**
- * Keeps the screen on, at full brightness and without system bars, while in the composition, so that a camera
- * can read what it shows.
+ * Keeps the screen on, at the given [brightness] and without system bars, while in the composition, so that a
+ * camera can read what it shows.
  */
 @Composable
-expect fun ScanningDisplayEffect()
+expect fun ScanningDisplayEffect(brightness: ScreenBrightness)

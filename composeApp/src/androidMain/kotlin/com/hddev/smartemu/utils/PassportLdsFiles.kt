@@ -581,6 +581,7 @@ class PassportLdsFiles private constructor(
 /** The curve's name for Java's and BouncyCastle's key pair generators. */
 val EcCurve.jcaName: String
     get() = when (this) {
+        EcCurve.NIST_P192 -> "secp192r1"
         EcCurve.NIST_P256 -> "secp256r1"
         EcCurve.NIST_P384 -> "secp384r1"
         EcCurve.NIST_P521 -> "secp521r1"

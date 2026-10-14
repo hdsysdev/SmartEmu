@@ -193,7 +193,216 @@ class ChipConfigurationTest {
         assertEquals(Provenance.REPORTED, ChipProfiles.byId("es-passport-2008-study").provenanceOf(ProfileAspect.ERROR_RESPONSES))
         assertEquals(Provenance.ASSUMED, ChipProfiles.byId("nl-passport-2006").provenanceOf(ProfileAspect.ERROR_RESPONSES))
         assertEquals(Provenance.ASSUMED, ChipProfiles.default.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY))
-        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("de-passport-2017").provenanceOf(ProfileAspect.SIGNATURE))
+        // BSI TR-03116-2 Table 5 specifies the 2010-2019 Document Signer; the 2017 profile now says so
+        assertEquals(Provenance.SPECIFICATION, ChipProfiles.byId("de-passport-2017").provenanceOf(ProfileAspect.SIGNATURE))
+    }
+
+    private fun configOf(id: String, exact: Boolean = false) =
+        holder.withChipProfile(ChipProfiles.byId(id)).copy(exactCryptography = exact).chipConfiguration()
+
+    private val newProfileIds = listOf(
+        "nl-passport-2024", "au-passport-2016-p", "de-passport-2023", "ca-passport-2023"
+    )
+
+    @Test
+    fun `new generation profiles exist next to their country and keep every earlier id`() {
+        val ids = ChipProfiles.all.map { it.id }
+        for (id in listOf(
+            "generic", "eu-passport", "eu-id-card", "de-passport-2017", "de-id-card", "de-passport-2005", "nl-passport",
+            "nl-id-card", "nl-passport-2006", "gb-passport", "us-passport-2021", "fr-passport-2008-study",
+            "be-passport-2006-study", "es-passport-2008-study", "it-passport-2008-study", "ch-passport-2007-study",
+            "ca-passport-2013", "au-passport-2005-m", "au-passport-2009-n", "es-passport-third-generation"
+        )) assertTrue(id in ids, "saved documents reference $id")
+        assertEquals(ids.indexOf("de-passport-2017") + 1, ids.indexOf("de-passport-2023"))
+        assertEquals(ids.indexOf("nl-passport") + 1, ids.indexOf("nl-passport-2024"))
+        assertEquals(ids.indexOf("ca-passport-2013") + 1, ids.indexOf("ca-passport-2023"))
+        assertEquals(ids.indexOf("au-passport-2009-n") + 1, ids.indexOf("au-passport-2016-p"))
+        val today = LocalDate(2026, 9, 30)
+        for (id in newProfileIds) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(id, profile.id, "lookup must not fall back to generic")
+            assertTrue(profile.evidence.isNotEmpty(), id)
+            profile.evidence.forEach {
+                assertTrue(it.url.startsWith("https://"), id)
+                assertTrue(it.claim.isNotBlank() && it.sourceTitle.isNotBlank() && it.locator.isNotBlank(), id)
+                assertTrue(it.provenance != Provenance.ASSUMED, id)
+            }
+            val data = PassportPresets.all.single { it.id == "profile-$id" }.build(today)
+            assertTrue(data.isValid(), id)
+            assertEquals(profile.accessControl, data.accessControl)
+        }
+    }
+
+    @Test
+    fun `the US passport is BAC only without Chip or Active Authentication, per the gmrtd sample`() {
+        val profile = ChipProfiles.byId("us-passport-2021")
+        val config = configOf("us-passport-2021")
+        assertEquals(AccessControl.BAC_ONLY, config.accessControl)
+        assertNull(config.activeAuthentication)
+        assertNull(config.chipAuthentication)
+        assertFalse(config.terminalAuthentication)
+        assertEquals(listOf(1, 2, 11, 12), config.dataGroups)
+        assertEquals(KeySpec.Rsa(2048), config.sod.signerKey)
+        assertEquals("SHA-256", config.sod.digestAlgorithm)
+        assertEquals("smartemu-test-ds-us-rsa", config.sod.passportSigner)
+        assertEquals("SmartEmu Test CSCA US", config.sod.csca)
+        assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.ACCESS_CONTROL))
+        assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION))
+        assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.SIGNATURE))
+        assertFalse(profile.title.contains("assumed", ignoreCase = true) || profile.summary.contains("assumed AA"))
+        assertTrue(profile.notes.any { "travel.state.gov" in it }, "the missing issuer source is stated")
+    }
+
+    @Test
+    fun `the UK passport has the sampled PACE and CA suite, SOD data groups and no Active Authentication`() {
+        val profile = ChipProfiles.byId("gb-passport")
+        val config = configOf("gb-passport")
+        assertEquals(AccessControl.BAC_AND_PACE, config.accessControl)
+        assertEquals(PaceSpec(EcCurve.NIST_P256, SessionCipher.AES_256), config.pace)
+        assertEquals(ChipAuthenticationSpec(EcCurve.NIST_P256, SessionCipher.AES_256), config.chipAuthentication)
+        assertNull(config.activeAuthentication)
+        assertFalse(config.terminalAuthentication)
+        assertTrue(profile.dataGroups.isEmpty())
+        assertEquals(listOf(1, 2, 14), config.dataGroups)
+        assertEquals(KeySpec.Ec(EcCurve.NIST_P256), config.sod.signerKey)
+        assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.ACCESS_CONTROL), "BAC alongside PACE is not shown")
+        assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY))
+        assertFalse(profile.summary.contains("Little else"))
+    }
+
+    @Test
+    fun `Dutch profiles keep their ids and what the issuer does not say stays assumed`() {
+        for (id in listOf("nl-passport", "nl-id-card")) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.ACCESS_CONTROL), id)
+            listOf(
+                ProfileAspect.PACE_CRYPTOGRAPHY, ProfileAspect.ACTIVE_AUTHENTICATION,
+                ProfileAspect.EXTENDED_ACCESS_CONTROL, ProfileAspect.SIGNATURE
+            ).forEach { assertEquals(Provenance.ASSUMED, profile.provenanceOf(it), "$id $it") }
+            assertTrue(profile.evidence.single().url.contains("rvig.nl"), id)
+        }
+        assertTrue(ChipProfiles.byId("nl-passport").terminalAuthentication)
+        assertFalse(ChipProfiles.byId("nl-id-card").terminalAuthentication, "the 2014 ID card has CA only")
+        assertTrue(ChipProfiles.byId("nl-id-card").chipAuthentication != null)
+    }
+
+    @Test
+    fun `the 2024 Dutch passport is PACE only on Brainpool with an assumed AA stand-in`() {
+        val profile = ChipProfiles.byId("nl-passport-2024")
+        assertEquals("Netherlands · passport (2024 design)", profile.title)
+        assertEquals(AccessControl.PACE_ONLY, profile.accessControl)
+        assertEquals(PaceSpec(EcCurve.BRAINPOOL_P320R1, SessionCipher.AES_256), profile.pace)
+        assertEquals(14, profile.pace.curve.paceParameterId)
+        assertEquals(ChipAuthenticationSpec(EcCurve.BRAINPOOL_P512R1, SessionCipher.AES_256), profile.chipAuthentication)
+        assertEquals(17, profile.chipAuthentication?.curve?.paceParameterId)
+        assertTrue(profile.terminalAuthentication)
+        assertEquals(KeySpec.Ec(EcCurve.NIST_P384), profile.activeAuthentication)
+        assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION), "AA key type unknown")
+        assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.SIGNATURE), "NL DS algorithm unknown")
+        assertEquals("smartemu-test-ds-nl", profile.sod.passportSigner)
+        assertTrue(profile.notes.any { "UNKNOWN" in it && "AA" in it })
+
+        val adapted = configOf("nl-passport-2024")
+        val exact = configOf("nl-passport-2024", exact = true)
+        assertEquals(EcCurve.NIST_P384, adapted.pace.curve, "the r2w library reads NIST curves only")
+        assertEquals(EcCurve.BRAINPOOL_P320R1, exact.pace.curve)
+        assertEquals(EcCurve.BRAINPOOL_P512R1, adapted.chipAuthentication?.curve, "CA is not adapted")
+        assertEquals(listOf(1, 2, 3, 14, 15), adapted.dataGroups)
+    }
+
+    @Test
+    fun `Australian N Series AA is an assumed RSA key and the P Series is the reported RSA sample`() {
+        val n = ChipProfiles.byId("au-passport-2009-n")
+        assertEquals(KeySpec.Rsa(2048), n.activeAuthentication)
+        assertEquals(KeySpec.Rsa(2048), n.sod.signerKey)
+        assertEquals("smartemu-test-ds-au-rsa", n.sod.passportSigner)
+        assertEquals(Provenance.ASSUMED, n.provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION))
+        assertTrue(n.notes.any { "not source-confirmed" in it })
+        assertEquals(listOf(1, 2, 15), configOf("au-passport-2009-n").dataGroups)
+
+        val m = ChipProfiles.byId("au-passport-2005-m")
+        assertNull(m.activeAuthentication, "M Series untouched")
+        assertEquals("smartemu-test-ds-au", m.sod.passportSigner)
+
+        val p = ChipProfiles.byId("au-passport-2016-p")
+        assertEquals("Australia · passport (P Series, 2016)", p.title)
+        val config = configOf("au-passport-2016-p")
+        assertEquals(AccessControl.BAC_ONLY, config.accessControl)
+        assertEquals(KeySpec.Rsa(2048), config.activeAuthentication)
+        assertNull(config.chipAuthentication)
+        assertEquals(listOf(1, 2, 15), config.dataGroups)
+        assertEquals("smartemu-test-ds-au-rsa", config.sod.passportSigner)
+        assertEquals("PassportEmu TEST CSCA AU", config.sod.csca)
+        assertEquals(Provenance.ASSUMED, p.provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION), "key size is assumed")
+        assertEquals(Provenance.REPORTED, p.provenanceOf(ProfileAspect.ACCESS_CONTROL))
+        assertEquals(Provenance.REPORTED, p.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY), "README shows n/a (BAC)")
+        assertEquals(Provenance.ASSUMED, p.provenanceOf(ProfileAspect.EXTENDED_ACCESS_CONTROL), "only DG14 absent from one SOD")
+        assertEquals(Provenance.REPORTED, p.provenanceOf(ProfileAspect.SIGNATURE))
+    }
+
+    @Test
+    fun `German profiles follow BSI TR-03116-2 and the sampled 2023 passport`() {
+        val old = ChipProfiles.byId("de-passport-2017")
+        assertEquals(AccessControl.BAC_AND_PACE, old.accessControl)
+        assertEquals(PaceMapping.GENERIC, old.paceMapping)
+        assertNull(old.activeAuthentication)
+        listOf(ProfileAspect.PACE_CRYPTOGRAPHY, ProfileAspect.ACTIVE_AUTHENTICATION)
+            .forEach { assertEquals(Provenance.SPECIFICATION, old.provenanceOf(it), "$it") }
+        assertEquals(
+            Provenance.ASSUMED, old.provenanceOf(ProfileAspect.EXTENDED_ACCESS_CONTROL),
+            "Table 16 is a national application and the EU also required 3DES CA v1 until 2019"
+        )
+        assertEquals(Provenance.ASSUMED, old.provenanceOf(ProfileAspect.ACCESS_CONTROL), "BAC alongside PACE is not specified")
+        assertEquals(KeySpec.Ec(EcCurve.BRAINPOOL_P256R1), old.sod.signerKey)
+        assertEquals("smartemu-test-ds-de", old.sod.passportSigner)
+
+        val new = ChipProfiles.byId("de-passport-2023")
+        assertEquals(AccessControl.PACE_ONLY, new.accessControl)
+        assertEquals(PaceMapping.CHIP_AUTHENTICATION, new.paceMapping)
+        assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128), new.pace)
+        assertEquals(ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128), new.chipAuthentication)
+        assertTrue(new.terminalAuthentication)
+        assertNull(new.activeAuthentication)
+        assertTrue(new.dataGroups.isEmpty())
+        assertEquals(SodSpec(
+            digestAlgorithm = "SHA-384",
+            signerKey = KeySpec.Ec(EcCurve.BRAINPOOL_P384R1),
+            passportSigner = "smartemu-test-ds-de-p384",
+            cardSigner = "smartemu-test-ds-de-p384",
+            csca = "SmartEmu Test CSCA DE"
+        ), new.sod)
+        assertEquals(Provenance.REPORTED, new.provenanceOf(ProfileAspect.SIGNATURE))
+        assertTrue(new.notes.any { "GM" in it && "CAM" in it }, "the real chip advertises both mappings")
+        assertEquals(listOf(1, 2, 3, 14), configOf("de-passport-2023").dataGroups)
+        assertEquals(PaceMapping.CHIP_AUTHENTICATION, holder.withChipProfile(new).paceMapping)
+
+        val card = ChipProfiles.byId("de-id-card")
+        assertEquals(PaceMapping.CHIP_AUTHENTICATION, card.paceMapping)
+        assertEquals(AccessControl.PACE_ONLY, card.accessControl)
+        assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128), card.pace)
+        assertEquals("smartemu-test-ds-de-id", card.sod.cardSigner, "the ID card's signer is not sample-proven")
+        assertEquals(Provenance.SPECIFICATION, card.provenanceOf(ProfileAspect.ACCESS_CONTROL))
+        assertEquals(Provenance.ASSUMED, card.provenanceOf(ProfileAspect.SIGNATURE))
+    }
+
+    @Test
+    fun `the 2023 Canadian passport has the sampled NIST P-384 suite and keeps the unknowns assumed`() {
+        val profile = ChipProfiles.byId("ca-passport-2023")
+        val config = configOf("ca-passport-2023")
+        assertEquals(AccessControl.BAC_AND_PACE, config.accessControl)
+        assertEquals(PaceSpec(EcCurve.NIST_P384, SessionCipher.AES_128), config.pace)
+        assertEquals(ChipAuthenticationSpec(EcCurve.NIST_P384, SessionCipher.AES_128), config.chipAuthentication)
+        assertTrue(config.adaptations.isEmpty(), "P-384 is already a NIST curve")
+        assertNull(config.activeAuthentication)
+        assertFalse(config.terminalAuthentication)
+        assertEquals(listOf(1, 2, 14), config.dataGroups)
+        assertEquals("smartemu-test-ds-ca", config.sod.passportSigner)
+        assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY))
+        listOf(
+            ProfileAspect.ACCESS_CONTROL, ProfileAspect.ACTIVE_AUTHENTICATION, ProfileAspect.EXTENDED_ACCESS_CONTROL,
+            ProfileAspect.SIGNATURE, ProfileAspect.DATA_GROUPS
+        ).forEach { assertEquals(Provenance.ASSUMED, profile.provenanceOf(it), "$it") }
+        assertEquals(KeySpec.Ec(EcCurve.NIST_P256), ChipProfiles.byId("ca-passport-2013").activeAuthentication, "2013 untouched")
     }
 
     @Test
@@ -201,5 +410,267 @@ class ChipConfigurationTest {
         assertFalse(AppSettings().usesExactCryptography)
         assertTrue(AppSettings(developerMode = true).usesExactCryptography)
         assertFalse(AppSettings(developerMode = true, exactCryptography = false).usesExactCryptography)
+    }
+
+    private val gmrtdRemainingIds = listOf(
+        "at-passport-2023", "cn-passport-po-2018", "fi-id-card-2023", "fi-passport-2024", "fr-passport-2017",
+        "fr-id-card-2024", "hk-passport-2025", "id-passport-2025", "my-passport-2023", "nz-passport-2017",
+        "ph-passport-2020", "pt-passport-2026", "ru-passport-2020", "sg-passport-pa-2023", "sg-passport-pp-2025",
+        "tw-passport-2024"
+    )
+
+    @Test
+    fun `every remaining gmrtd sample country has a profile with scoped evidence, a preset and a country`() {
+        val ids = ChipProfiles.all.map { it.id }
+        assertEquals(ids.size, ids.toSet().size)
+        // France's new profiles sit next to its study sample, the rest after the other sampled countries
+        assertEquals(ids.indexOf("fr-passport-2008-study") + 1, ids.indexOf("fr-passport-2017"))
+        assertEquals(ids.indexOf("fr-passport-2017") + 1, ids.indexOf("fr-id-card-2024"))
+        assertEquals(ids.indexOf("fi-id-card-2023") + 1, ids.indexOf("fi-passport-2024"))
+        assertEquals(ids.indexOf("sg-passport-pa-2023") + 1, ids.indexOf("sg-passport-pp-2025"))
+        val today = LocalDate(2026, 9, 30)
+        for (id in gmrtdRemainingIds) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(id, profile.id, "lookup must not fall back to generic")
+            assertTrue(profile.country != null && Countries.all.any { it.first == profile.country }, "$id country")
+            assertTrue(profile.evidence.isNotEmpty(), id)
+            profile.evidence.forEach {
+                assertTrue(it.url.startsWith("https://"), id)
+                assertTrue(it.claim.isNotBlank() && it.sourceTitle.isNotBlank() && it.locator.isNotBlank(), id)
+                assertTrue(it.aspect != null, id)
+                assertTrue(it.provenance != Provenance.ASSUMED, id)
+            }
+            // An aspect the evidence does not cover must not be badged REPORTED
+            for (aspect in ProfileAspect.entries) {
+                if (profile.provenanceOf(aspect) != Provenance.ASSUMED) {
+                    assertTrue(profile.evidence.any { it.aspect == aspect }, "$id $aspect is badged without evidence")
+                }
+            }
+            assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.MRZ), id)
+            assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.ERROR_RESPONSES), id)
+            assertTrue(profile.notes.any { "ASSUMED" in it }, id)
+            val data = PassportPresets.all.single { it.id == "profile-$id" }.build(today)
+            assertTrue(data.isValid(), id)
+            assertEquals(profile.accessControl, data.accessControl)
+        }
+    }
+
+    @Test
+    fun `no profile runs PACE on a curve that is not usable for it`() {
+        for (profile in ChipProfiles.all) {
+            if (profile.accessControl.supportsPace) assertTrue(profile.pace.curve.usableForPace, profile.id)
+        }
+        assertFalse(EcCurve.NIST_P192.usableForPace)
+        assertTrue(EcCurve.entries.filter { it != EcCurve.NIST_P192 }.all { it.usableForPace })
+    }
+
+    @Test
+    fun `a curve that PACE cannot use appears only in Chip Authentication, never in PACE, however the document is resolved`() {
+        val unusable = EcCurve.entries.filter { !it.usableForPace }
+        assertTrue(unusable.isNotEmpty())
+        var usedByChipAuthentication = false
+        for (profile in ChipProfiles.all) {
+            for (curve in unusable) {
+                assertTrue(profile.pace.curve != curve, "${profile.id} PACE")
+                if (profile.chipAuthentication?.curve == curve) usedByChipAuthentication = true
+            }
+            for (exact in listOf(false, true)) {
+                for (access in AccessControl.entries) {
+                    val config = holder.withChipProfile(profile).copy(accessControl = access, exactCryptography = exact)
+                        .chipConfiguration()
+                    assertTrue(config.pace.curve.usableForPace, "${profile.id} $access exact=$exact")
+                    assertTrue(config.pace.curve !in unusable, "${profile.id} $access exact=$exact")
+                }
+            }
+        }
+        assertTrue(usedByChipAuthentication, "the Russian Chip Authentication curve is the one such use")
+        // The Chip Authentication curve is kept as the profile has it, in either mode
+        assertEquals(EcCurve.NIST_P192, configOf("ru-passport-2020").chipAuthentication?.curve)
+        assertEquals(EcCurve.NIST_P192, configOf("ru-passport-2020", exact = true).chipAuthentication?.curve)
+    }
+
+    @Test
+    fun `switching a BAC only profile to PACE says that a stand-in suite is used`() {
+        for (id in listOf("cn-passport-po-2018", "my-passport-2023", "ph-passport-2020", "ru-passport-2020", "us-passport-2021")) {
+            val profile = ChipProfiles.byId(id)
+            assertFalse(profile.accessControl.supportsPace, id)
+            assertTrue(configOf(id).adaptations.isEmpty(), "$id as sampled needs no adaptation")
+            val withPace = holder.withChipProfile(profile).copy(accessControl = AccessControl.BAC_AND_PACE).chipConfiguration()
+            assertEquals(PaceSpec(), withPace.pace, id)
+            assertTrue(withPace.adaptations.any { "no PACE" in it && "stand-in" in it }, id)
+        }
+        // A profile that has PACE says nothing of the kind
+        val german = holder.withChipProfile(ChipProfiles.byId("de-passport-2017")).copy(exactCryptography = true)
+        assertTrue(german.chipConfiguration().adaptations.isEmpty())
+    }
+
+    @Test
+    fun `Active Authentication absence from one sampled SOD is never badged as reported`() {
+        // The only basis is a missing DG15 in one parsed SOD, and the README row does not list AA either way
+        for (id in listOf(
+            "at-passport-2023", "fi-id-card-2023", "fr-passport-2017", "my-passport-2023", "ru-passport-2020", "gb-passport"
+        )) {
+            val profile = ChipProfiles.byId(id)
+            assertNull(profile.activeAuthentication, id)
+            assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION), id)
+            assertTrue(profile.notes.any { "does not show the chip has no Active" in it }, id)
+            profile.evidence.filter { it.aspect == ProfileAspect.ACTIVE_AUTHENTICATION }.forEach {
+                assertTrue("lacks DG15" in it.claim && "no Active Authentication key" !in it.claim, id)
+            }
+        }
+        // "Cloneable" rows state the absence themselves
+        for (id in listOf("sg-passport-pa-2023", "tw-passport-2024", "us-passport-2021")) {
+            assertEquals(Provenance.REPORTED, ChipProfiles.byId(id).provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION), id)
+        }
+        // And no profile is badged for Chip Authentication on a missing DG14 alone: the README row must say so
+        for (profile in ChipProfiles.all.filter { it.chipAuthentication == null }) {
+            if (profile.provenanceOf(ProfileAspect.EXTENDED_ACCESS_CONTROL) != Provenance.ASSUMED) {
+                assertTrue(
+                    profile.evidence.any { it.aspect == ProfileAspect.EXTENDED_ACCESS_CONTROL && "Cloneable" in it.claim },
+                    "${profile.id} CA absence needs a README statement"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `README PACE rows are BAC and PACE, and n-a BAC rows are BAC only with PACE absence reported`() {
+        for (id in listOf("cn-passport-po-2018", "my-passport-2023", "ph-passport-2020", "ru-passport-2020")) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(AccessControl.BAC_ONLY, profile.accessControl, id)
+            assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.ACCESS_CONTROL), id)
+            assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY), id)
+        }
+        for (id in listOf(
+            "at-passport-2023", "fi-id-card-2023", "fi-passport-2024", "fr-passport-2017", "fr-id-card-2024",
+            "hk-passport-2025", "id-passport-2025", "nz-passport-2017", "pt-passport-2026", "sg-passport-pa-2023",
+            "sg-passport-pp-2025", "tw-passport-2024"
+        )) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(AccessControl.BAC_AND_PACE, profile.accessControl, id)
+            assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.ACCESS_CONTROL), "$id: BAC is not shown")
+            assertEquals(Provenance.REPORTED, profile.provenanceOf(ProfileAspect.PACE_CRYPTOGRAPHY), id)
+        }
+    }
+
+    @Test
+    fun `the Austrian, French, Hong Kong and Indonesian passports carry their sampled PACE and CA suites`() {
+        configOf("at-passport-2023", exact = true).also {
+            assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128), it.pace)
+            assertEquals(ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128), it.chipAuthentication)
+            assertEquals(KeySpec.Ec(EcCurve.BRAINPOOL_P256R1), it.sod.signerKey)
+            assertEquals(listOf(1, 2, 3, 11, 12, 14), it.dataGroups)
+            assertNull(it.activeAuthentication)
+        }
+        // Adapted: the Brainpool PACE curve becomes NIST P-256, the Chip Authentication curve stays
+        configOf("at-passport-2023").also {
+            assertEquals(EcCurve.NIST_P256, it.pace.curve)
+            assertEquals(EcCurve.BRAINPOOL_P256R1, it.chipAuthentication?.curve)
+        }
+        configOf("fr-passport-2017").also {
+            assertEquals(PaceSpec(EcCurve.NIST_P256, SessionCipher.AES_256), it.pace)
+            assertEquals(ChipAuthenticationSpec(EcCurve.NIST_P256, SessionCipher.TDES), it.chipAuthentication)
+            assertEquals(KeySpec.Rsa(2048), it.sod.signerKey)
+            assertEquals("smartemu-test-ds-fr-rsa", it.sod.passportSigner)
+        }
+        configOf("fr-id-card-2024", exact = true).also {
+            assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256), it.pace)
+            assertEquals(PaceMapping.GENERIC, it.paceMapping)
+            assertEquals(ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256), it.chipAuthentication)
+        }
+        configOf("hk-passport-2025", exact = true).also {
+            assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256), it.pace)
+            assertEquals(KeySpec.Ec(EcCurve.BRAINPOOL_P256R1), it.activeAuthentication)
+            assertNull(it.chipAuthentication)
+        }
+        configOf("id-passport-2025", exact = true).also {
+            assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256), it.pace)
+            assertEquals(ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256), it.chipAuthentication)
+            assertEquals("IDN", ChipProfiles.byId("id-passport-2025").country)
+            assertEquals("smartemu-test-ds-idn", it.sod.passportSigner)
+        }
+        assertEquals(Provenance.REPORTED, ChipProfiles.byId("id-passport-2025").provenanceOf(ProfileAspect.DATA_GROUPS))
+        assertEquals(listOf(1, 2, 3, 14, 15), configOf("id-passport-2025").dataGroups)
+    }
+
+    @Test
+    fun `the Finnish cards and passports use PACE-CAM on Brainpool P-384 with AES-256`() {
+        for (id in listOf("fi-id-card-2023", "fi-passport-2024")) {
+            val exact = configOf(id, exact = true)
+            assertEquals(PaceMapping.CHIP_AUTHENTICATION, exact.paceMapping, id)
+            assertEquals(PaceSpec(EcCurve.BRAINPOOL_P384R1, SessionCipher.AES_256), exact.pace, id)
+            assertNull(exact.chipAuthentication, id)
+            assertEquals(PaceSpec(EcCurve.NIST_P384, SessionCipher.AES_256), configOf(id).pace, "$id adapted")
+        }
+        val card = configOf("fi-id-card-2023")
+        assertEquals(DocumentType.ID_CARD, ChipProfiles.byId("fi-id-card-2023").documentType)
+        assertEquals("SHA-256", configOf("fi-passport-2024").sod.digestAlgorithm, "the passport keeps the default digest")
+        assertEquals("SHA-512", card.sod.digestAlgorithm)
+        assertEquals(KeySpec.Ec(EcCurve.BRAINPOOL_P512R1), card.sod.signerKey)
+        assertEquals("smartemu-test-ds-fi-id", card.sod.passportSigner)
+        assertEquals(Provenance.REPORTED, ChipProfiles.byId("fi-id-card-2023").provenanceOf(ProfileAspect.SIGNATURE))
+        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("fi-id-card-2023").provenanceOf(ProfileAspect.DATA_GROUPS), "DG7")
+        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("fi-passport-2024").provenanceOf(ProfileAspect.SIGNATURE))
+    }
+
+    @Test
+    fun `the BAC only Asian passports follow their samples and replace RSASSA-PSS with PKCS1 v1_5`() {
+        val china = configOf("cn-passport-po-2018")
+        assertEquals(KeySpec.Rsa(2048), china.activeAuthentication)
+        assertNull(china.chipAuthentication)
+        assertEquals(listOf(1, 2, 11, 12, 15), china.dataGroups)
+        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("cn-passport-po-2018").provenanceOf(ProfileAspect.SIGNATURE), "id-data")
+        assertTrue(ChipProfiles.byId("cn-passport-po-2018").notes.any { "id-data" in it })
+
+        val malaysia = configOf("my-passport-2023", exact = true)
+        assertEquals(ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.TDES), malaysia.chipAuthentication)
+        assertNull(malaysia.activeAuthentication)
+        assertEquals(listOf(1, 2, 3, 11, 12, 14), malaysia.dataGroups)
+
+        val philippines = configOf("ph-passport-2020")
+        assertEquals(KeySpec.Rsa(2048), philippines.activeAuthentication)
+        assertEquals(listOf(1, 2, 11, 12, 15), philippines.dataGroups)
+
+        for (id in listOf("id-passport-2025", "my-passport-2023", "ph-passport-2020", "sg-passport-pa-2023", "sg-passport-pp-2025")) {
+            val profile = ChipProfiles.byId(id)
+            assertEquals(Provenance.ASSUMED, profile.provenanceOf(ProfileAspect.SIGNATURE), "$id PSS is replaced")
+            assertTrue(profile.notes.any { "RSASSA-PSS" in it }, "$id says so")
+            assertEquals("SHA-256", profile.sod.digestAlgorithm)
+        }
+    }
+
+    @Test
+    fun `New Zealand runs PACE with 3DES, Russia has CA on P-192 with 3DES and a SHA-1 SOD, and the cloneable ones have no CA or AA`() {
+        val newZealand = configOf("nz-passport-2017", exact = true)
+        assertEquals(PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.TDES), newZealand.pace)
+        assertEquals(KeySpec.Rsa(2048), newZealand.activeAuthentication)
+        assertEquals(listOf(1, 2, 12, 14, 15), newZealand.dataGroups)
+
+        val russia = configOf("ru-passport-2020")
+        assertEquals(AccessControl.BAC_ONLY, russia.accessControl)
+        assertEquals(ChipAuthenticationSpec(EcCurve.NIST_P192, SessionCipher.TDES), russia.chipAuthentication)
+        assertEquals("SHA-1", russia.sod.digestAlgorithm)
+        assertEquals(KeySpec.Ec(EcCurve.NIST_P256), russia.sod.signerKey)
+        assertEquals(Provenance.ASSUMED, ChipProfiles.byId("ru-passport-2020").provenanceOf(ProfileAspect.EXTENDED_ACCESS_CONTROL))
+        assertTrue(ChipProfiles.byId("ru-passport-2020").notes.any { "secp192" in it })
+
+        for (id in listOf("sg-passport-pa-2023", "tw-passport-2024")) {
+            val config = configOf(id)
+            assertNull(config.activeAuthentication, id)
+            assertNull(config.chipAuthentication, id)
+            assertEquals(Provenance.REPORTED, ChipProfiles.byId(id).provenanceOf(ProfileAspect.ACTIVE_AUTHENTICATION), id)
+        }
+        assertEquals(EcCurve.NIST_P256, configOf("tw-passport-2024").pace.curve)
+        assertEquals(SessionCipher.AES_256, configOf("tw-passport-2024").pace.cipher)
+        assertEquals(KeySpec.Rsa(2048), configOf("sg-passport-pp-2025").activeAuthentication)
+    }
+
+    @Test
+    fun `the README type codes are explained as undefined and the nearest document type is used`() {
+        for (id in listOf("cn-passport-po-2018", "fi-id-card-2023", "fr-id-card-2024", "pt-passport-2026", "sg-passport-pa-2023", "sg-passport-pp-2025")) {
+            assertTrue(ChipProfiles.byId(id).notes.any { "does not define" in it }, id)
+        }
+        assertEquals(DocumentType.ID_CARD, ChipProfiles.byId("fr-id-card-2024").documentType)
+        assertEquals(DocumentType.PASSPORT, ChipProfiles.byId("sg-passport-pa-2023").documentType)
     }
 }
