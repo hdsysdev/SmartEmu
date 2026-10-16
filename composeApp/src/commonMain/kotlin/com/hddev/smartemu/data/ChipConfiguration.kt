@@ -1,19 +1,33 @@
 package com.hddev.smartemu.data
 
+import com.hddev.smartemu.capture.profile.MeasuredProfile
+
 /**
  * What the emulated chip does, resolved from the document's own settings and its [ChipProfile]: the access control,
  * PACE mapping and Active Authentication switch from [PassportData], the rest from the profile.
  *
- * Unless [exactCryptography], the cryptography is adapted to what the r2w nfc-library can read: it runs PACE on NIST
- * curves only, so a Brainpool PACE curve becomes the NIST curve of the same strength, and [adaptations] says so. The
- * library doesn't verify signatures, Active Authentication or Chip Authentication, so those stay as the profile has
- * them either way.
+ * The cryptography is the profile's as it is, so the chip behaves like the document the profile describes. Only PACE
+ * domain parameters or a cipher chosen in developer settings ([PassportData.paceCurve], [PassportData.paceDhGroup],
+ * [PassportData.paceCipher]) replace the profile's, and [PassportData.extraPaceSuites] adds suites to it; [adaptations]
+ * says so.
+ *
+ * Every suite does keep to ICAO 9303 part 11: Chip Authentication Mapping runs with ECDH and AES only, and Integrated
+ * Mapping on a curve its point encoding works on, so a suite that breaks those rules becomes the nearest one that
+ * doesn't, and [adaptations] says so.
  */
 data class ChipConfiguration(
     val profile: ChipProfile,
     val accessControl: AccessControl,
     val paceMapping: PaceMapping,
+    /** The mappings of the document's own suites, [paceMapping] first. */
+    val paceMappings: List<PaceMapping>,
     val pace: PaceSpec,
+    /**
+     * The PACE suites EF.CardAccess offers, in order: the document's own ([paceMapping] on [pace], then any
+     * [ChipProfile.otherPaceMappings] on the same parameters) and any extra ones from developer settings. Empty
+     * without PACE.
+     */
+    val paceSuites: List<PaceSuite>,
     val activeAuthentication: KeySpec?,
     val chipAuthentication: ChipAuthenticationSpec?,
     val terminalAuthentication: Boolean,
@@ -21,16 +35,24 @@ data class ChipConfiguration(
     val dataGroups: List<Int>,
     val sod: SodSpec,
     val errorResponses: ErrorResponses,
-    val exactCryptography: Boolean,
     /** How the chip differs from the profile, and why. */
-    val adaptations: List<String>
+    val adaptations: List<String>,
+    /**
+     * What capture mode measured on real chips of this profile's generation, for the emulator to replay: EF.CardAccess,
+     * EF.ATR/INFO and EF.DIR as they were, and the status words in [errorResponses]. Null for a chip nobody measured,
+     * which behaves exactly as before.
+     */
+    val measured: MeasuredProfile? = null
 ) {
+    /** The largest READ BINARY answer measured, or null to use the emulator's own limit. */
+    val maxReadLength: Int? get() = measured?.observations?.maxReadLength
+
     val supportsPace: Boolean get() = accessControl.supportsPace
 
     /** A short summary for the event log, as in "PACE-GM brainpoolP256r1 AES-128, CA, TA". */
     val summary: String
         get() = buildList {
-            if (supportsPace) add("PACE-${paceMapping.abbreviation} ${pace.curve.displayName} ${pace.cipher.displayName}")
+            paceSuites.forEach { add(it.displayName) }
             if (accessControl.supportsBac) add("BAC")
             activeAuthentication?.let { add("AA ${it.displayName}") }
             chipAuthentication?.let { add("CA ${it.curve.displayName} ${it.cipher.displayName}") }
@@ -46,21 +68,40 @@ fun PassportData.chipConfiguration(): ChipConfiguration {
     val adaptations = mutableListOf<String>()
 
     var pace = profile.pace
+    val mapping = paceMapping
     // A profile without PACE has no PACE suite of its own: the default stands in once the document is switched to it
     if (accessControl.supportsPace && !profile.accessControl.supportsPace) {
         adaptations += "The profile's chip has no PACE, so PACE runs on the emulator's stand-in suite " +
             "(${pace.curve.displayName}, ${pace.cipher.displayName}), not one sampled from this document."
     }
-    // ICAO 9303-11 defines Chip Authentication Mapping with AES only
-    if (paceMapping == PaceMapping.CHIP_AUTHENTICATION && !pace.cipher.isAes) {
-        pace = pace.copy(cipher = SessionCipher.AES_128)
-        adaptations += "PACE-CAM uses AES-128 rather than 3DES, as ICAO 9303 defines CAM with AES only."
+    if (accessControl.supportsPace) {
+        val dhGroup = paceDhGroup
+        if (dhGroup != null) {
+            adaptations += "PACE runs Diffie-Hellman in ${dhGroup.displayName} (${dhGroup.description}) rather than " +
+                "ECDH on the profile's ${pace.curve.displayName}, as chosen in developer settings."
+            pace = pace.copy(dhGroup = dhGroup)
+        } else {
+            paceCurve?.takeIf { it != pace.curve }?.let { curve ->
+                adaptations += "PACE runs on ${curve.displayName} rather than the profile's ${pace.curve.displayName}, " +
+                    "as chosen in developer settings."
+                pace = pace.copy(curve = curve)
+            }
+        }
+        paceCipher?.takeIf { it != pace.cipher }?.let { cipher ->
+            adaptations += "PACE uses ${cipher.displayName} rather than the profile's ${pace.cipher.displayName}, " +
+                "as chosen in developer settings."
+            pace = pace.copy(cipher = cipher)
+        }
     }
-    if (accessControl.supportsPace && !exactCryptography && !pace.curve.isNist) {
-        val nist = pace.curve.nistEquivalent
-        adaptations += "PACE runs on ${nist.displayName} rather than ${pace.curve.displayName}: the r2w nfc-library " +
-            "supports NIST curves only. Turn on exact cryptography in developer settings for the preset curve."
-        pace = pace.copy(curve = nist)
+    // Every mapping the real chip offers, unless the document's mapping was changed from the profile's
+    val mappings = if (mapping == profile.paceMapping) listOf(mapping) + profile.otherPaceMappings else listOf(mapping)
+    val ownSuites = mappings.map { PaceSuite(it, pace).conforming(adaptations) }
+    val ownSuite = ownSuites.first()
+    val paceSuites = if (accessControl.supportsPace) {
+        val extras = extraPaceSuites.map { it.conforming(adaptations, extra = true) }
+        (if (extraPaceSuitesFirst) extras + ownSuites else ownSuites + extras).distinctBy { it.key }
+    } else {
+        emptyList()
     }
 
     val activeAuthenticationKey = if (activeAuthentication) {
@@ -85,17 +126,48 @@ fun PassportData.chipConfiguration(): ChipConfiguration {
     return ChipConfiguration(
         profile = profile,
         accessControl = accessControl,
-        paceMapping = paceMapping,
-        pace = pace,
+        paceMapping = ownSuite.mapping,
+        paceMappings = ownSuites.map { it.mapping }.distinct(),
+        pace = ownSuite.spec,
+        paceSuites = paceSuites,
         activeAuthentication = activeAuthenticationKey,
         chipAuthentication = profile.chipAuthentication,
         terminalAuthentication = profile.terminalAuthentication,
         dataGroups = dataGroups,
         sod = profile.sod,
-        errorResponses = profile.errorResponses,
-        exactCryptography = exactCryptography,
-        adaptations = adaptations
+        errorResponses = profile.errorResponses.withMeasured(profile.measured),
+        adaptations = adaptations.distinct(),
+        measured = profile.measured
     )
+}
+
+/**
+ * This suite as ICAO 9303 part 11 allows it, noting any change in [adaptations]: Chip Authentication Mapping is
+ * defined for ECDH with AES only, and Integrated Mapping's point encoding needs a curve whose prime is 3 mod 4.
+ */
+private fun PaceSuite.conforming(adaptations: MutableList<String>, extra: Boolean = false): PaceSuite {
+    val which = if (extra) "The extra suite $displayName" else "PACE"
+    var mapping = mapping
+    var spec = spec
+    if (mapping == PaceMapping.CHIP_AUTHENTICATION && spec.usesDh) {
+        adaptations += "$which uses Generic Mapping rather than Chip Authentication Mapping, as ICAO 9303 defines " +
+            "CAM for ECDH only."
+        mapping = PaceMapping.GENERIC
+    }
+    if (mapping == PaceMapping.CHIP_AUTHENTICATION && !spec.cipher.isAes) {
+        adaptations += if (extra) {
+            "$which uses AES-128 rather than 3DES, as ICAO 9303 defines CAM with AES only."
+        } else {
+            "PACE-CAM uses AES-128 rather than 3DES, as ICAO 9303 defines CAM with AES only."
+        }
+        spec = spec.copy(cipher = SessionCipher.AES_128)
+    }
+    if (mapping == PaceMapping.INTEGRATED && !spec.usesDh && !spec.curve.supportsIntegratedMapping) {
+        adaptations += "$which uses Generic Mapping rather than Integrated Mapping on ${spec.curve.displayName}: the " +
+            "mapping's point encoding needs a curve whose prime is 3 mod 4."
+        mapping = PaceMapping.GENERIC
+    }
+    return PaceSuite(mapping, spec)
 }
 
 /**

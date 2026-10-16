@@ -1,165 +1,129 @@
 {
   "schema_version": 1,
-  "research_checked_on": "2026-09-30",
-  "scope": "Primary source facts supporting 20-profile catalogue; nine added generation/sample presets.",
+  "research_checked_on": "2026-10-12",
+  "scope": "Primary source facts supporting the 29-profile catalogue (ChipProfiles.all): nine generation/sample presets added 2026-09-30, and the gmrtd README and parsed-SOD samples behind 21 profiles added or corrected on 2026-10-12. Sources first retrieved on 2026-09-30 keep that date. On 2026-10-16 the eleven profiles whose access control and PACE suite were both unsourced were removed, with their sources.",
   "artifact_policy": "Full downloaded third-party works are cached outside the repository; no redistribution licence established. Cached paths are local conveniences and may expire. Source URLs and locators remain authoritative; notes are authored summaries, not original evidence.",
   "sources": [
     {
-      "title": "Fingerprinting Passports",
-      "author_or_issuer": "Henning Richter, Wojciech Mostowski, Erik Poll",
-      "url": "https://cs.ru.nl/E.Poll/papers/nluug.pdf",
-      "retrieved_on": "2026-09-30",
+      "title": "gmrtd README, Sample Documents table",
+      "author_or_issuer": "gmrtd project (github.com/gmrtd/gmrtd)",
+      "url": "https://github.com/gmrtd/gmrtd/blob/main/README.md",
+      "commit": "2a696fae146868ab80e0a080b97e0a3cd8f77a60",
+      "retrieved_on": "2026-10-12",
       "locators": [
-        "Sections 1–3, pages 1–5: sampled countries and BAC",
-        "Page 5, paragraph below Table 1: EXTERNAL AUTHENTICATE with Lc=40; compare malformed Table 1 probes"
+        "Sample Documents table, one row per real document (Country, Type,Year, PACE, Chip Authentication, Active Authentication / \"Cloneable\", extended length, LDS version columns)",
+        "Rows used: NL PP 2025, UK P 2021, US P 2021, CA PP 2023, AU P 2016 and the 16 rows of the remaining-samples round (AT, CN, FI x2, FR x2, HK, ID, MY, NZ, PH, PT, RU, SG x2, TW)"
       ],
       "profile_ids": [
-        "fr-passport-2008-study",
-        "it-passport-2008-study",
-        "es-passport-2008-study",
-        "de-passport-2005",
-        "nl-passport-2006"
+        "nl-passport-2024",
+        "gb-passport",
+        "us-passport-2021",
+        "ca-passport-2023",
+        "au-passport-2016-p",
+        "at-passport-2023",
+        "cn-passport-po-2018",
+        "fi-id-card-2023",
+        "fi-passport-2024",
+        "fr-passport-2017",
+        "fr-id-card-2024",
+        "hk-passport-2025",
+        "id-passport-2025",
+        "my-passport-2023",
+        "nz-passport-2017",
+        "ph-passport-2020",
+        "pt-passport-2026",
+        "ru-passport-2020",
+        "sg-passport-pa-2023",
+        "sg-passport-pp-2025",
+        "tw-passport-2024"
       ],
-      "generation_boundary": "Historical studied samples; issue dates are not specified for all samples.",
+      "supports": "Observed access control, PACE and Chip Authentication suites and curves, and listed Active Authentication or \"Cloneable\" for single real documents. One mechanism per cell: silence is not evidence of absence. It does not define the Type column's codes, and names the Russian curve only as \"secp192\".",
+      "generation_boundary": "One real document per row; the row's year only. No claim about other documents of the same country or year.",
       "downloaded_source": {
-        "filename": "richter-mostowski-poll-2008.pdf",
-        "local_cache_path": "/tmp/passportemu-source-cache/richter-mostowski-poll-2008.pdf",
-        "sha256": "7416bf42860228ec6df2a2f86fe1efc85116aa05a23ba179543f67912083cafa",
-        "bytes": 164756,
-        "retained_in_repository": false
+        "filename": "README.md",
+        "local_cache_path": "/private/tmp/claude-502/-Users-hubertdudowicz-OtherProjects-SmartEmu/ec9a18ea-1506-47ab-a366-7914a9d86687/scratchpad/gm/README.md",
+        "sha256": "b201183463b44c746e7d17180b803092c60a54c2220b969b5b2c6ef26267845c",
+        "bytes": 12789,
+        "retained_in_repository": false,
+        "fetched_from": "https://raw.githubusercontent.com/gmrtd/gmrtd/2a696fae146868ab80e0a080b97e0a3cd8f77a60/README.md"
       },
-      "authored_repository_notes": "source-notes.md#richter-mostowski-and-poll-2008"
+      "authored_repository_notes": "source-notes.md#gmrtd-readme-sample-documents-table"
     },
     {
-      "title": "ePassport: Securing International Contacts with Contactless Chips",
-      "author_or_issuer": "Gildas Avoine, Kassem Kalach, Jean-Jacques Quisquater",
-      "url": "https://sites.uclouvain.be/security/download/papers/AvoineKQ-2008-fc.pdf",
-      "retrieved_on": "2026-09-30",
+      "title": "gmrtd parsed real EF.SOD vectors, TestNewSod",
+      "author_or_issuer": "gmrtd project (github.com/gmrtd/gmrtd)",
+      "url": "https://github.com/gmrtd/gmrtd/blob/main/document/sod_test.go",
+      "commit": "2a696fae146868ab80e0a080b97e0a3cd8f77a60",
+      "retrieved_on": "2026-10-12",
       "locators": [
-        "Section 3.3, PDF page 10: mid-2006 BAC generation",
-        "Section 4, PDF page 11: DG7/11/12",
-        "Table 2, PDF page 14: separate AA/DS key sizes and signature hash; Table 3 recommendations excluded"
+        "TestNewSod, test cases labelled by a country comment (// AT, // CN, // FI, // FR, // MY, // NZ, // PH, // RU, // SG, // UK, // US, // AU and others): each SOD is parsed to its Document Signer certificate, LDS/Unicode version, and data group hashes (a profile's evidence names the vector it uses)"
       ],
       "profile_ids": [
-        "be-passport-2006-study"
+        "de-passport-2023",
+        "gb-passport",
+        "us-passport-2021",
+        "au-passport-2016-p",
+        "at-passport-2023",
+        "cn-passport-po-2018",
+        "fi-id-card-2023",
+        "fr-passport-2017",
+        "id-passport-2025",
+        "my-passport-2023",
+        "nz-passport-2017",
+        "ph-passport-2020",
+        "ru-passport-2020",
+        "sg-passport-pa-2023",
+        "sg-passport-pp-2025"
       ],
-      "generation_boundary": "Belgian generation introduced mid-2006 and studied by the authors; excludes earlier no-BAC generation.",
+      "supports": "Document Signer key type, signature and digest algorithms, and which data groups one sampled SOD hashes. A data group missing from one SOD does not show that the chip lacks the feature (for example DG15 and Active Authentication). The vectors do not say which README row (for example the two Singapore ones) a SOD belongs to.",
+      "generation_boundary": "One sampled SOD per vector; not a statement about every document of the country or year.",
       "downloaded_source": {
-        "filename": "avoine-kalach-quisquater-2008.pdf",
-        "local_cache_path": "/tmp/passportemu-source-cache/avoine-kalach-quisquater-2008.pdf",
-        "sha256": "778fd746e22ac84e312fa4e9b8fe88a7468148a21357681bcab3f64f3f611b4d",
-        "bytes": 208692,
-        "retained_in_repository": false
+        "filename": "sod_test.go",
+        "local_cache_path": "/private/tmp/claude-502/-Users-hubertdudowicz-OtherProjects-SmartEmu/ec9a18ea-1506-47ab-a366-7914a9d86687/scratchpad/gm/sod_test.go",
+        "sha256": "1c9584296c7630241a1d27e9ec323ab3b248abaac8ae787930f893f664cfda98",
+        "bytes": 147345,
+        "retained_in_repository": false,
+        "fetched_from": "https://raw.githubusercontent.com/gmrtd/gmrtd/2a696fae146868ab80e0a080b97e0a3cd8f77a60/document/sod_test.go"
       },
-      "authored_repository_notes": "source-notes.md#avoine-kalach-and-quisquater-2008"
+      "authored_repository_notes": "source-notes.md#gmrtd-parsed-sod-test-vectors"
     },
     {
-      "title": "E-Passport Survey, Eurocrypt 2007",
-      "author_or_issuer": "Serge Vaudenay, Martin Vuagnoux",
-      "url": "https://www.iacr.org/conferences/eurocrypt2007/slides/rumpt05.pdf",
-      "retrieved_on": "2026-09-30",
+      "title": "gmrtd parsed real EF.SOD vectors, TestPassiveAuth",
+      "author_or_issuer": "gmrtd project (github.com/gmrtd/gmrtd)",
+      "url": "https://github.com/gmrtd/gmrtd/blob/main/passiveauth/passive_auth_test.go",
+      "commit": "2a696fae146868ab80e0a080b97e0a3cd8f77a60",
+      "retrieved_on": "2026-10-12",
       "locators": [
-        "Slide 7 of 13: one sample per country",
-        "Slide 10 of 13: Swiss BAC present",
-        "Slide 12 of 13: Swiss AA absent"
+        "TestPassiveAuth, test cases labelled by a country comment (including \"ID\", the Indonesian 2010 CSCA Series case): SOD, optional EF.CardSecurity and the passive-authentication result, from which the Document Signer's validity, key and signature algorithm are read"
       ],
       "profile_ids": [
-        "ch-passport-2007-study"
+        "de-passport-2023",
+        "gb-passport",
+        "us-passport-2021",
+        "au-passport-2016-p",
+        "at-passport-2023",
+        "cn-passport-po-2018",
+        "fi-id-card-2023",
+        "fr-passport-2017",
+        "id-passport-2025",
+        "my-passport-2023",
+        "nz-passport-2017",
+        "ph-passport-2020",
+        "ru-passport-2020",
+        "sg-passport-pa-2023",
+        "sg-passport-pp-2025"
       ],
-      "generation_boundary": "One Swiss sample in the 2007 firsthand survey; not a modern national suite.",
+      "supports": "Same as TestNewSod, with Document Signer validity dates; the Indonesian SOD and its hashed data groups.",
+      "generation_boundary": "One sampled SOD per vector; not a statement about every document of the country or year.",
       "downloaded_source": {
-        "filename": "vaudenay-vuagnoux-2007.pdf",
-        "local_cache_path": "/tmp/passportemu-source-cache/vaudenay-vuagnoux-2007.pdf",
-        "sha256": "2afc402965464a63ca740282a962aaf864afc87aa06ee7319923ea97307c3599",
-        "bytes": 66110,
-        "retained_in_repository": false
+        "filename": "passive_auth_test.go",
+        "local_cache_path": "/private/tmp/claude-502/-Users-hubertdudowicz-OtherProjects-SmartEmu/ec9a18ea-1506-47ab-a366-7914a9d86687/scratchpad/gm/passive_auth_test.go",
+        "sha256": "3791bde12a98e31eae8c996d964c9b5a4519bacea981a47bd4a7f5eda4625d41",
+        "bytes": 221252,
+        "retained_in_repository": false,
+        "fetched_from": "https://raw.githubusercontent.com/gmrtd/gmrtd/2a696fae146868ab80e0a080b97e0a3cd8f77a60/passiveauth/passive_auth_test.go"
       },
-      "authored_repository_notes": "source-notes.md#vaudenay-and-vuagnoux-eurocrypt-2007"
-    },
-    {
-      "title": "Technical information about the Canadian ePassport",
-      "author_or_issuer": "Government of Canada",
-      "url": "https://www.canada.ca/en/news/archive/2014/05/technical-information-about-canadian-epassport.html",
-      "retrieved_on": "2026-09-30",
-      "locators": [
-        "Unauthorized reading: Basic access control",
-        "Cloning: Active authentication, second paragraph: AA implemented; key type unspecified",
-        "Tampering and inauthenticity: Passive authentication: RSA-PSS-2048/SHA-256 examples"
-      ],
-      "profile_ids": [
-        "ca-passport-2013"
-      ],
-      "generation_boundary": "2014 issuer backgrounder paired with rollout history; no 2023-generation claim.",
-      "downloaded_source": {
-        "filename": "canada-technical-2014.html",
-        "local_cache_path": "/tmp/passportemu-source-cache/canada-technical-2014.html",
-        "sha256": "f18420430084f77383783f91e1dad1810f3df32b84273aa39bd68b4d0f731943",
-        "bytes": 29099,
-        "retained_in_repository": false
-      },
-      "authored_repository_notes": "source-notes.md#government-of-canada-2014-backgrounders"
-    },
-    {
-      "title": "History of the ePassport",
-      "author_or_issuer": "Government of Canada",
-      "url": "https://www.canada.ca/en/news/archive/2014/05/history-epassport.html",
-      "retrieved_on": "2026-09-30",
-      "locators": [
-        "The ePassport project and the User Fees Act, final paragraph: adult ten-year option available 1 July 2013"
-      ],
-      "profile_ids": [
-        "ca-passport-2013"
-      ],
-      "generation_boundary": "2013 general rollout; not the redesigned 2023 passport.",
-      "downloaded_source": {
-        "filename": "canada-history-2014.html",
-        "local_cache_path": "/tmp/passportemu-source-cache/canada-history-2014.html",
-        "sha256": "7353f5a1f88ee908c499e1dea28652c313b7c800af3f19b158245852261cc2b6",
-        "bytes": 27402,
-        "retained_in_repository": false
-      },
-      "authored_repository_notes": "source-notes.md#government-of-canada-2014-backgrounders"
-    },
-    {
-      "title": "Official DNIe reader examples",
-      "author_or_issuer": "Policía Nacional, Gobierno de España",
-      "url": "https://www.dnielectronico.es/PortalDNIe/PRF1_Cons02.action?id_menu=20&pag=REF_035",
-      "retrieved_on": "2026-09-30",
-      "locators": [
-        "Ejemplo DNIe Lectura Datos: third-generation passports using PACE"
-      ],
-      "profile_ids": [
-        "es-passport-third-generation"
-      ],
-      "generation_boundary": "Third-generation passport as named by issuer; no date or exact passport suite given.",
-      "downloaded_source": {
-        "filename": "spain-official-reader.html",
-        "local_cache_path": "/tmp/passportemu-source-cache/spain-official-reader.html",
-        "sha256": "ec6cf26992efa8206a7867e86ed42a5abc96ae8e0f38714b08384cf05910ea81",
-        "bytes": 45722,
-        "retained_in_repository": false
-      },
-      "authored_repository_notes": "source-notes.md#policía-nacional-reader-documentation"
-    },
-    {
-      "title": "Management of ePassports, Audit Report No. 33, 2011–12",
-      "author_or_issuer": "Australian National Audit Office",
-      "url": "https://www.anao.gov.au/sites/default/files/201112%20Audit%20Report%20No%2033.pdf",
-      "retrieved_on": "2026-09-30",
-      "locators": [
-        "Summary paragraph 6, printed page 14: M/N introduction dates",
-        "Paragraph 5.6, printed page 74: BAC",
-        "Paragraph 5.16, printed page 78: AA introduced with N Series"
-      ],
-      "profile_ids": [
-        "au-passport-2005-m",
-        "au-passport-2009-n"
-      ],
-      "generation_boundary": "M Series from 24 October 2005; N Series from May 2009. No P/R extrapolation.",
-      "downloaded_source": null,
-      "original_download_status": "Direct HTTP retrieval failed; inspected through web tool. No original-source hash available.",
-      "authored_repository_notes": "anao-australia-2012-notes.md",
-      "authored_notes_sha256": "1bfd36eae144c6831f4f1e777429734d98b6116fac49a33ec3c68681ab2815bf"
+      "authored_repository_notes": "source-notes.md#gmrtd-parsed-sod-test-vectors"
     }
   ]
 }

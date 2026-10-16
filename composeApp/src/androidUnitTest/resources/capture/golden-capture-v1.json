@@ -1,0 +1,170 @@
+{
+    "schemaVersion": 1,
+    "captureId": "3b0d6c2e-7a41-4d8e-9c55-0f7e1a2b3c4d",
+    "captureMonth": "2026-09",
+    "source": "ANDROID_READER",
+    "probePack": {
+        "id": "tier-a",
+        "version": 1
+    },
+    "additionalProbePacks": [],
+    "reader": {
+        "model": "Pixel 9",
+        "androidVersion": "15",
+        "nfcChipset": "ST54K",
+        "controllerMaxTransceiveLength": 65279,
+        "controllerExtendedLengthSupported": true
+    },
+    "link": {
+        "technology": "NFC_A",
+        "historicalBytes": "8000",
+        "uidRandom": false,
+        "maxApduLengthObserved": 223
+    },
+    "files": {
+        "cardAccess": {
+            "selectStatusWord": 36864,
+            "contentsHex": "31143012060A04007F0007020204020202010202010C",
+            "size": {
+                "minBytes": 0,
+                "maxBytes": 255
+            }
+        },
+        "atrInfo": {
+            "selectStatusWord": 27266,
+            "contentsHex": null,
+            "size": null
+        },
+        "dir": {
+            "selectStatusWord": 36864,
+            "contentsHex": "61094F07A0000002471001",
+            "size": {
+                "minBytes": 0,
+                "maxBytes": 255
+            }
+        }
+    },
+    "application": {
+        "selectStatusWord": 36864,
+        "responseSize": {
+            "minBytes": 0,
+            "maxBytes": 15
+        }
+    },
+    "bacCommands": {
+        "getChallenge": 36864,
+        "externalAuthenticate": 27013
+    },
+    "probes": [
+        {
+            "probeId": "read-binary-max-length",
+            "packVersion": 1,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "le-df",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 16,
+                        "maxBytes": 31
+                    },
+                    "timing": {
+                        "minMs": 12,
+                        "medianMs": 13,
+                        "maxMs": 15,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "extended-le-ffff",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 10,
+                        "medianMs": 10,
+                        "maxMs": 11,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "external-authenticate-out-of-sequence",
+            "packVersion": 1,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "lc-40-le-28",
+                    "statusWord": 27013,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 9,
+                        "medianMs": 9,
+                        "maxMs": 9,
+                        "samples": 1
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                }
+            ]
+        }
+    ],
+    "aborted": null,
+    "fingerprint": "6240B9B93A547090",
+    "redactions": [
+        {
+            "item": "DG1 contents and the MRZ",
+            "reason": "Identifies the holder"
+        },
+        {
+            "item": "DG2 contents (portrait)",
+            "reason": "Identifies the holder"
+        },
+        {
+            "item": "DG7, DG11 and DG12 contents",
+            "reason": "Identify the holder"
+        },
+        {
+            "item": "The CAN and any access key",
+            "reason": "Grants access to the chip"
+        },
+        {
+            "item": "The chip UID",
+            "reason": "Identifies a single chip"
+        },
+        {
+            "item": "Per-chip Active Authentication and Chip Authentication public keys",
+            "reason": "Identify a single chip"
+        },
+        {
+            "item": "EF.SOD data-group hash values",
+            "reason": "The DG1 hash can be brute-forced from the MRZ space"
+        },
+        {
+            "item": "Per-chip parts of EF.CardSecurity",
+            "reason": "Identify a single chip"
+        },
+        {
+            "item": "Exact file sizes",
+            "reason": "Rounded to buckets: quasi-identifiers"
+        },
+        {
+            "item": "Capture day and time",
+            "reason": "Only the month is kept"
+        },
+        {
+            "item": "The raw APDU transcript",
+            "reason": "Only typed observations are saved"
+        }
+    ]
+}

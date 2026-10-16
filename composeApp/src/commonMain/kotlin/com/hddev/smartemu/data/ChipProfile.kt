@@ -1,5 +1,7 @@
 package com.hddev.smartemu.data
 
+import com.hddev.smartemu.capture.profile.FieldKeys
+import com.hddev.smartemu.capture.profile.MeasuredProfile
 import kotlinx.datetime.LocalDate
 
 /**
@@ -24,6 +26,11 @@ class ChipProfile(
     val summary: String,
     val accessControl: AccessControl,
     val paceMapping: PaceMapping = PaceMapping.GENERIC,
+    /**
+     * Mappings the real chip also offers in EF.CardAccess on the same domain parameters and cipher, after
+     * [paceMapping], so a reader can choose among them as it would on the document.
+     */
+    val otherPaceMappings: List<PaceMapping> = emptyList(),
     val pace: PaceSpec = PaceSpec(),
     /** The Active Authentication key, or null if the document has none. */
     val activeAuthentication: KeySpec? = null,
@@ -48,9 +55,42 @@ class ChipProfile(
     /** What the emulation leaves out or can't copy. */
     val notes: List<String> = emptyList(),
     /** Specific claims, scoped to this generation, with direct primary-source links and section/page locators. */
-    val evidence: List<ProfileEvidence> = emptyList()
+    val evidence: List<ProfileEvidence> = emptyList(),
+    /**
+     * What capture mode measured on real chips of this generation, merged and checked (see [MeasuredProfile]), or null
+     * where no chip has been captured. The emulator replays it; with none, the chip behaves as the fields above say.
+     */
+    val measured: MeasuredProfile? = null
 ) {
-    fun provenanceOf(aspect: ProfileAspect): Provenance = provenance[aspect] ?: Provenance.ASSUMED
+    /**
+     * The aspect's provenance. [Provenance.MEASURED] only where [measured] holds fields for the aspect and every one of
+     * them passed the hold-out rule: MEASURED is per field, so a single unverified or disagreeing field keeps the
+     * aspect at its curated provenance.
+     */
+    fun provenanceOf(aspect: ProfileAspect): Provenance =
+        if (measured?.isMeasured(aspect) == true) Provenance.MEASURED else provenance[aspect] ?: Provenance.ASSUMED
+
+    /** This profile with [measured] data attached (or removed, with null); everything else stays as it is. */
+    fun withMeasured(measured: MeasuredProfile?, id: String = this.id): ChipProfile = copyWith(id = id, measured = measured)
+
+    /**
+     * A copy with some details changed; the profile isn't a data class, so a plain `copy` isn't there. Only what
+     * measured replay changes is offered.
+     */
+    fun copyWith(
+        id: String = this.id,
+        accessControl: AccessControl = this.accessControl,
+        errorResponses: ErrorResponses = this.errorResponses,
+        measured: MeasuredProfile? = this.measured
+    ): ChipProfile = ChipProfile(
+        id = id, title = title, shortTitle = shortTitle, country = country, documentType = documentType,
+        summary = summary, accessControl = accessControl, paceMapping = paceMapping,
+        otherPaceMappings = otherPaceMappings, pace = pace, activeAuthentication = activeAuthentication,
+        chipAuthentication = chipAuthentication, terminalAuthentication = terminalAuthentication,
+        dataGroups = dataGroups, sod = sod, mrz = mrz, errorResponses = errorResponses, validity = validity,
+        sample = sample, provenance = provenance, sources = sources, notes = notes, evidence = evidence,
+        measured = measured
+    )
 
     /** Whether the profile fits a document of this type. */
     fun fits(type: DocumentType): Boolean = documentType == null || documentType == type
@@ -70,6 +110,10 @@ enum class ProfileAspect(val displayName: String) {
 
 /** Where a claim about a real document comes from, strongest first. */
 enum class Provenance(val displayName: String, val description: String) {
+    MEASURED(
+        "Measured",
+        "MEASURED = indistinguishable from the real chip at APDU level on probe pack vN, on fields marked compared, from n captures."
+    ),
     SPECIFICATION("Specification", "Required by a standard or regulation that applies to this document"),
     REPORTED("Reported", "Described in public sources, but not checked against a real chip"),
     ASSUMED("ASSUMED", "Emulator default, including disabled features: not established for this generation")
@@ -91,33 +135,35 @@ data class ProfileEvidence(
 
 /**
  * The elliptic curves ICAO 9303 part 11 standardises for PACE, with their standardised domain parameter identifiers,
- * and NIST P-192, which only Chip Authentication uses here: see [usableForPace].
+ * in identifier order; [DhGroup] has the Diffie-Hellman ones. Profiles don't run PACE on the 192-bit curves (see
+ * [usableForPace]), but the developer setting [AppSettings.paceCurve] can put PACE on any of them, to test how a
+ * reader copes.
  */
 enum class EcCurve(val displayName: String, val paceParameterId: Int, val bits: Int, val isNist: Boolean) {
-    /** Only for Chip Authentication, as on the sampled Russian passport. PACE never runs on it: see [usableForPace]. */
+    /** For Chip Authentication, as on the sampled Russian passport; PACE only with [AppSettings.paceCurve]. */
     NIST_P192("NIST P-192", 8, 192, true),
+    BRAINPOOL_P192R1("brainpoolP192r1", 9, 192, false),
+    NIST_P224("NIST P-224", 10, 224, true),
+    BRAINPOOL_P224R1("brainpoolP224r1", 11, 224, false),
     NIST_P256("NIST P-256", 12, 256, true),
-    NIST_P384("NIST P-384", 15, 384, true),
-    NIST_P521("NIST P-521", 18, 521, true),
     BRAINPOOL_P256R1("brainpoolP256r1", 13, 256, false),
     BRAINPOOL_P320R1("brainpoolP320r1", 14, 320, false),
+    NIST_P384("NIST P-384", 15, 384, true),
     BRAINPOOL_P384R1("brainpoolP384r1", 16, 384, false),
-    BRAINPOOL_P512R1("brainpoolP512r1", 17, 512, false);
-
-    /** The NIST curve at least as strong, which stands in for a Brainpool curve when cryptography is adapted. */
-    val nistEquivalent: EcCurve
-        get() = when {
-            isNist -> this
-            bits <= 256 -> NIST_P256
-            bits <= 384 -> NIST_P384
-            else -> NIST_P521
-        }
+    BRAINPOOL_P512R1("brainpoolP512r1", 17, 512, false),
+    NIST_P521("NIST P-521", 18, 521, true);
 
     /**
-     * Whether a profile may run PACE on this curve. P-192 is too weak for the key exchange that protects the whole
-     * session, so a profile uses it for Chip Authentication only, and the r2w nfc-library does not read it either.
+     * Whether a profile may run PACE on this curve. The 192-bit curves are too weak for the key exchange that protects
+     * the whole session, so a profile uses them for Chip Authentication at most.
      */
-    val usableForPace: Boolean get() = this != NIST_P192
+    val usableForPace: Boolean get() = bits > 192
+
+    /**
+     * Whether PACE can use Integrated Mapping on this curve. Its point encoding takes a square root as a power, which
+     * needs the prime p to be 3 mod 4; NIST P-224's prime is 1 mod 4.
+     */
+    val supportsIntegratedMapping: Boolean get() = this != NIST_P224
 
     /** Bytes in a coordinate, and in each half of a plain ECDSA signature. */
     val fieldSize: Int get() = (bits + 7) / 8
@@ -154,11 +200,45 @@ sealed interface KeySpec {
     }
 }
 
-/** The curve and cipher PACE runs on; the mapping is the document's own [PassportData.paceMapping]. */
+/**
+ * The Diffie-Hellman groups ICAO 9303 part 11 standardises for PACE, from RFC 5114, with their standardised domain
+ * parameter identifiers. No profile runs PACE on them, but the developer setting [AppSettings.paceDhGroup] can.
+ */
+enum class DhGroup(val displayName: String, val paceParameterId: Int, val bits: Int, val subgroupBits: Int) {
+    MODP_1024_160("DH 1024/160", 0, 1024, 160),
+    MODP_2048_224("DH 2048/224", 1, 2048, 224),
+    MODP_2048_256("DH 2048/256", 2, 2048, 256);
+
+    /** As in "1024-bit MODP group with a 160-bit subgroup". */
+    val description: String get() = "$bits-bit MODP group with a $subgroupBits-bit subgroup"
+}
+
+/**
+ * The domain parameters and cipher PACE runs on; the mapping is the document's own [PassportData.paceMapping]. PACE
+ * runs Diffie-Hellman in [dhGroup] if there is one, and then [curve] plays no part; otherwise ECDH on [curve].
+ */
 data class PaceSpec(
     val curve: EcCurve = EcCurve.NIST_P256,
-    val cipher: SessionCipher = SessionCipher.AES_128
-)
+    val cipher: SessionCipher = SessionCipher.AES_128,
+    val dhGroup: DhGroup? = null
+) {
+    val usesDh: Boolean get() = dhGroup != null
+
+    /** The standardised domain parameter identifier, as in EF.CardAccess's PACEInfo and MSE:Set AT's DO'84. */
+    val parameterId: Int get() = dhGroup?.paceParameterId ?: curve.paceParameterId
+
+    /** As in "brainpoolP256r1" or "DH 2048/224". */
+    val domainName: String get() = dhGroup?.displayName ?: curve.displayName
+}
+
+/** A PACE protocol the chip offers in EF.CardAccess: a mapping on the domain parameters and with the cipher of [spec]. */
+data class PaceSuite(val mapping: PaceMapping, val spec: PaceSpec) {
+    /** As in "PACE-IM brainpoolP256r1 AES-128". */
+    val displayName: String get() = "PACE-${mapping.abbreviation} ${spec.domainName} ${spec.cipher.displayName}"
+
+    /** What tells suites apart on the chip: the protocol identifier follows from the first three. */
+    internal val key: List<Any> get() = listOf(mapping, spec.usesDh, spec.cipher, spec.parameterId)
+}
 
 /**
  * EAC Chip Authentication version 1 (ICAO 9303 part 11 section 6.2, BSI TR-03110): an ECDH key pair in DG14, and
@@ -199,8 +279,36 @@ data class MrzRules(
  */
 data class ErrorResponses(
     /** EXTERNAL AUTHENTICATE with no GET CHALLENGE before it. */
-    val outOfSequence: Int = 0x6985
-)
+    val outOfSequence: Int = 0x6985,
+    /**
+     * The status word a measured chip answered a probe step with, by "probeId/stepId" (for instance
+     * "read-binary-wrong-length/le-01"), for the commands and states of the probe pack. A step with no entry is
+     * answered as the emulator always has, and [outOfSequence] stays the default for the out-of-sequence EXTERNAL
+     * AUTHENTICATE. Empty for a chip nobody has measured.
+     */
+    val byProbe: Map<String, Int> = emptyMap()
+) {
+    /** The status word measured for the step with this key, or null if there is none. */
+    fun forProbe(key: String): Int? = byProbe[key]
+
+    /**
+     * These responses overlaid by what [measured] saw, which is the stronger claim: its status words replace the
+     * ones of [byProbe], and a chip that answered GET CHALLENGE (so does BAC) gives [outOfSequence] its answer to
+     * EXTERNAL AUTHENTICATE with no challenge.
+     *
+     * Only for fields that earned MEASURED (passed the hold-out rule): a status word the captures showed but nothing
+     * confirmed is not installed, so the emulator keeps its own answer to that step. Without a MEASURED mark nothing is.
+     */
+    fun withMeasured(measured: MeasuredProfile?): ErrorResponses {
+        if (measured == null) return this
+        val observed = measured.observations
+        val proven = measured.measuredFields.mapTo(HashSet()) { it.key }
+        val statusWords = observed.statusWords.filterKeys { FieldKeys.stepStatus(it) in proven }
+        val outOfSequence = observed.bacExternalAuthenticate
+            ?.takeIf { observed.bacGetChallenge == 0x9000 && FieldKeys.BAC_EXTERNAL_AUTHENTICATE in proven } ?: outOfSequence
+        return copy(outOfSequence = outOfSequence, byProbe = byProbe + statusWords)
+    }
+}
 
 /** How long the issuer makes the document valid for. */
 data class Validity(

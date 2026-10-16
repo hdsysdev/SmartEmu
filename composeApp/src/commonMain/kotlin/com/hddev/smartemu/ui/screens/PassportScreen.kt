@@ -8,8 +8,9 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.automirrored.outlined.LibraryBooks
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Face
-import androidx.compose.material.icons.outlined.TipsAndUpdates
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,7 +22,6 @@ import com.hddev.smartemu.ui.components.AdditionalDetailsCallbacks
 import com.hddev.smartemu.ui.components.AppButton
 import com.hddev.smartemu.ui.components.ButtonEmphasis
 import com.hddev.smartemu.ui.components.EditingLockedBanner
-import com.hddev.smartemu.ui.components.HintCard
 import com.hddev.smartemu.ui.components.NextStepButton
 import com.hddev.smartemu.ui.components.PassportInputForm
 import com.hddev.smartemu.ui.components.PassportPreview
@@ -37,14 +37,15 @@ internal val MaxContentWidth = 640.dp
 
 /**
  * The passport being emulated: its data page as it would be printed, and the details and portrait it's made from.
- * A fresh passport offers sample data to get going quickly. [onNext] leads to the next setup screen;
- * [onShowMessage] reports a photo that couldn't be used.
+ * Quick start fills it with sample data or a ready-made document from [onLoadPreset]. [onNext] leads to the next
+ * setup screen; [onShowMessage] reports a photo that couldn't be used.
  */
 @Composable
 fun PassportScreen(
     uiState: PassportSimulatorUiState,
     viewModel: PassportSimulatorViewModel,
     onOpenDataPage: () -> Unit,
+    onLoadPreset: () -> Unit,
     onNext: () -> Unit,
     onShowMessage: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -58,21 +59,12 @@ fun PassportScreen(
             EditingLockedBanner(onStopEmulation = viewModel::stopSimulation, stopEnabled = uiState.canStopSimulation())
         }
 
-        if (editable && passportData.hasNoHolderDetails()) {
-            HintCard(
-                title = "Start with the passport",
-                text = "Enter the details of the passport to emulate, or fill in sample data to try the app out. " +
-                    "You can change anything afterwards.",
-                icon = Icons.Outlined.TipsAndUpdates,
-                action = {
-                    AppButton(
-                        text = "Fill with sample data",
-                        onClick = viewModel::autofillPassportData,
-                        icon = Icons.Filled.AutoFixHigh
-                    )
-                }
-            )
-        }
+        QuickStartSection(
+            fresh = passportData.hasNoHolderDetails(),
+            enabled = editable,
+            onLoadPreset = onLoadPreset,
+            onFillSampleData = viewModel::autofillPassportData
+        )
 
         PassportPreview(passportData = passportData, onOpenFullScreen = onOpenDataPage)
 
@@ -109,6 +101,46 @@ fun PassportScreen(
             onClick = onNext,
             icon = AppDestination.CHIP.selectedIcon
         )
+    }
+}
+
+/**
+ * Ways to fill the whole document at once: a ready-made one, with its chip settings, or sample holder details. The
+ * buttons stand out while the document is still empty.
+ */
+@Composable
+private fun QuickStartSection(
+    fresh: Boolean,
+    enabled: Boolean,
+    onLoadPreset: () -> Unit,
+    onFillSampleData: () -> Unit
+) {
+    SectionCard(
+        title = "Quick start",
+        subtitle = if (fresh) {
+            "Enter the details below, or start from a ready-made document. You can change anything afterwards."
+        } else {
+            "Replace these details with a ready-made document or sample data"
+        },
+        icon = Icons.Outlined.Bolt
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            AppButton(
+                text = "Load a preset",
+                onClick = onLoadPreset,
+                icon = Icons.AutoMirrored.Outlined.LibraryBooks,
+                emphasis = if (fresh) ButtonEmphasis.High else ButtonEmphasis.Medium,
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
+            AppButton(
+                text = "Sample data",
+                onClick = onFillSampleData,
+                icon = Icons.Filled.AutoFixHigh,
+                enabled = enabled,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 

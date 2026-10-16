@@ -20,8 +20,10 @@ import kotlinx.datetime.number
  * above. [personalNumber] and [placeOfBirth] go in DG11 where the profile has it, and the personal number in the MRZ
  * where the issuer puts it there; [issuingAuthority] and [dateOfIssue] go in DG12.
  *
- * [exactCryptography] isn't a detail of the document but how the chip is emulated: with it, the profile's
- * cryptography is used as it is, even where the r2w nfc-library can't read it. It's set when the emulation starts.
+ * [paceCurve], [paceDhGroup] and [paceCipher] aren't details of the document but how the chip is emulated: they
+ * replace the profile's PACE domain parameters and cipher, or [extraPaceSuites], which the chip
+ * offers in EF.CardAccess besides the document's own suite, after it or, with [extraPaceSuitesFirst], before it.
+ * They're set from [AppSettings.emulating] when the emulation starts.
  */
 data class PassportData(
     val passportNumber: String = "",
@@ -44,7 +46,11 @@ data class PassportData(
     val placeOfBirth: String = "",
     val issuingAuthority: String = "",
     val dateOfIssue: LocalDate? = null,
-    val exactCryptography: Boolean = false
+    val paceCurve: EcCurve? = null,
+    val paceDhGroup: DhGroup? = null,
+    val paceCipher: SessionCipher? = null,
+    val extraPaceSuites: List<PaceSuite> = emptyList(),
+    val extraPaceSuitesFirst: Boolean = false
 ) {
 
     companion object {

@@ -1,5 +1,7 @@
 package com.hddev.smartemu.utils
 
+import com.hddev.smartemu.capture.Hex
+import com.hddev.smartemu.capture.profile.FieldKeys
 import com.hddev.smartemu.data.ChipConfiguration
 import com.hddev.smartemu.data.ChipFault
 import com.hddev.smartemu.data.EcCurve
@@ -9,11 +11,13 @@ import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.SessionCipher
 import com.hddev.smartemu.data.chipConfiguration
 import net.sf.scuba.data.Gender
+import org.bouncycastle.asn1.ASN1EncodableVector
+import org.bouncycastle.asn1.ASN1Encoding
+import org.bouncycastle.asn1.DLSet
 import org.jmrtd.PassportService
 import org.jmrtd.Util
 import org.jmrtd.lds.ActiveAuthenticationInfo
 import org.jmrtd.lds.CVCAFile
-import org.jmrtd.lds.CardAccessFile
 import org.jmrtd.lds.CardSecurityFile
 import org.jmrtd.lds.ChipAuthenticationInfo
 import org.jmrtd.lds.ChipAuthenticationPublicKeyInfo
@@ -34,6 +38,7 @@ import org.jmrtd.lds.iso19794.FaceImageInfo
 import org.jmrtd.lds.iso19794.FaceInfo
 import org.jmrtd.lds.iso19794.FingerInfo
 import java.io.ByteArrayInputStream
+import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.MessageDigest
@@ -53,12 +58,13 @@ import java.util.concurrent.ConcurrentHashMap
  * The elementary files of the emulated eMRTD application (LDS1), encoded with JMRTD's LDS classes so that
  * readers parse exactly what a real passport would return. What the chip holds follows its [ChipConfiguration].
  *
- * EF.CardAccess, which advertises PACE, is present only when the access control allows PACE. It is the only file
- * readable without authentication. With PACE-CAM the chip also has a static key pair, whose public key is in
- * EF.CardSecurity. Both files live in the master file (MF) rather than the eMRTD application; EF.CardSecurity
+ * EF.CardAccess, which advertises PACE with a PACEInfo for each suite the chip offers, is present only when the access
+ * control allows PACE. It is the only file readable without authentication. With PACE-CAM the chip also has a static
+ * key pair for each CAM curve, whose public key is in EF.CardSecurity with the curve's parameter ID as its key ID, as
+ * ICAO 9303-11 asks. Both files live in the master file (MF) rather than the eMRTD application; EF.CardSecurity
  * and EF.SOD share file identifier 011D, so which one a SELECT addresses depends on the current DF.
  *
- * EF.DG14 has a copy of the PACEInfo, the Chip Authentication key and, for ECDSA, the Active Authentication
+ * EF.DG14 has a copy of the PACEInfos, the Chip Authentication key and, for ECDSA, the Active Authentication
  * algorithm; EF.DG15 the Active Authentication public key. A chip with Terminal Authentication has fingerprints in
  * EF.DG3, which no reader can unlock, and EF.CVCA naming the test CVCA a terminal certificate would have to chain to.
  * EF.DG11 and EF.DG12 hold the additional personal and document details, where the profile has them.
@@ -72,8 +78,8 @@ class PassportLdsFiles private constructor(
     val configuration: ChipConfiguration,
     private val masterFiles: Map<Short, ByteArray>,
     private val applicationFiles: Map<Short, ByteArray>,
-    /** The chip's static key pair for PACE-CAM, or null if the chip does not offer CAM. */
-    val chipAuthenticationKeyPair: KeyPair?,
+    /** The chip's static key pairs for PACE-CAM, by the parameter ID of their curve; empty if it offers no CAM. */
+    val paceChipAuthenticationKeyPairs: Map<Int, KeyPair>,
     /** The chip's static key pair for EAC Chip Authentication, whose public key is in EF.DG14, or null without CA. */
     val eacChipAuthenticationKeyPair: KeyPair?,
     /**
@@ -84,6 +90,10 @@ class PassportLdsFiles private constructor(
 ) {
 
     companion object {
+        /** EF.ATR/INFO and EF.DIR, ISO 7816-4 files of the master file that a measured chip may have. */
+        const val EF_ATR_INFO: Short = 0x2F01
+        const val EF_DIR: Short = 0x2F00
+
         /** The recoverable part of an RSA Active Authentication message is filled to capacity; SHA-1 digests. */
         private const val RSA_AA_DIGEST_LENGTH = 20
         private const val RSA_AA_SIGNATURE_ALGORITHM = "SHA1withRSA/ISO9796-2"
@@ -188,11 +198,7 @@ class PassportLdsFiles private constructor(
         fun create(passportData: PassportData): PassportLdsFiles {
             val configuration = passportData.chipConfiguration()
             val fault = passportData.chipFault
-            val paceInfo = if (configuration.supportsPace) {
-                PaceProtocol.paceInfo(configuration.paceMapping, configuration.pace)
-            } else {
-                null
-            }
+            val paceInfos = configuration.paceSuites.map(PaceProtocol::paceInfo)
 
             var activeAuthenticationKey: PrivateKey? = null
             var activeAuthenticationPublicKey: java.security.PublicKey? = null
@@ -215,7 +221,7 @@ class PassportLdsFiles private constructor(
                     12 -> createAdditionalDocumentDetails(passportData)
                     14 -> DG14File(
                         buildList {
-                            paceInfo?.let(::add)
+                            addAll(paceInfos)
                             configuration.chipAuthentication?.let { spec ->
                                 add(ChipAuthenticationInfo(chipAuthenticationOid(spec.cipher), ChipAuthenticationInfo.VERSION_1))
                                 add(ChipAuthenticationPublicKeyInfo(SecurityInfo.ID_PK_ECDH, eacKeyPair!!.public))
@@ -259,24 +265,33 @@ class PassportLdsFiles private constructor(
                 }
             }
             val masterFiles = mutableMapOf<Short, ByteArray>()
-            var chipAuthenticationKeyPair: KeyPair? = null
-            if (paceInfo != null) {
-                masterFiles[PassportService.EF_CARD_ACCESS] = CardAccessFile(listOf(paceInfo)).encoded
-
-                if (configuration.paceMapping == PaceMapping.CHIP_AUTHENTICATION) {
-                    val keyPair = PaceProtocol.generateChipAuthenticationKeyPair(configuration.pace.curve)
-                    val securityInfos = listOf<SecurityInfo>(
-                        paceInfo,
-                        ChipAuthenticationPublicKeyInfo(SecurityInfo.ID_PK_ECDH, keyPair.public)
-                    )
-                    masterFiles[PassportService.EF_CARD_SECURITY] = CardSecurityFile(
-                        digestAlgorithm, signatureAlgorithm, securityInfos, privateKey, certificate
-                    ).encoded
-                    chipAuthenticationKeyPair = keyPair
+            val chipAuthenticationKeyPairs = configuration.paceSuites
+                .filter { it.mapping == PaceMapping.CHIP_AUTHENTICATION }
+                .map { it.spec.curve }
+                .distinct()
+                .associate { it.paceParameterId to PaceProtocol.generateChipAuthenticationKeyPair(it) }
+            val measured = configuration.measured?.observations
+            if (measured?.cardAccessHex != null) {
+                // Measured: EF.CardAccess exactly as the real chip wrote it, bytes and order, whatever suites the model has
+                masterFiles[PassportService.EF_CARD_ACCESS] = Hex.decode(measured.cardAccessHex)
+            } else if (paceInfos.isNotEmpty() && !(measured != null && FieldKeys.CARD_ACCESS in measured.fileSelectStatusWords)) {
+                // Measured to have no EF.CardAccess: none, whatever the model says
+                masterFiles[PassportService.EF_CARD_ACCESS] = cardAccess(paceInfos)
+            }
+            // Public files the chip was measured to have in the master file, served as read
+            measured?.atrInfoHex?.let { masterFiles[EF_ATR_INFO] = Hex.decode(it) }
+            measured?.dirHex?.let { masterFiles[EF_DIR] = Hex.decode(it) }
+            if (chipAuthenticationKeyPairs.isNotEmpty()) {
+                // ICAO 9303-11 4.4.5.5: a CAM key's key ID is the parameter ID of the PACEInfo it goes with
+                val securityInfos = paceInfos + chipAuthenticationKeyPairs.map { (parameterId, keyPair) ->
+                    ChipAuthenticationPublicKeyInfo(SecurityInfo.ID_PK_ECDH, keyPair.public, BigInteger.valueOf(parameterId.toLong()))
                 }
+                masterFiles[PassportService.EF_CARD_SECURITY] = CardSecurityFile(
+                    digestAlgorithm, signatureAlgorithm, securityInfos, privateKey, certificate
+                ).encoded
             }
             return PassportLdsFiles(
-                configuration, masterFiles, applicationFiles, chipAuthenticationKeyPair, eacKeyPair, activeAuthenticationKey
+                configuration, masterFiles, applicationFiles, chipAuthenticationKeyPairs, eacKeyPair, activeAuthenticationKey
             )
         }
 
@@ -360,6 +375,14 @@ class PassportLdsFiles private constructor(
          */
         private fun cvcaReference(configuration: ChipConfiguration): String =
             "${ALPHA_2[configuration.profile.country] ?: "UT"}TESTCVCA00001"
+
+        /**
+         * EF.CardAccess: SecurityInfos, a SET OF SecurityInfo, with the PACEInfos in the order the chip offers its
+         * suites. JMRTD's CardAccessFile would sort them as DER sorts a SET OF, but readers that take the first suite
+         * they support take them in the file's order, as many chips write them, so the order is the configured one.
+         */
+        private fun cardAccess(paceInfos: List<SecurityInfo>): ByteArray =
+            DLSet(ASN1EncodableVector().apply { paceInfos.forEach { add(it.derObject) } }).getEncoded(ASN1Encoding.DL)
 
         /**
          * DG3 with no fingerprint records but random data in their place, as JMRTD fills an empty one: no reader
@@ -548,6 +571,8 @@ class PassportLdsFiles private constructor(
      */
     fun fileName(fid: Short, isApplicationSelected: Boolean): String = when {
         fid == PassportService.EF_CARD_ACCESS -> "EF.CardAccess"
+        fid == EF_ATR_INFO -> "EF.ATR/INFO"
+        fid == EF_DIR -> "EF.DIR"
         !isApplicationSelected && fid == PassportService.EF_CARD_SECURITY -> "EF.CardSecurity"
         fid == PassportService.EF_COM -> "EF.COM"
         fid == PassportService.EF_SOD -> "EF.SOD"
@@ -557,10 +582,11 @@ class PassportLdsFiles private constructor(
     }
 
     /**
-     * Whether the file can be read without secure messaging. Only EF.CardAccess can; ICAO 9303-11 protects
-     * EF.CardSecurity with PACE.
+     * Whether the file can be read without secure messaging. Only EF.CardAccess can, and the EF.ATR/INFO and EF.DIR
+     * of a chip measured to have them; ICAO 9303-11 protects EF.CardSecurity with PACE.
      */
-    fun isPublic(fid: Short): Boolean = fid == PassportService.EF_CARD_ACCESS
+    fun isPublic(fid: Short): Boolean =
+        fid == PassportService.EF_CARD_ACCESS || (fid == EF_ATR_INFO || fid == EF_DIR) && masterFiles.containsKey(fid)
 
     /** The reference of the test CVCA the chip trusts for Terminal Authentication, as in its EF.CVCA. */
     val cvcaReference: String get() = cvcaReference(configuration)
@@ -582,6 +608,7 @@ class PassportLdsFiles private constructor(
 val EcCurve.jcaName: String
     get() = when (this) {
         EcCurve.NIST_P192 -> "secp192r1"
+        EcCurve.NIST_P224 -> "secp224r1"
         EcCurve.NIST_P256 -> "secp256r1"
         EcCurve.NIST_P384 -> "secp384r1"
         EcCurve.NIST_P521 -> "secp521r1"

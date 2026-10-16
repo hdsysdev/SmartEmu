@@ -4,42 +4,60 @@ import android.util.Log
 import com.hddev.smartemu.data.EcCurve
 import com.hddev.smartemu.data.PaceMapping
 import com.hddev.smartemu.data.PaceSpec
+import com.hddev.smartemu.data.PaceSuite
 import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.SessionCipher
 import com.hddev.smartemu.data.chipConfiguration
 import net.sf.scuba.tlv.TLVUtil
+import net.sf.scuba.util.Hex
+import org.jmrtd.AccessKeySpec
 import org.jmrtd.BACKey
 import org.jmrtd.PACEKeySpec
 import org.jmrtd.PassportService
 import org.jmrtd.Util
 import org.jmrtd.lds.PACEInfo
+import org.jmrtd.lds.SecurityInfo
 import org.jmrtd.protocol.PACEGMWithECDHAgreement
 import org.jmrtd.protocol.PACEProtocol
+import java.math.BigInteger
+import java.security.KeyFactory
 import java.security.KeyPair
 import java.security.MessageDigest
+import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.SecureRandom
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
+import java.security.spec.AlgorithmParameterSpec
 import java.security.spec.ECParameterSpec
 import javax.crypto.Cipher
 import javax.crypto.SecretKey
+import javax.crypto.interfaces.DHPublicKey
+import javax.crypto.spec.DHParameterSpec
+import javax.crypto.spec.DHPrivateKeySpec
+import javax.crypto.spec.DHPublicKeySpec
 import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * Chip side of PACE (Password Authenticated Connection Establishment), ICAO 9303 part 11 section 4.4, with the
  * MRZ or the CAN as password. Mirrors the reader side in JMRTD's PACEProtocol and reuses its key derivation,
- * nonce mapping and authentication token helpers. The chip offers one protocol, ECDH on the curve and with the
- * cipher of the chip's configuration (see [PassportData.chipConfiguration]) and the mapping chosen by
- * [PassportData.paceMapping], as advertised in EF.CardAccess by [paceInfo]:
- * - Generic Mapping (GM): G~ = s * G + H, with H from an ECDH exchange of mapping keys
- * - Chip Authentication Mapping (CAM): GM, and the chip proves it holds the private key for the public key
+ * nonce mapping and authentication token helpers. The chip offers the suites of its configuration's
+ * [com.hddev.smartemu.data.ChipConfiguration.paceSuites], as advertised in EF.CardAccess by [paceInfo]: usually one,
+ * the document's mapping ([PassportData.paceMapping]) with ECDH on a curve or Diffie-Hellman in a group, and a cipher.
+ * - Generic Mapping (GM): G~ = s * G + H (ECDH) or g~ = g^s * h (DH), with H or h from a key exchange of mapping keys
+ * - Integrated Mapping (IM): the generator is a pseudo-random function of the chip's nonce s and the nonce t the
+ *   reader sends in clear, mapped onto the curve with Icart's point encoding, or into the subgroup as x^((p-1)/q)
+ * - Chip Authentication Mapping (CAM, ECDH only): GM, and the chip proves it holds the private key for the public key
  *   in EF.CardSecurity by sending CA = SK_map * SK_chip^-1 mod n, encrypted, with its authentication token
  *
- * The reader selects the protocol with MSE:Set AT, then runs four GENERAL AUTHENTICATE steps:
- * encrypted nonce, nonce mapping, ephemeral key exchange and mutual authentication tokens.
+ * The reader selects a suite with MSE:Set AT, naming its domain parameters (DO'84) when the chip offers more than
+ * one set, then runs four GENERAL AUTHENTICATE steps: encrypted nonce, nonce mapping, ephemeral key exchange and
+ * mutual authentication tokens. The chip checks what the reader sends as strictly as ICAO 9303 words it.
+ *
+ * [secureRandom] supplies the nonce and the chip's key pairs; tests pass a fixed one to replay ICAO's worked example.
  */
-class PaceProtocol {
+class PaceProtocol(private val secureRandom: SecureRandom = SecureRandom()) {
 
     companion object {
         private const val TAG = "PaceProtocol"
@@ -61,6 +79,12 @@ class PaceProtocol {
         private const val TAG_AUTHENTICATION_TOKEN_PICC = 0x86
         private const val TAG_ENCRYPTED_CHIP_AUTHENTICATION_DATA = 0x8A
 
+        /** Integrated Mapping's pseudo-random function constants c0 and c1, ICAO 9303-11 4.4.3.3.2, by nonce length. */
+        private val IM_C0_128 = Hex.hexStringToBytes("A668892A7C41E3CA739F40B057D85904")
+        private val IM_C1_128 = Hex.hexStringToBytes("A4E136AC725F738B01C1F60217C188AD")
+        private val IM_C0_256 = Hex.hexStringToBytes("D463D65234124EF7897054986DCA0A174E28DF758CBAA03F240616414D5A1676")
+        private val IM_C1_256 = Hex.hexStringToBytes("54BD7255F0AAF831BEC3423FCF39D69B6CBF066677D0FAAE5AADD99DF8E53517")
+
         /** Plain block encrypted with KS_enc to get the IV for the CAM chip authentication data, all bits 1. */
         private val MINUS_ONE_BLOCK = ByteArray(16) { 0xFF.toByte() }
 
@@ -73,28 +97,36 @@ class PaceProtocol {
         const val SW_AUTHENTICATION_FAILED = 0x6300
 
         /**
-         * The PACE protocol identifier for a mapping and cipher. ICAO 9303-11 defines CAM with AES only.
+         * The PACE protocol identifier for a mapping and cipher, with ECDH or, if [dh], Diffie-Hellman: id-PACE
+         * followed by the key agreement and mapping, then the cipher. ICAO 9303-11 defines CAM for ECDH with AES only.
          */
-        fun oid(mapping: PaceMapping, cipher: SessionCipher = SessionCipher.AES_128): String = when (mapping) {
-            PaceMapping.GENERIC -> when (cipher) {
-                SessionCipher.TDES -> PACEInfo.ID_PACE_ECDH_GM_3DES_CBC_CBC
-                SessionCipher.AES_128 -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_128
-                SessionCipher.AES_192 -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_192
-                SessionCipher.AES_256 -> PACEInfo.ID_PACE_ECDH_GM_AES_CBC_CMAC_256
+        fun oid(mapping: PaceMapping, cipher: SessionCipher = SessionCipher.AES_128, dh: Boolean = false): String {
+            val family = when (mapping) {
+                PaceMapping.GENERIC -> if (dh) SecurityInfo.ID_PACE_DH_GM else SecurityInfo.ID_PACE_ECDH_GM
+                PaceMapping.INTEGRATED -> if (dh) SecurityInfo.ID_PACE_DH_IM else SecurityInfo.ID_PACE_ECDH_IM
+                PaceMapping.CHIP_AUTHENTICATION -> {
+                    require(!dh) { "PACE-CAM is defined for ECDH only" }
+                    require(cipher.isAes) { "PACE-CAM is defined with AES only" }
+                    SecurityInfo.ID_PACE_ECDH_CAM
+                }
             }
-            PaceMapping.CHIP_AUTHENTICATION -> when (cipher) {
-                SessionCipher.TDES -> throw IllegalArgumentException("PACE-CAM is defined with AES only")
-                SessionCipher.AES_128 -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_128
-                SessionCipher.AES_192 -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_192
-                SessionCipher.AES_256 -> PACEInfo.ID_PACE_ECDH_CAM_AES_CBC_CMAC_256
+            val cipherNumber = when (cipher) {
+                SessionCipher.TDES -> 1
+                SessionCipher.AES_128 -> 2
+                SessionCipher.AES_192 -> 3
+                SessionCipher.AES_256 -> 4
             }
+            return "$family.$cipherNumber"
         }
 
+        fun oid(suite: PaceSuite): String = oid(suite.mapping, suite.spec.cipher, suite.spec.usesDh)
+
         /**
-         * The PACEInfo published in EF.CardAccess, and copied to EF.DG14.
+         * A PACEInfo published in EF.CardAccess, and copied to EF.DG14 and EF.CardSecurity.
          */
-        fun paceInfo(mapping: PaceMapping, spec: PaceSpec = PaceSpec()): PACEInfo =
-            PACEInfo(oid(mapping, spec.cipher), PACE_VERSION, spec.curve.paceParameterId)
+        fun paceInfo(suite: PaceSuite): PACEInfo = PACEInfo(oid(suite), PACE_VERSION, suite.spec.parameterId)
+
+        fun paceInfo(mapping: PaceMapping, spec: PaceSpec = PaceSpec()): PACEInfo = paceInfo(PaceSuite(mapping, spec))
 
         /**
          * A static chip key pair for PACE-CAM. It must be on the PACE domain parameters; the public key goes in
@@ -104,6 +136,91 @@ class PaceProtocol {
             val keyPairGenerator = Util.getKeyPairGenerator("EC")
             keyPairGenerator.initialize(PACEInfo.toParameterSpec(curve.paceParameterId), SecureRandom())
             return keyPairGenerator.generateKeyPair()
+        }
+
+        /**
+         * Decodes an uncompressed EC point a reader sent, 04 || X || Y, or returns null if it is not a point on the
+         * curve of [parameters]. Each coordinate must take exactly the field's size, as on a real chip: JMRTD would
+         * split a point of any other length down the middle and could read a badly encoded point as a valid one.
+         */
+        fun decodeReaderPublicKey(encoded: ByteArray, parameters: ECParameterSpec): ECPublicKey? {
+            val coordinateSize = (parameters.curve.field.fieldSize + 7) / 8
+            if (encoded.size != 1 + 2 * coordinateSize) {
+                Log.w(TAG, "Public key from reader has ${encoded.size} bytes, not ${1 + 2 * coordinateSize}")
+                return null
+            }
+            return try {
+                val publicKey = PACEProtocol.decodePublicKeyFromSmartCard(encoded, parameters) as ECPublicKey
+                val point = Util.toBouncyCastleECPoint(publicKey.w, parameters)
+                if (point.isValid && !point.isInfinity) publicKey else null
+            } catch (e: Exception) {
+                Log.w(TAG, "Invalid public key from reader", e)
+                null
+            }
+        }
+
+        /**
+         * Decodes a Diffie-Hellman public value y a reader sent, or returns null unless it is an element of the
+         * subgroup of order [q]: 1 < y < p - 1 and y^q = 1 mod p, the RFC 2631 check that keeps small subgroups out.
+         * ICAO 9303-11 9.4.1 encodes it as an unsigned integer in as few bytes as possible, so a leading zero byte is
+         * an encoding error, as on a strict chip.
+         */
+        fun decodeReaderDhPublicKey(encoded: ByteArray, parameters: DHParameterSpec, q: BigInteger): DHPublicKey? {
+            if (encoded.isEmpty() || encoded[0] == 0.toByte()) {
+                Log.w(TAG, "Public value from reader is empty or has a leading zero byte")
+                return null
+            }
+            val y = BigInteger(1, encoded)
+            val p = parameters.p
+            if (y <= BigInteger.ONE || y >= p - BigInteger.ONE || y.modPow(q, p) != BigInteger.ONE) {
+                Log.w(TAG, "Public value from reader is not in the subgroup")
+                return null
+            }
+            return KeyFactory.getInstance("DH").generatePublic(DHPublicKeySpec(y, p, parameters.g)) as DHPublicKey
+        }
+
+        /**
+         * Integrated Mapping's pseudo-random function R_p(s, t), ICAO 9303-11 4.4.3.3.2: the cipher in CBC mode with a
+         * zero IV, keyed first with t, then with each output truncated to the key size, until n * l >= log2 p + 64.
+         * JMRTD's PACEProtocol has it too, but keys two-key 3DES with 16 bytes, which only some JCE providers take;
+         * here a 16-byte key becomes the equivalent K1 || K2 || K1.
+         */
+        internal fun integratedMappingPrf(s: ByteArray, t: ByteArray, p: BigInteger, cipher: SessionCipher): BigInteger {
+            val (c0, c1) = when (s.size) {
+                16 -> IM_C0_128 to IM_C1_128
+                24, 32 -> IM_C0_256 to IM_C1_256
+                else -> throw IllegalArgumentException("Nonce s of ${s.size} bytes")
+            }
+            val algorithm = if (cipher.isAes) "AES" else "DESede"
+            val blockCipher = Util.getCipher("$algorithm/CBC/NoPadding")
+            val zeroIv = IvParameterSpec(ByteArray(blockCipher.blockSize))
+            fun key(bytes: ByteArray) = SecretKeySpec(
+                if (cipher.isAes) bytes else bytes + bytes.copyOfRange(0, 8),
+                algorithm
+            )
+
+            blockCipher.init(Cipher.ENCRYPT_MODE, key(t), zeroIv)
+            var k = blockCipher.doFinal(s)
+            var x = byteArrayOf()
+            var n = 0
+            while (n * s.size * 8 < p.bitLength() + 64) {
+                blockCipher.init(Cipher.ENCRYPT_MODE, key(k.copyOfRange(0, t.size)), zeroIv)
+                k = blockCipher.doFinal(c0)
+                x += blockCipher.doFinal(c1)
+                n++
+            }
+            return BigInteger(1, x).mod(p)
+        }
+
+        /**
+         * The length of the nonce s: one block of the cipher, except that Integrated Mapping takes the smallest
+         * multiple of the block size at least the key size (ICAO 9303-11 4.4.3.3), 32 bytes for AES-192 and AES-256.
+         */
+        internal fun nonceLength(mapping: PaceMapping, cipher: SessionCipher): Int {
+            val blockSize = if (cipher.isAes) 16 else 8
+            if (mapping != PaceMapping.INTEGRATED) return blockSize
+            val keySize = cipher.keyLength / 8
+            return (keySize + blockSize - 1) / blockSize * blockSize
         }
     }
 
@@ -161,30 +278,35 @@ class PaceProtocol {
      */
     private class PaceStepException(message: String, val statusWord: Int) : Exception(message)
 
-    private val secureRandom = SecureRandom()
-
-    // The protocol the chip offers, set by initialize()
-    private var spec = PaceSpec()
-    private var staticParameters = PACEInfo.toParameterSpec(PARAMETER_ID) as ECParameterSpec
-    private val cipherAlgorithm: String get() = if (spec.cipher.isAes) "AES" else "DESede"
+    // The suites the chip offers, set by initialize()
+    private var suites = listOf(PaceSuite(PaceMapping.GENERIC, PaceSpec()))
+    private var mrzKey: AccessKeySpec? = null
+    private var canKey: AccessKeySpec? = null
+    /** PACE-CAM's static key pairs, by the parameter ID of the curve they're on. */
+    private var chipAuthenticationKeyPairs: Map<Int, KeyPair> = emptyMap()
 
     private var currentState = PaceState.INITIAL
-    private var mapping = PaceMapping.GENERIC
-    private var mrzPasswordKey: SecretKey? = null
-    private var canPasswordKey: SecretKey? = null
-    private var chipAuthenticationKeyPair: KeyPair? = null
 
-    /** Protocol identifier of the mapping and cipher the chip offers. */
-    val oid: String get() = oid(mapping, spec.cipher)
+    /** The suite the reader selected with MSE:Set AT, or the first one the chip offers before it has. */
+    var suite: PaceSuite = suites.first()
+        private set
+    private val spec: PaceSpec get() = suite.spec
+    private val cipherAlgorithm: String get() = if (spec.cipher.isAes) "AES" else "DESede"
 
-    /** The domain parameters the chip offers, as in "brainpoolP256r1". */
+    /** Protocol identifier of [suite]. */
+    val oid: String get() = oid(suite)
+
+    /** The curve of [suite], as in "brainpoolP256r1", unless it runs Diffie-Hellman. */
     val curve: EcCurve get() = spec.curve
 
     // Per-run values, discarded by reset()
     private var passwordKey: SecretKey? = null
+    private var staticParameters: AlgorithmParameterSpec? = null
+    /** The order of the DH subgroup, which the mapped generator keeps but JCA's DHParameterSpec can't carry. */
+    private var subgroupOrder: BigInteger? = null
     private var nonce: ByteArray? = null
     private var chipMappingKeyPair: KeyPair? = null
-    private var ephemeralParameters: ECParameterSpec? = null
+    private var ephemeralParameters: AlgorithmParameterSpec? = null
     private var chipEphemeralKeyPair: KeyPair? = null
     private var readerEphemeralPublicKey: PublicKey? = null
     private var ksEnc: SecretKey? = null
@@ -192,33 +314,33 @@ class PaceProtocol {
     private var secureMessaging: ChipSecureMessaging? = null
 
     /**
-     * Initializes PACE with passport data, deriving the password keys K_pi from the MRZ and the CAN.
-     * PACE-CAM also needs the static [chipAuthenticationKeyPair] whose public key is in EF.CardSecurity.
+     * Initializes PACE with passport data: the suites its chip offers and the passwords, the MRZ and the CAN.
+     * PACE-CAM also needs the static [chipAuthenticationKeyPairs], by the parameter ID of each CAM suite's curve, whose
+     * public keys are in EF.CardSecurity.
      */
-    fun initialize(passportData: PassportData, chipAuthenticationKeyPair: KeyPair? = null): PaceResult {
+    fun initialize(passportData: PassportData, chipAuthenticationKeyPairs: Map<Int, KeyPair> = emptyMap()): PaceResult {
         return try {
+            val configuration = passportData.chipConfiguration()
+            val offered = configuration.paceSuites.ifEmpty { listOf(PaceSuite(configuration.paceMapping, configuration.pace)) }
+            val camWithoutKey = offered.firstOrNull {
+                it.mapping == PaceMapping.CHIP_AUTHENTICATION && it.spec.parameterId !in chipAuthenticationKeyPairs
+            }
             if (!passportData.isValid()) {
                 Log.e(TAG, "Invalid passport data provided for PACE initialization")
                 currentState = PaceState.FAILED
                 PaceResult(false, "Invalid passport data", newState = PaceState.FAILED)
-            } else if (passportData.paceMapping == PaceMapping.CHIP_AUTHENTICATION && chipAuthenticationKeyPair == null) {
-                Log.e(TAG, "PACE-CAM needs a chip authentication key pair")
+            } else if (camWithoutKey != null) {
+                Log.e(TAG, "${camWithoutKey.displayName} needs a chip authentication key pair")
                 currentState = PaceState.FAILED
                 PaceResult(false, "Missing chip authentication key for PACE-CAM", newState = PaceState.FAILED)
             } else {
-                mapping = passportData.paceMapping
-                spec = passportData.chipConfiguration().pace
-                staticParameters = PACEInfo.toParameterSpec(spec.curve.paceParameterId) as ECParameterSpec
-                this.chipAuthenticationKeyPair = chipAuthenticationKeyPair
-                val mrzKey = BACKey(passportData.passportNumber, passportData.mrzDateOfBirth(), passportData.mrzExpiryDate())
-                mrzPasswordKey = PACEProtocol.deriveStaticPACEKey(mrzKey, oid)
-                canPasswordKey = if (passportData.hasCan()) {
-                    PACEProtocol.deriveStaticPACEKey(PACEKeySpec.createCANKey(passportData.can), oid)
-                } else {
-                    null
-                }
+                suites = offered
+                suite = offered.first()
+                this.chipAuthenticationKeyPairs = chipAuthenticationKeyPairs
+                mrzKey = BACKey(passportData.passportNumber, passportData.mrzDateOfBirth(), passportData.mrzExpiryDate())
+                canKey = if (passportData.hasCan()) PACEKeySpec.createCANKey(passportData.can) else null
                 reset()
-                Log.d(TAG, "PACE-${mapping.abbreviation} on ${spec.curve.displayName} with ${spec.cipher.displayName} initialized")
+                Log.d(TAG, "PACE initialized with ${offered.joinToString { it.displayName }}")
                 PaceResult(true, "PACE initialized", newState = PaceState.INITIAL)
             }
         } catch (e: Exception) {
@@ -230,10 +352,11 @@ class PaceProtocol {
 
     /**
      * Processes MSE:Set AT (P1-P2 C1 A4): the cryptographic mechanism (DO'80), password reference (DO'83) and
-     * optional domain parameter identifier (DO'84). Starts a new PACE run.
+     * domain parameter identifier (DO'84), which ICAO 9303-11 4.4.4.1 requires when the chip offers more than one set
+     * of domain parameters. Selects the suite and derives K_pi for it, starting a new PACE run.
      */
     fun processMseSetAt(data: ByteArray): PaceResult {
-        if (mrzPasswordKey == null) {
+        if (mrzKey == null) {
             return PaceResult(false, "PACE not initialized", newState = currentState)
         }
         reset()
@@ -245,31 +368,48 @@ class PaceProtocol {
         }
 
         val mechanism = dataObjects[TAG_CRYPTOGRAPHIC_MECHANISM]
-        if (mechanism == null || !TLVUtil.wrapDO(TAG_CRYPTOGRAPHIC_MECHANISM, mechanism).contentEquals(Util.toOIDBytes(oid))) {
+            ?.let { TLVUtil.wrapDO(TAG_CRYPTOGRAPHIC_MECHANISM, it) }
+        val requested = suites.filter { mechanism != null && mechanism.contentEquals(Util.toOIDBytes(oid(it))) }
+        if (requested.isEmpty()) {
             return fail("Unsupported PACE protocol", SW_WRONG_DATA)
         }
 
         // The MRZ is always a password; the CAN only if one is printed on the document. There is no PIN or PUK.
         val passwordReference = dataObjects[TAG_PASSWORD_REFERENCE]?.singleOrNull()
-        val (selectedKey, passwordName) = when (passwordReference) {
-            PassportService.MRZ_PACE_KEY_REFERENCE -> mrzPasswordKey to "MRZ"
-            PassportService.CAN_PACE_KEY_REFERENCE -> canPasswordKey to "CAN"
+        val (accessKey, passwordName) = when (passwordReference) {
+            PassportService.MRZ_PACE_KEY_REFERENCE -> mrzKey to "MRZ"
+            PassportService.CAN_PACE_KEY_REFERENCE -> canKey to "CAN"
             else -> null to null
         }
-        if (selectedKey == null) {
+        if (accessKey == null) {
             return fail("Unsupported PACE password", SW_REFERENCED_DATA_NOT_FOUND)
         }
 
         val domainParameterId = dataObjects[TAG_DOMAIN_PARAMETER_ID]
-        if (domainParameterId != null && Util.os2i(domainParameterId).toInt() != spec.curve.paceParameterId) {
-            return fail("Unsupported PACE domain parameters", SW_REFERENCED_DATA_NOT_FOUND)
+        val selected = if (domainParameterId != null) {
+            val parameterId = Util.os2i(domainParameterId).toInt()
+            requested.find { it.spec.parameterId == parameterId }
+                ?: return fail("Unsupported PACE domain parameters", SW_REFERENCED_DATA_NOT_FOUND)
+        } else if (suites.map { it.spec.parameterId }.distinct().size > 1) {
+            return fail("MSE:Set AT names no domain parameters, but the chip offers several", SW_WRONG_DATA)
+        } else {
+            // One set of domain parameters, so one suite per protocol identifier
+            requested.single()
         }
 
-        passwordKey = selectedKey
-        currentState = PaceState.KEY_SELECTED
-        val message = "PACE-${mapping.abbreviation} selected with the $passwordName"
-        Log.d(TAG, message)
-        return PaceResult(true, message, newState = currentState)
+        return try {
+            passwordKey = PACEProtocol.deriveStaticPACEKey(accessKey, oid(selected))
+            staticParameters = PACEInfo.toParameterSpec(selected.spec.parameterId)
+            subgroupOrder = (staticParameters as? PACEInfo.DHCParameterSpec)?.q
+            suite = selected
+            currentState = PaceState.KEY_SELECTED
+            val message = "${selected.displayName} selected with the $passwordName"
+            Log.d(TAG, message)
+            PaceResult(true, message, newState = currentState)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to derive the PACE password key", e)
+            fail("PACE password key derivation failed: ${e.message}", SW_WRONG_DATA)
+        }
     }
 
     /**
@@ -285,7 +425,11 @@ class PaceProtocol {
 
             val response = when (step) {
                 PaceState.KEY_SELECTED -> sendEncryptedNonce(dataObjects)
-                PaceState.NONCE_SENT -> mapNonceGeneric(dataObjects)
+                PaceState.NONCE_SENT -> if (suite.mapping == PaceMapping.INTEGRATED) {
+                    mapNonceIntegrated(dataObjects)
+                } else {
+                    mapNonceGeneric(dataObjects)
+                }
                 PaceState.NONCE_MAPPED -> exchangeEphemeralKeys(dataObjects)
                 PaceState.KEYS_AGREED -> exchangeAuthenticationTokens(dataObjects)
                 else -> throw PaceStepException("GENERAL AUTHENTICATE out of sequence in state $step", SW_CONDITIONS_NOT_SATISFIED)
@@ -318,9 +462,9 @@ class PaceProtocol {
     fun getSecureMessaging(): ChipSecureMessaging? = secureMessaging
 
     /**
-     * The mapping the chip offers.
+     * The mapping of [suite].
      */
-    fun getMapping(): PaceMapping = mapping
+    fun getMapping(): PaceMapping = suite.mapping
 
     /**
      * Resets PACE to its initial state, keeping the password keys.
@@ -328,6 +472,8 @@ class PaceProtocol {
     fun reset() {
         currentState = PaceState.INITIAL
         passwordKey = null
+        staticParameters = null
+        subgroupOrder = null
         nonce = null
         chipMappingKeyPair = null
         ephemeralParameters = null
@@ -345,8 +491,7 @@ class PaceProtocol {
         if (dataObjects.isNotEmpty()) throw PaceStepException("Unexpected data in PACE step 1", SW_WRONG_DATA)
 
         val cipher = Util.getCipher("$cipherAlgorithm/CBC/NoPadding")
-        // One block of nonce: 16 bytes with AES, 8 with 3DES
-        val s = ByteArray(cipher.blockSize).also { secureRandom.nextBytes(it) }
+        val s = ByteArray(nonceLength(suite.mapping, spec.cipher)).also { secureRandom.nextBytes(it) }
         cipher.init(Cipher.ENCRYPT_MODE, passwordKey, IvParameterSpec(ByteArray(cipher.blockSize)))
         val encryptedNonce = cipher.doFinal(s)
 
@@ -356,18 +501,34 @@ class PaceProtocol {
     }
 
     /**
-     * Step 2, generic mapping (also used by CAM): exchange mapping keys, H = SK_map_PICC * PK_map_PCD and
-     * G~ = s * G + H.
+     * Step 2, generic mapping (also used by CAM): exchange mapping keys, then G~ = s * G + H with
+     * H = SK_map_PICC * PK_map_PCD for ECDH, or g~ = g^s * h mod p with h = PK_map_PCD^SK_map_PICC for DH.
      */
     private fun mapNonceGeneric(dataObjects: Map<Int, ByteArray>): ByteArray {
-        val readerMappingKey = dataObjects[TAG_MAPPING_DATA_PCD]?.let { decodePublicKey(it, staticParameters) }
-            ?: throw PaceStepException("Invalid mapping data in PACE step 2", SW_WRONG_DATA)
-
-        val chipMappingKeyPair = generateKeyPair(staticParameters)
-        val agreement = PACEGMWithECDHAgreement()
-        agreement.init(chipMappingKeyPair.private)
-        val sharedSecretPoint = agreement.doPhase(readerMappingKey)
-        ephemeralParameters = PACEProtocol.mapNonceGMWithECDH(nonce, sharedSecretPoint, staticParameters)
+        val readerMappingData = dataObjects[TAG_MAPPING_DATA_PCD]
+        val chipMappingKeyPair: KeyPair
+        when (val parameters = staticParameters) {
+            is ECParameterSpec -> {
+                val readerMappingKey = readerMappingData?.let { decodeReaderPublicKey(it, parameters) }
+                    ?: throw PaceStepException("Invalid mapping data in PACE step 2", SW_WRONG_DATA)
+                chipMappingKeyPair = generateKeyPair(parameters)
+                val agreement = PACEGMWithECDHAgreement()
+                agreement.init(chipMappingKeyPair.private)
+                val sharedSecretPoint = agreement.doPhase(readerMappingKey)
+                ephemeralParameters = PACEProtocol.mapNonceGMWithECDH(nonce, sharedSecretPoint, parameters)
+            }
+            is DHParameterSpec -> {
+                val q = requireSubgroupOrder()
+                val readerMappingKey = readerMappingData?.let { decodeReaderDhPublicKey(it, parameters, q) }
+                    ?: throw PaceStepException("Invalid mapping data in PACE step 2", SW_WRONG_DATA)
+                chipMappingKeyPair = generateDhKeyPair(parameters, q)
+                val sharedSecret = dhAgreement(chipMappingKeyPair.private, readerMappingKey)
+                ephemeralParameters = checkedGenerator(
+                    PACEProtocol.mapNonceGMWithDH(nonce, Util.os2i(sharedSecret), parameters)
+                )
+            }
+            else -> throw PaceStepException("PACE domain parameters not selected", SW_CONDITIONS_NOT_SATISFIED)
+        }
 
         this.chipMappingKeyPair = chipMappingKeyPair
         currentState = PaceState.NONCE_MAPPED
@@ -375,24 +536,72 @@ class PaceProtocol {
     }
 
     /**
+     * Step 2, integrated mapping: the reader sends the nonce t, exactly the cipher's key size (ICAO 9303-11
+     * 4.4.3.3), and the generator is f(R_p(s, t)): Icart's point encoding for ECDH, x^((p-1)/q) mod p for DH. The
+     * chip's mapping data is empty (4.4.5.2.2).
+     */
+    private fun mapNonceIntegrated(dataObjects: Map<Int, ByteArray>): ByteArray {
+        val t = dataObjects[TAG_MAPPING_DATA_PCD]
+            ?: throw PaceStepException("Missing nonce t in PACE step 2", SW_WRONG_DATA)
+        val keySize = spec.cipher.keyLength / 8
+        if (t.size != keySize) {
+            throw PaceStepException("Nonce t has ${t.size} bytes rather than the key size, $keySize", SW_WRONG_DATA)
+        }
+
+        val s = nonce ?: throw PaceStepException("PACE nonce not sent", SW_CONDITIONS_NOT_SATISFIED)
+        ephemeralParameters = when (val parameters = staticParameters) {
+            is ECParameterSpec -> {
+                val x = integratedMappingPrf(s, t, Util.getPrime(parameters), spec.cipher)
+                ECParameterSpec(parameters.curve, PACEProtocol.icartPointEncode(x, parameters), parameters.order, parameters.cofactor)
+            }
+            is DHParameterSpec -> {
+                val q = requireSubgroupOrder()
+                val x = integratedMappingPrf(s, t, parameters.p, spec.cipher)
+                val g = x.modPow((parameters.p - BigInteger.ONE) / q, parameters.p)
+                checkedGenerator(DHParameterSpec(parameters.p, g, parameters.l))
+            }
+            else -> throw PaceStepException("PACE domain parameters not selected", SW_CONDITIONS_NOT_SATISFIED)
+        }
+
+        currentState = PaceState.NONCE_MAPPED
+        return TLVUtil.wrapDO(TAG_MAPPING_DATA_PICC, ByteArray(0))
+    }
+
+    /**
      * Step 3: exchange ephemeral keys on the mapped domain parameters, K = KA(SK_PICC~, PK_PCD~),
      * and derive the session keys KS_enc and KS_mac from K.
      */
     private fun exchangeEphemeralKeys(dataObjects: Map<Int, ByteArray>): ByteArray {
-        val parameters = ephemeralParameters ?: throw PaceStepException("PACE nonce not mapped", SW_CONDITIONS_NOT_SATISFIED)
-        val readerKey = dataObjects[TAG_EPHEMERAL_PUBLIC_KEY_PCD]?.let { decodePublicKey(it, parameters) }
-            ?: throw PaceStepException("Invalid ephemeral public key in PACE step 3", SW_WRONG_DATA)
+        val readerKeyData = dataObjects[TAG_EPHEMERAL_PUBLIC_KEY_PCD]
+        val readerKey: PublicKey
+        val chipKeyPair: KeyPair
+        val sharedSecret: ByteArray
+        when (val parameters = ephemeralParameters) {
+            is ECParameterSpec -> {
+                val readerEcKey = readerKeyData?.let { decodeReaderPublicKey(it, parameters) }
+                    ?: throw PaceStepException("Invalid ephemeral public key in PACE step 3", SW_WRONG_DATA)
+                chipKeyPair = generateKeyPair(parameters)
+                // ICAO 9303-11: the chip must check that the reader did not echo its ephemeral public key
+                if (readerEcKey.w == (chipKeyPair.public as ECPublicKey).w) throw echoedKey()
 
-        val chipKeyPair = generateKeyPair(parameters)
-        // ICAO 9303-11: the chip must check that the reader did not echo its ephemeral public key
-        if ((readerKey as ECPublicKey).w == (chipKeyPair.public as ECPublicKey).w) {
-            throw PaceStepException("Reader ephemeral public key equals the chip's", SW_WRONG_DATA)
+                val keyAgreement = Util.getKeyAgreement("ECDH")
+                keyAgreement.init(chipKeyPair.private)
+                keyAgreement.doPhase(PACEProtocol.updateParameterSpec(readerEcKey, chipKeyPair.private), true)
+                sharedSecret = keyAgreement.generateSecret()
+                readerKey = readerEcKey
+            }
+            is DHParameterSpec -> {
+                val q = requireSubgroupOrder()
+                val readerDhKey = readerKeyData?.let { decodeReaderDhPublicKey(it, parameters, q) }
+                    ?: throw PaceStepException("Invalid ephemeral public key in PACE step 3", SW_WRONG_DATA)
+                chipKeyPair = generateDhKeyPair(parameters, q)
+                if (readerDhKey.y == (chipKeyPair.public as DHPublicKey).y) throw echoedKey()
+
+                sharedSecret = dhAgreement(chipKeyPair.private, readerDhKey)
+                readerKey = readerDhKey
+            }
+            else -> throw PaceStepException("PACE nonce not mapped", SW_CONDITIONS_NOT_SATISFIED)
         }
-
-        val keyAgreement = Util.getKeyAgreement("ECDH")
-        keyAgreement.init(chipKeyPair.private)
-        keyAgreement.doPhase(PACEProtocol.updateParameterSpec(readerKey, chipKeyPair.private), true)
-        val sharedSecret = keyAgreement.generateSecret()
         ksEnc = Util.deriveKey(sharedSecret, cipherAlgorithm, spec.cipher.keyLength, Util.ENC_MODE)
         ksMac = Util.deriveKey(sharedSecret, cipherAlgorithm, spec.cipher.keyLength, Util.MAC_MODE)
 
@@ -426,14 +635,14 @@ class PaceProtocol {
         val chipToken = TLVUtil.wrapDO(
             TAG_AUTHENTICATION_TOKEN_PICC, PACEProtocol.generateAuthenticationToken(oid, macKey, readerKey)
         )
-        val response = if (mapping == PaceMapping.CHIP_AUTHENTICATION) {
+        val response = if (suite.mapping == PaceMapping.CHIP_AUTHENTICATION) {
             chipToken + TLVUtil.wrapDO(TAG_ENCRYPTED_CHIP_AUTHENTICATION_DATA, encryptChipAuthenticationData(encKey))
         } else {
             chipToken
         }
         secureMessaging = ChipSecureMessaging(encKey, macKey, 0L, ChipSecureMessaging.algorithmFor(spec.cipher))
         currentState = PaceState.AUTHENTICATED
-        Log.d(TAG, "PACE-${mapping.abbreviation} authentication successful")
+        Log.d(TAG, "${suite.displayName} authentication successful")
         return response
     }
 
@@ -445,10 +654,10 @@ class PaceProtocol {
     private fun encryptChipAuthenticationData(encKey: SecretKey): ByteArray {
         val mappingKey = chipMappingKeyPair?.private as? ECPrivateKey
             ?: throw PaceStepException("PACE-CAM mapping key missing", SW_CONDITIONS_NOT_SATISFIED)
-        val staticKey = chipAuthenticationKeyPair?.private as? ECPrivateKey
+        val staticKey = chipAuthenticationKeyPairs[spec.parameterId]?.private as? ECPrivateKey
             ?: throw PaceStepException("PACE-CAM chip key missing", SW_CONDITIONS_NOT_SATISFIED)
 
-        val order = staticParameters.order
+        val order = mappingKey.params.order
         val chipAuthenticationData = mappingKey.s.multiply(staticKey.s.modInverse(order)).mod(order)
 
         val iv = Util.getCipher("AES/ECB/NoPadding", Cipher.ENCRYPT_MODE, encKey).doFinal(MINUS_ONE_BLOCK)
@@ -465,17 +674,39 @@ class PaceProtocol {
     }
 
     /**
-     * Decodes an uncompressed EC point sent by the reader, rejecting points that are not on the curve.
+     * A Diffie-Hellman key pair on [parameters]' generator, with the private key x drawn uniformly from 1 to q - 1,
+     * since the generator has order q. JCA's generators can't be told q, and would draw from a wider range.
      */
-    private fun decodePublicKey(encoded: ByteArray, parameters: ECParameterSpec): PublicKey? {
-        return try {
-            val publicKey = PACEProtocol.decodePublicKeyFromSmartCard(encoded, parameters) as ECPublicKey
-            val point = Util.toBouncyCastleECPoint(publicKey.w, parameters)
-            if (point.isValid && !point.isInfinity) publicKey else null
-        } catch (e: Exception) {
-            Log.w(TAG, "Invalid public key from reader", e)
-            null
-        }
+    private fun generateDhKeyPair(parameters: DHParameterSpec, q: BigInteger): KeyPair {
+        var x: BigInteger
+        do {
+            x = BigInteger(q.bitLength(), secureRandom)
+        } while (x.signum() == 0 || x >= q)
+        val y = parameters.g.modPow(x, parameters.p)
+        val keyFactory = KeyFactory.getInstance("DH")
+        return KeyPair(
+            keyFactory.generatePublic(DHPublicKeySpec(y, parameters.p, parameters.g)),
+            keyFactory.generatePrivate(DHPrivateKeySpec(x, parameters.p, parameters.g))
+        )
+    }
+
+    /** The Diffie-Hellman shared secret, as an octet string as long as p, as JCA's key agreement makes it. */
+    private fun dhAgreement(privateKey: PrivateKey, publicKey: PublicKey): ByteArray {
+        val keyAgreement = Util.getKeyAgreement("DH")
+        keyAgreement.init(privateKey)
+        keyAgreement.doPhase(publicKey, true)
+        return keyAgreement.generateSecret()
+    }
+
+    private fun echoedKey() = PaceStepException("Reader ephemeral public key equals the chip's", SW_WRONG_DATA)
+
+    private fun requireSubgroupOrder(): BigInteger =
+        subgroupOrder ?: throw PaceStepException("PACE DH group without a subgroup order", SW_CONDITIONS_NOT_SATISFIED)
+
+    /** ICAO 9303-11 4.4.3.3: a mapped DH generator of 1 would make every key 1, so the run stops there. */
+    private fun checkedGenerator(parameters: DHParameterSpec): DHParameterSpec {
+        if (parameters.g <= BigInteger.ONE) throw PaceStepException("Mapped generator is 1", SW_WRONG_DATA)
+        return parameters
     }
 
     private fun fail(message: String, statusWord: Int): PaceResult {

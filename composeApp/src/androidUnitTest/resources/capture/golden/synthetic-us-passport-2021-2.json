@@ -1,0 +1,876 @@
+{
+    "schemaVersion": 2,
+    "captureId": "d6d986ce-e7b2-4a27-a4a0-d9164594fa61",
+    "captureMonth": "2026-10",
+    "source": "ANDROID_READER",
+    "probePack": {
+        "id": "tier-a",
+        "version": 2
+    },
+    "additionalProbePacks": [],
+    "reader": {
+        "model": "SYNTHETIC reader A (JVM emulator not a phone)",
+        "androidVersion": "n/a (synthetic)",
+        "nfcChipset": "synthetic chipset A",
+        "controllerMaxTransceiveLength": 65279,
+        "controllerExtendedLengthSupported": true
+    },
+    "link": {
+        "technology": "NFC_A",
+        "historicalBytes": null,
+        "uidRandom": null,
+        "maxApduLengthObserved": null
+    },
+    "files": {
+        "cardAccess": {
+            "selectStatusWord": 27266,
+            "contentsHex": null,
+            "size": null
+        },
+        "atrInfo": {
+            "selectStatusWord": 27266,
+            "contentsHex": null,
+            "size": null
+        },
+        "dir": {
+            "selectStatusWord": 27266,
+            "contentsHex": null,
+            "size": null
+        }
+    },
+    "application": {
+        "selectStatusWord": 36864,
+        "responseSize": {
+            "minBytes": 0,
+            "maxBytes": 15
+        }
+    },
+    "bacCommands": {
+        "getChallenge": 36864,
+        "externalAuthenticate": 27013
+    },
+    "probes": [
+        {
+            "probeId": "external-authenticate-out-of-sequence",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "lc-40-le-28",
+                    "statusWord": 27013,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 1
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "lc-08-wrong-length",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 1
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "select-aid",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "p2-0c-no-le",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "p2-0c-le-00",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "p2-00-no-le",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "p2-00-le-00",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "p2-04-le-00",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "partial-aid",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "unknown-aid",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "lc-longer-than-data",
+                    "statusWord": 27264,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "select-fid",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "card-access-p1-02-p2-0c",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "card-access-p1-00-p2-0c",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "card-access-p2-00-le-00",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "card-access-p2-0c-le-00",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "card-access-from-application",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "card-security-from-master-file",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "ef-com-before-authentication",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "ef-sod-before-authentication",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "ef-dg1-before-authentication",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "unknown-fid",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "master-file-by-fid",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "lc-one",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "read-binary-order",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "no-file-selected",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "card-access-by-sfi",
+                    "statusWord": 27266,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "ef-com-by-sfi-before-authentication",
+                    "statusWord": 27010,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "odd-ins-no-file-selected",
+                    "statusWord": 27904,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "odd-ins-card-access",
+                    "statusWord": 27904,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "read-binary-wrong-length",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "le-01",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-04",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-00-at-offset-1",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "offset-beyond-file",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "lc-instead-of-le",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "read-binary-max-length",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "le-df",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-e0",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-ff",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-00",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "extended-le-0100",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "extended-le-ffff",
+                    "statusWord": 27014,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 27266,
+                    "repeatsAgree": true
+                }
+            ]
+        },
+        {
+            "probeId": "get-challenge-lengths",
+            "packVersion": 2,
+            "tier": "A",
+            "steps": [
+                {
+                    "stepId": "le-08",
+                    "statusWord": 36864,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-00",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-04",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-07",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-09",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "le-10",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                },
+                {
+                    "stepId": "no-le",
+                    "statusWord": 26368,
+                    "responseSize": {
+                        "minBytes": 0,
+                        "maxBytes": 15
+                    },
+                    "timing": {
+                        "minMs": 0,
+                        "medianMs": 0,
+                        "maxMs": 0,
+                        "samples": 3
+                    },
+                    "setupStatusWord": 36864,
+                    "repeatsAgree": true
+                }
+            ]
+        }
+    ],
+    "aborted": null,
+    "fingerprint": "95BF7E6DAC4E5E5C",
+    "observationDigest": "76B4E26BB1C0881B",
+    "redactions": [
+        {
+            "item": "DG1 contents and the MRZ",
+            "reason": "Identifies the holder"
+        },
+        {
+            "item": "DG2 contents (portrait)",
+            "reason": "Identifies the holder"
+        },
+        {
+            "item": "DG7, DG11 and DG12 contents",
+            "reason": "Identify the holder"
+        },
+        {
+            "item": "The CAN and any access key",
+            "reason": "Grants access to the chip"
+        },
+        {
+            "item": "The chip UID",
+            "reason": "Identifies a single chip"
+        },
+        {
+            "item": "Per-chip Active Authentication and Chip Authentication public keys",
+            "reason": "Identify a single chip"
+        },
+        {
+            "item": "EF.SOD data-group hash values",
+            "reason": "The DG1 hash can be brute-forced from the MRZ space"
+        },
+        {
+            "item": "Per-chip parts of EF.CardSecurity",
+            "reason": "Identify a single chip"
+        },
+        {
+            "item": "Exact file sizes",
+            "reason": "Rounded to buckets: quasi-identifiers"
+        },
+        {
+            "item": "Capture day and time",
+            "reason": "Only the month is kept"
+        },
+        {
+            "item": "The raw APDU transcript",
+            "reason": "Only typed observations are saved"
+        },
+        {
+            "item": "Per-chip and per-issuance data objects inside the public files and the historical bytes",
+            "reason": "Public key infos in EF.CardAccess, issuer and pre-issuing data in EF.ATR/INFO and the historical bytes, and everything but the application identifiers in EF.DIR are dropped before saving"
+        }
+    ]
+}

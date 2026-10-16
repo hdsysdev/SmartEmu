@@ -10,6 +10,8 @@
 
     <application
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -24,6 +26,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Capture mode: reads a real document. Hidden until unlocked in the settings; separate from the emulator -->
+        <activity
+            android:name=".capture.ui.CaptureActivity"
+            android:exported="false"
+            android:label="@string/capture_activity_label" />
 
         <!-- Host Card Emulation Service for Passport Simulation -->
         <service

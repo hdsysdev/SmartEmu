@@ -25,3 +25,6 @@ keystore/
 # Local agent tooling state
 .codex/
 .claude/.headroom_*
+
+# Per-generation profiles held back for steward review (rebuilt from the restricted store by the intake)
+profiles/pending/

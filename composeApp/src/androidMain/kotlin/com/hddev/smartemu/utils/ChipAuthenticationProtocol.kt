@@ -4,7 +4,6 @@ import android.util.Log
 import com.hddev.smartemu.data.ChipAuthenticationSpec
 import net.sf.scuba.tlv.TLVUtil
 import org.jmrtd.Util
-import org.jmrtd.protocol.PACEProtocol
 import java.security.KeyPair
 import java.security.PublicKey
 import java.security.interfaces.ECPrivateKey
@@ -129,15 +128,8 @@ class ChipAuthenticationProtocol(
     }
 
     /** Decodes the reader's uncompressed point on the chip key's curve, rejecting points not on it. */
-    private fun decodePublicKey(encoded: ByteArray): PublicKey? = try {
-        val parameters = (keyPair.public as ECPublicKey).params
-        val publicKey = PACEProtocol.decodePublicKeyFromSmartCard(encoded, parameters) as ECPublicKey
-        val point = Util.toBouncyCastleECPoint(publicKey.w, parameters)
-        if (point.isValid && !point.isInfinity) publicKey else null
-    } catch (e: Exception) {
-        Log.w(TAG, "Invalid public key from reader", e)
-        null
-    }
+    private fun decodePublicKey(encoded: ByteArray): PublicKey? =
+        PaceProtocol.decodeReaderPublicKey(encoded, (keyPair.public as ECPublicKey).params)
 
     private fun fail(message: String, statusWord: Int): Result {
         Log.w(TAG, message)

@@ -3,6 +3,7 @@ package com.hddev.smartemu
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
@@ -17,6 +18,8 @@ import com.hddev.smartemu.data.PassportSimulatorUiState
 import com.hddev.smartemu.data.SimulationStatus
 import com.hddev.smartemu.ui.components.PassportFullScreenDialog
 import com.hddev.smartemu.ui.components.PresetDialog
+import com.hddev.smartemu.ui.glossary.GlossaryHost
+import com.hddev.smartemu.ui.glossary.LocalGlossary
 import com.hddev.smartemu.ui.guided.GuidedApp
 import com.hddev.smartemu.ui.navigation.AppDestination
 import com.hddev.smartemu.ui.navigation.PlatformBackHandler
@@ -51,24 +54,26 @@ fun SmartEmuApp(
     PlatformBackHandler(enabled = showSettings) { showSettings = false }
 
     SmartEmuTheme(darkTheme = settings.theme.isDark()) {
-        when {
-            showSettings -> SettingsScreen(
-                settings = settings,
-                onSettingsChange = viewModel::updateSettings,
-                onBack = { showSettings = false },
-                modifier = modifier
-            )
-            settings.developerMode -> modeStateHolder.SaveableStateProvider("developer") {
-                App(viewModel = viewModel, onOpenSettings = { showSettings = true }, modifier = modifier)
-            }
-            else -> modeStateHolder.SaveableStateProvider("guided") {
-                GuidedApp(
-                    viewModel = viewModel,
-                    showIntro = !settings.introSeen,
-                    onIntroFinished = { viewModel.updateSettings(viewModel.settings.value.copy(introSeen = true)) },
-                    onOpenSettings = { showSettings = true },
+        GlossaryHost {
+            when {
+                showSettings -> SettingsScreen(
+                    settings = settings,
+                    onSettingsChange = viewModel::updateSettings,
+                    onBack = { showSettings = false },
                     modifier = modifier
                 )
+                settings.developerMode -> modeStateHolder.SaveableStateProvider("developer") {
+                    App(viewModel = viewModel, onOpenSettings = { showSettings = true }, modifier = modifier)
+                }
+                else -> modeStateHolder.SaveableStateProvider("guided") {
+                    GuidedApp(
+                        viewModel = viewModel,
+                        showIntro = !settings.introSeen,
+                        onIntroFinished = { viewModel.updateSettings(viewModel.settings.value.copy(introSeen = true)) },
+                        onOpenSettings = { showSettings = true },
+                        modifier = modifier
+                    )
+                }
             }
         }
     }
@@ -134,8 +139,6 @@ fun App(
                         AppTopBar(
                             destination = destination,
                             uiState = uiState,
-                            onFillSampleData = viewModel::autofillPassportData,
-                            onLoadPreset = { showPresets = true },
                             onClearPassportDetails = viewModel::clearPassportDetails,
                             onOpenEmulator = { destination = AppDestination.EMULATOR },
                             onOpenSettings = onOpenSettings
@@ -168,6 +171,7 @@ fun App(
                                     uiState = uiState,
                                     viewModel = viewModel,
                                     onOpenDataPage = { showDataPage = true },
+                                    onLoadPreset = { showPresets = true },
                                     onNext = { destination = AppDestination.CHIP },
                                     onShowMessage = showMessage,
                                     modifier = screenModifier
@@ -219,8 +223,6 @@ fun App(
 private fun AppTopBar(
     destination: AppDestination,
     uiState: PassportSimulatorUiState,
-    onFillSampleData: () -> Unit,
-    onLoadPreset: () -> Unit,
     onClearPassportDetails: () -> Unit,
     onOpenEmulator: () -> Unit,
     onOpenSettings: () -> Unit
@@ -245,10 +247,14 @@ private fun AppTopBar(
             if (destination == AppDestination.PASSPORT) {
                 PassportMenu(
                     enabled = uiState.isPassportFormEnabled(),
-                    onFillSampleData = onFillSampleData,
-                    onLoadPreset = onLoadPreset,
                     onClearPassportDetails = onClearPassportDetails
                 )
+            }
+            // Every abbreviation the screens use, from any of them
+            LocalGlossary.current?.let { glossary ->
+                IconButton(onClick = glossary::showAll) {
+                    Icon(imageVector = Icons.AutoMirrored.Outlined.MenuBook, contentDescription = "Terms and abbreviations")
+                }
             }
             IconButton(onClick = onOpenSettings) {
                 Icon(imageVector = Icons.Outlined.Settings, contentDescription = "Settings")
@@ -257,11 +263,10 @@ private fun AppTopBar(
     )
 }
 
+/** What's left of the passport's actions once Quick start offers presets and sample data: clearing the details. */
 @Composable
 private fun PassportMenu(
     enabled: Boolean,
-    onFillSampleData: () -> Unit,
-    onLoadPreset: () -> Unit,
     onClearPassportDetails: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -270,22 +275,6 @@ private fun PassportMenu(
             Icon(imageVector = Icons.Filled.MoreVert, contentDescription = "More options")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text("Fill with sample data") },
-                enabled = enabled,
-                onClick = {
-                    expanded = false
-                    onFillSampleData()
-                }
-            )
-            DropdownMenuItem(
-                text = { Text("Load a preset…") },
-                enabled = enabled,
-                onClick = {
-                    expanded = false
-                    onLoadPreset()
-                }
-            )
             DropdownMenuItem(
                 text = { Text("Clear passport details") },
                 enabled = enabled,

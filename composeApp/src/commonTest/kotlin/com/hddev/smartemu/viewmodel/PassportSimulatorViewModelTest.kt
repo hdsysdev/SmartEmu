@@ -612,21 +612,6 @@ class PassportSimulatorViewModelTest {
     }
 
     @Test
-    fun `exact cryptography reaches the chip only in developer mode`() = runTest {
-        val cases = mapOf(
-            AppSettings() to false,
-            AppSettings(developerMode = true) to true,
-            AppSettings(developerMode = true, exactCryptography = false) to false
-        )
-        for ((settings, exact) in cases) {
-            val model = PassportSimulatorViewModel(
-                mockRepository, passportStore, settingsStore = SettingsStore.InMemory(settings)
-            )
-            assertEquals(exact, startWith(model)!!.exactCryptography, settings.toString())
-        }
-    }
-
-    @Test
     fun `settings changes are saved`() = runTest {
         val settingsStore = SettingsStore.InMemory()
         val model = PassportSimulatorViewModel(mockRepository, passportStore, settingsStore = settingsStore)

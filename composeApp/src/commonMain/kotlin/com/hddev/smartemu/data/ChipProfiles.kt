@@ -24,17 +24,7 @@ object ChipProfiles {
             "https://eur-lex.europa.eu/eli/reg/2004/2252/oj"
     private const val EU_ID_CARD_REGULATION = "Regulation (EU) 2019/1157 — https://eur-lex.europa.eu/eli/reg/2019/1157/oj"
     private const val BSI_TR_03116_2 = "BSI TR-03116-2, cryptographic requirements for German eID documents and eMRTDs"
-    private const val FINGERPRINTING_STUDY =
-        "H. Richter, W. Mostowski and E. Poll, \"Fingerprinting Passports\", NLUUG spring conference 2008: " +
-            "how sampled chips answer unexpected commands. https://cs.ru.nl/E.Poll/papers/nluug.pdf"
 
-    private const val FINGERPRINTING_URL = "https://cs.ru.nl/E.Poll/papers/nluug.pdf"
-    private const val BELGIAN_STUDY_URL = "https://sites.uclouvain.be/security/download/papers/AvoineKQ-2008-fc.pdf"
-    private const val SWISS_STUDY_URL = "https://www.iacr.org/conferences/eurocrypt2007/slides/rumpt05.pdf"
-    private const val CANADIAN_TECH_URL = "https://www.canada.ca/en/news/archive/2014/05/technical-information-about-canadian-epassport.html"
-    private const val CANADIAN_LAUNCH_URL = "https://www.canada.ca/en/news/archive/2014/05/history-epassport.html"
-    private const val AUSTRALIAN_AUDIT_URL = "https://www.anao.gov.au/sites/default/files/201112%20Audit%20Report%20No%2033.pdf"
-    private const val SPANISH_PACE_URL = "https://www.dnielectronico.es/PortalDNIe/PRF1_Cons02.action?id_menu=20&pag=REF_035"
     private const val GMRTD_README_URL = "https://github.com/gmrtd/gmrtd/blob/main/README.md"
     private const val GMRTD_SOD_TEST_URL = "https://github.com/gmrtd/gmrtd/blob/main/document/sod_test.go"
     private const val GMRTD_PASSIVE_AUTH_TEST_URL = "https://github.com/gmrtd/gmrtd/blob/main/passiveauth/passive_auth_test.go"
@@ -58,9 +48,6 @@ object ChipProfiles {
         "ASSUMED rows are emulator defaults, including disabled features, not confirmed issuer behaviour. " +
             "Evidence supports only the specific linked claims for this generation; optional files, algorithms, " +
             "validity and errors remain unknown unless explicitly sourced."
-    private const val HISTORICAL_NOTE =
-        "Historical study sample, not a current passport or a country-wide claim. The synthetic preset is dated " +
-            "as if issued recently for reader testing; its holder and dates are not an official specimen."
 
     private const val SIGNER_NOTE =
         "Signed by a PassportEmu test Document Signer, with \"TEST\" in its name, not the issuer's: readers must trust " +
@@ -220,6 +207,7 @@ object ChipProfiles {
             "ECDSA brainpoolP384r1 and SHA-384, as a real 2023 passport's is.",
         accessControl = AccessControl.PACE_ONLY,
         paceMapping = PaceMapping.CHIP_AUTHENTICATION,
+        otherPaceMappings = listOf(PaceMapping.GENERIC),
         pace = PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128),
         chipAuthentication = ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128),
         terminalAuthentication = true,
@@ -278,8 +266,7 @@ object ChipProfiles {
         ),
         notes = listOf(
             ASSUMPTION_NOTE,
-            "The real chip advertises both PACE-GM and PACE-CAM in EF.CardSecurity; the emulator advertises one " +
-                "mapping, CAM here, and a reader that needs GM can use the document's PACE mapping setting.",
+            "Like the real chip, EF.CardAccess offers both PACE-GM and PACE-CAM.",
             "The signer is a PassportEmu test Document Signer on brainpoolP384r1, chained to the German test CSCA.",
             FINGERPRINT_NOTE,
             SIGNER_NOTE
@@ -296,6 +283,7 @@ object ChipProfiles {
             "printed on the front, PACE-CAM on Brainpool curves, Chip Authentication and protected fingerprints.",
         accessControl = AccessControl.PACE_ONLY,
         paceMapping = PaceMapping.CHIP_AUTHENTICATION,
+        otherPaceMappings = listOf(PaceMapping.GENERIC),
         pace = PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128),
         chipAuthentication = ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_128),
         terminalAuthentication = true,
@@ -328,37 +316,12 @@ object ChipProfiles {
         ),
         notes = listOf(
             ASSUMPTION_NOTE,
-            "PACE-CAM is advertised alone, as the emulator advertises one mapping; the real chip also offers PACE-GM. " +
+            "EF.CardAccess offers PACE-GM and PACE-CAM, as the real chip does. " +
                 "The cipher and curve, the Document Signer's key (SHA-384 is probable, unconfirmed) and the data " +
                 "groups are not established for the ID card and stay ASSUMED.",
             "Only the travel document application is emulated, not the eID application for online identification.",
             "Fingerprints are mandatory on cards issued from August 2021.",
             FINGERPRINT_NOTE,
-            SIGNER_NOTE
-        )
-    )
-
-    private val germanPassport2005 = ChipProfile(
-        id = "de-passport-2005",
-        title = "Germany · passport (2005, first generation)",
-        shortTitle = "a first-generation German passport",
-        country = "DEU",
-        documentType = DocumentType.PASSPORT,
-        summary = "A first-generation German passport test configuration: BAC, with fingerprints and anti-copy features disabled. " +
-            "Every real one expired by 2017, so the ready-made one is dated as if new.",
-        accessControl = AccessControl.BAC_ONLY,
-        sod = germanSigner,
-        mrz = germanMrz,
-        errorResponses = ErrorResponses(outOfSequence = 0x6985),
-        validity = germanValidity,
-        sample = germanSample,
-        provenance = ProfileAspect.entries.associateWith { Provenance.ASSUMED },
-        sources = listOf(FINGERPRINTING_STUDY, ICAO_9303),
-        notes = listOf(
-            ASSUMPTION_NOTE,
-            "Fingerprints were added from November 2007, so this generation has no DG3.",
-            "The 2008 study reports 6985 for EXTERNAL AUTHENTICATE with Lc=40 before a challenge. Its Table 1 " +
-                "value 6700 is for a different malformed probe, not this request.",
             SIGNER_NOTE
         )
     )
@@ -469,37 +432,6 @@ object ChipProfiles {
         )
     )
 
-    private val dutchPassport2006 = ChipProfile(
-        id = "nl-passport-2006",
-        title = "Netherlands · passport (2006, first generation)",
-        shortTitle = "a first-generation Dutch passport",
-        country = "NLD",
-        documentType = DocumentType.PASSPORT,
-        summary = "A first-generation Dutch passport test configuration: BAC and assumed Active Authentication with a 1024-bit " +
-            "RSA key. Every real one expired by 2016, so the ready-made one is dated as if new.",
-        accessControl = AccessControl.BAC_ONLY,
-        activeAuthentication = KeySpec.Rsa(1024),
-        sod = SodSpec(
-            signerKey = KeySpec.Rsa(2048),
-            passportSigner = "smartemu-test-ds-nl-rsa",
-            cardSigner = "smartemu-test-ds-nl-rsa",
-            csca = "SmartEmu Test CSCA NL"
-        ),
-        mrz = dutchMrz,
-        errorResponses = ErrorResponses(outOfSequence = 0x6982),
-        validity = Validity(adultYears = 5, childYears = 5, adultFromAge = 18),
-        sample = dutchSample.copy(documentNumber = "SPECI2006"),
-        provenance = ProfileAspect.entries.associateWith { Provenance.ASSUMED },
-        sources = listOf(FINGERPRINTING_STUDY, ICAO_9303),
-        notes = listOf(
-            ASSUMPTION_NOTE,
-            "Active Authentication signs with ISO/IEC 9796-2 and SHA-1, the scheme RSA chips of the time used.",
-            "6982 is an ASSUMED response for EXTERNAL AUTHENTICATE with Lc=40 before a challenge. The 2008 " +
-                "paper does not measure this Dutch request; its 6982 entry is for INTERNAL AUTHENTICATE.",
-            SIGNER_NOTE
-        )
-    )
-
     private val dutchPassport2024 = ChipProfile(
         id = "nl-passport-2024",
         title = "Netherlands · passport (2024 design)",
@@ -566,8 +498,6 @@ object ChipProfiles {
                 "The gmrtd README lists one mechanism per row, so its silence about AA is not a claim of absence.",
             "The Document Signer's algorithm for this design is UNKNOWN: the Dutch test signer is an ASSUMED " +
                 "stand-in. The optional data groups are not established either.",
-            "Brainpool PACE curves run on a NIST curve unless exact cryptography is on; PACE here is adapted to " +
-                "NIST P-384 for the r2w nfc-library. The Chip Authentication curve is not adapted.",
             FINGERPRINT_NOTE,
             SIGNER_NOTE
         )
@@ -757,195 +687,6 @@ object ChipProfiles {
             csca = "PassportEmu TEST CSCA $country"
         )
 
-    private fun studyBacEvidence(country: String) = ProfileEvidence(
-        claim = "BAC is described for the sampled $country passport; no current-generation algorithms are established.",
-        sourceTitle = "Richter, Mostowski and Poll, Fingerprinting Passports (2008)",
-        url = FINGERPRINTING_URL,
-        locator = "Sections 1–3, pp. 1–5; Table 1 identifies the tested countries",
-        aspect = ProfileAspect.ACCESS_CONTROL
-    )
-
-    private fun historicalPassport(
-        id: String,
-        countryName: String,
-        country: String,
-        pkiCountry: String,
-        firstName: String,
-        lastName: String,
-        number: String,
-        errorResponses: ErrorResponses = ErrorResponses(),
-        evidence: List<ProfileEvidence> = listOf(studyBacEvidence(countryName)),
-        provenance: Map<ProfileAspect, Provenance> = emptyMap()
-    ) = ChipProfile(
-        id = id,
-        title = "$countryName · passport (2008 study sample)",
-        shortTitle = "a historical $countryName passport test chip",
-        country = country,
-        documentType = DocumentType.PASSPORT,
-        summary = "BAC-era study sample. BAC is sourced; AA, EAC, DS algorithms and optional files are ASSUMED " +
-            "emulator choices. This profile does not describe current passports.",
-        accessControl = AccessControl.BAC_ONLY,
-        sod = countrySigner(pkiCountry),
-        sample = ProfileSample(firstName, lastName, "F", LocalDate(1985, 6, 15), number),
-        errorResponses = errorResponses,
-        provenance = ProfileAspect.entries.associateWith { provenance[it] ?: Provenance.ASSUMED },
-        evidence = evidence,
-        sources = evidence.map { "${it.sourceTitle} — ${it.url}" }.distinct(),
-        notes = listOf(ASSUMPTION_NOTE, HISTORICAL_NOTE, SIGNER_NOTE)
-    )
-
-    private val frenchPassport2008 = historicalPassport(
-        "fr-passport-2008-study", "France", "FRA", "FR", "Camille", "Exemple", "08FR12345"
-    )
-
-    private val italianPassport2008 = historicalPassport(
-        "it-passport-2008-study", "Italy", "ITA", "IT", "Giulia", "Esempio", "IT1234567"
-    )
-
-    private val spanishPassport2008 = historicalPassport(
-        "es-passport-2008-study", "Spain", "ESP", "ES", "Lucia", "Ejemplo", "ESP123456",
-        errorResponses = ErrorResponses(outOfSequence = 0x6300),
-        provenance = mapOf(ProfileAspect.ERROR_RESPONSES to Provenance.REPORTED),
-        evidence = listOf(
-            studyBacEvidence("Spanish"),
-            ProfileEvidence(
-                "The sampled Spanish chip returns 6300 for EXTERNAL AUTHENTICATE with Lc=40 before BAC.",
-                "Richter, Mostowski and Poll, Fingerprinting Passports (2008)", FINGERPRINTING_URL,
-                "Section 3, p. 5, paragraph below Table 1 (not the table's malformed 6700 probe)",
-                ProfileAspect.ERROR_RESPONSES
-            )
-        )
-    )
-
-    private val belgianPassport2006 = ChipProfile(
-        id = "be-passport-2006-study",
-        title = "Belgium · passport (mid-2006 generation, 2007 study)",
-        shortTitle = "a second-generation Belgian passport test chip",
-        country = "BEL",
-        documentType = DocumentType.PASSPORT,
-        summary = "The BAC generation studied by Avoine, Kalach and Quisquater: RSA-1024 AA and RSA-2048 DS " +
-            "are reported separately. Optional DG7 and exact signature encoding are not reproduced.",
-        accessControl = AccessControl.BAC_ONLY,
-        activeAuthentication = KeySpec.Rsa(1024),
-        dataGroups = setOf(11, 12),
-        sod = countrySigner("BE", KeySpec.Rsa(2048), "SHA-1"),
-        validity = Validity(adultYears = 5, childYears = 5),
-        sample = ProfileSample("Elise", "Exemple", "F", LocalDate(1985, 6, 15), "EG123456"),
-        provenance = ProfileAspect.entries.associateWith {
-            if (it == ProfileAspect.ACTIVE_AUTHENTICATION) Provenance.REPORTED else Provenance.ASSUMED
-        },
-        evidence = listOf(
-            ProfileEvidence(
-                "Second-generation Belgian ePassports began in mid-2006 and implemented BAC.",
-                "Avoine, Kalach and Quisquater, ePassport: Securing International Contacts with Contactless Chips (2008)",
-                BELGIAN_STUDY_URL, "Section 3.3, PDF p. 10", ProfileAspect.ACCESS_CONTROL
-            ),
-            ProfileEvidence(
-                "The studied Belgian passports used RSA-1024 for AA; RSA-2048 for DS is a separate key.",
-                "Avoine, Kalach and Quisquater (2008)", BELGIAN_STUDY_URL,
-                "Table 2, PDF p. 14, Belgian ePassport column", ProfileAspect.ACTIVE_AUTHENTICATION
-            ),
-            ProfileEvidence(
-                "Table 2 reports RSA-2048 DS and SHA-1 signature hashing; it does not identify RSA padding or LDS hash separately.",
-                "Avoine, Kalach and Quisquater (2008)", BELGIAN_STUDY_URL,
-                "Table 2, PDF p. 14 (not Table 3's recommendations)", ProfileAspect.SIGNATURE
-            ),
-            ProfileEvidence(
-                "The study describes DG7, DG11 and DG12 in addition to DG1 and DG2.",
-                "Avoine, Kalach and Quisquater (2008)", BELGIAN_STUDY_URL,
-                "Section 4, PDF p. 11", ProfileAspect.DATA_GROUPS
-            )
-        ),
-        sources = listOf("Avoine, Kalach and Quisquater (2008) — $BELGIAN_STUDY_URL", ICAO_9303),
-        notes = listOf(
-            ASSUMPTION_NOTE, HISTORICAL_NOTE,
-            "The pre-mid-2006 generation had no BAC and is not represented by this profile.",
-            "DG7 is omitted because PassportEmu does not generate it. RSA PKCS#1 v1.5 SOD padding and the SHA-1 " +
-                "LDS hash are ASSUMED; the paper reports a signature hash but does not resolve those choices.",
-            SIGNER_NOTE
-        )
-    )
-
-    private val swissPassport2007 = ChipProfile(
-        id = "ch-passport-2007-study",
-        title = "Switzerland · passport (Eurocrypt 2007 study sample)",
-        shortTitle = "a historical Swiss passport test chip",
-        country = "CHE",
-        documentType = DocumentType.PASSPORT,
-        summary = "The Swiss chip sampled at Eurocrypt 2007: BAC was implemented and AA was absent. This " +
-            "limited snapshot does not establish the behaviour of later Swiss passports.",
-        accessControl = AccessControl.BAC_ONLY,
-        sod = countrySigner("CH"),
-        sample = ProfileSample("Anna", "Muster", "F", LocalDate(1985, 6, 15), "CH1234567"),
-        provenance = ProfileAspect.entries.associateWith {
-            if (it == ProfileAspect.ACTIVE_AUTHENTICATION) Provenance.REPORTED else Provenance.ASSUMED
-        },
-        evidence = listOf(
-            ProfileEvidence(
-                "The survey examined one passport each from Switzerland, the UK and France.",
-                "Vaudenay and Vuagnoux, E-Passport Survey (Eurocrypt 2007)", SWISS_STUDY_URL, "Slide 7 of 13"
-            ),
-            ProfileEvidence(
-                "BAC was implemented on the Swiss study sample.",
-                "Vaudenay and Vuagnoux (2007)", SWISS_STUDY_URL, "Slide 10 of 13", ProfileAspect.ACCESS_CONTROL
-            ),
-            ProfileEvidence(
-                "AA was absent on the Swiss study sample.",
-                "Vaudenay and Vuagnoux (2007)", SWISS_STUDY_URL, "Slide 12 of 13", ProfileAspect.ACTIVE_AUTHENTICATION
-            )
-        ),
-        sources = listOf("Vaudenay and Vuagnoux (2007) — $SWISS_STUDY_URL", ICAO_9303),
-        notes = listOf(ASSUMPTION_NOTE, HISTORICAL_NOTE, SIGNER_NOTE)
-    )
-
-    private val canadianPassport2013 = ChipProfile(
-        id = "ca-passport-2013",
-        title = "Canada · passport (2013 ePassport generation)",
-        shortTitle = "a Canadian 2013-generation passport test chip",
-        country = "CAN",
-        documentType = DocumentType.PASSPORT,
-        summary = "Canada's issuer documents BAC and AA for this generation. The AA key type is ASSUMED. " +
-            "RSA-PSS-2048/SHA-256 are signature examples; the emulator uses an ASSUMED PKCS#1 v1.5 stand-in.",
-        accessControl = AccessControl.BAC_ONLY,
-        activeAuthentication = KeySpec.Ec(EcCurve.NIST_P256),
-        sod = countrySigner("CA", KeySpec.Rsa(2048)),
-        validity = Validity(adultYears = 10, childYears = 5, adultFromAge = 16),
-        sample = ProfileSample("Alex", "Example", "F", LocalDate(1985, 6, 15), "CA1234567"),
-        provenance = ProfileAspect.entries.associateWith { Provenance.ASSUMED },
-        evidence = listOf(
-            ProfileEvidence(
-                "The 10-year ePassport became available to Canadian adults on 1 July 2013.",
-                "Government of Canada, History of the ePassport (2014)", CANADIAN_LAUNCH_URL,
-                "The ePassport project and the User Fees Act, final paragraph"
-            ),
-            ProfileEvidence(
-                "The issuer documents BAC protecting personal information on the 2013-generation chip.",
-                "Government of Canada, Technical information about the Canadian ePassport (2014)", CANADIAN_TECH_URL,
-                "Unauthorized reading: Basic access control", ProfileAspect.ACCESS_CONTROL
-            ),
-            ProfileEvidence(
-                "The issuer gives RSA-PSS-2048 and SHA-256 as passive-authentication examples, not an exhaustive algorithm list.",
-                "Government of Canada (2014)", CANADIAN_TECH_URL,
-                "Tampering and inauthenticity: Passive authentication", ProfileAspect.SIGNATURE
-            ),
-            ProfileEvidence(
-                "The Canadian technical backgrounder states that AA is implemented; it does not specify the AA key type.",
-                "Government of Canada (2014)", CANADIAN_TECH_URL,
-                "Cloning: Active authentication, second paragraph", ProfileAspect.ACTIVE_AUTHENTICATION
-            )
-        ),
-        sources = listOf("Government of Canada (2014) — $CANADIAN_TECH_URL", "Generation — $CANADIAN_LAUNCH_URL"),
-        notes = listOf(
-            ASSUMPTION_NOTE,
-            "BAC-only and CA disabled are emulator choices; the issuer page does not establish absence of other " +
-                "protocols. AA is enabled with ASSUMED ECDSA P-256; the DS example does not identify its AA key. " +
-                "RSA-PSS is not supported by this SOD generator; the test SOD uses SHA256withRSA (PKCS#1 v1.5).",
-            "This profile does not describe Canada's redesigned 2023 passport, see `ca-passport-2023`. The preset chooses 10 years; " +
-                "other adult validity options are not modelled.",
-            SIGNER_NOTE
-        )
-    )
-
     private val canadianPassport2023 = ChipProfile(
         id = "ca-passport-2023",
         title = "Canada · passport (2023 design)",
@@ -976,68 +717,6 @@ object ChipProfiles {
             "No EF.SOD sample was found: the Document Signer is the Canadian test signer (RSA-2048, an ASSUMED " +
                 "stand-in). Whether BAC is accepted alongside PACE, Active Authentication (the table does not list " +
                 "it: unknown, not absent), Terminal Authentication and the data groups are ASSUMED.",
-            "The 2013-generation profile is `ca-passport-2013`.",
-            SIGNER_NOTE
-        )
-    )
-
-    private fun australianPassport(
-        id: String,
-        series: String,
-        year: Int,
-        aa: Boolean,
-        rsaSigner: Boolean = false
-    ) = ChipProfile(
-        id = id,
-        title = "Australia · passport ($series Series, $year)",
-        shortTitle = "an Australian $series Series passport test chip",
-        country = "AUS",
-        documentType = DocumentType.PASSPORT,
-        summary = if (aa) {
-            "The ANAO audit documents BAC and the addition of AA to the N Series in 2009. The AA key type (RSA-2048 " +
-                "here, from the later P Series sample) and the DS algorithm are ASSUMED emulator choices."
-        } else {
-            "The ANAO audit documents BAC on the M Series introduced in 2005, and explicitly states that " +
-                "this generation had no AA. Other algorithms and optional files remain ASSUMED."
-        },
-        accessControl = AccessControl.BAC_ONLY,
-        // The audit establishes AA presence, not its key type; RSA-2048 follows the later P Series sample (ASSUMED here).
-        activeAuthentication = if (aa) KeySpec.Rsa(2048) else null,
-        sod = if (rsaSigner) australianRsaSigner else countrySigner("AU"),
-        validity = Validity(adultYears = 10, childYears = 5, adultFromAge = 16),
-        sample = ProfileSample("Jane", "Example", "F", LocalDate(1985, 6, 15), "${series}12345678"),
-        provenance = ProfileAspect.entries.associateWith {
-            if (!aa && it == ProfileAspect.ACTIVE_AUTHENTICATION) Provenance.REPORTED else Provenance.ASSUMED
-        },
-        evidence = listOf(
-            ProfileEvidence(
-                "The M Series began on 24 October 2005; the N Series replaced it in May 2009.",
-                "Australian National Audit Office, Management of ePassports (2012)", AUSTRALIAN_AUDIT_URL,
-                "Summary paragraph 6, p. 14"
-            ),
-            ProfileEvidence(
-                "BAC was included in each Australian ePassport version covered by the 2012 audit.",
-                "Australian National Audit Office (2012)", AUSTRALIAN_AUDIT_URL,
-                "Paragraph 5.6, p. 74", ProfileAspect.ACCESS_CONTROL
-            ),
-            ProfileEvidence(
-                if (aa) "AA was introduced in 2009 for the N Series; the audit does not specify its key type." else
-                    "M Series ePassports issued before 2009 did not have AA.",
-                "Australian National Audit Office (2012)", AUSTRALIAN_AUDIT_URL,
-                "Paragraph 5.16, p. 78", ProfileAspect.ACTIVE_AUTHENTICATION
-            )
-        ),
-        sources = listOf("Australian National Audit Office (2012) — $AUSTRALIAN_AUDIT_URL"),
-        notes = listOf(
-            ASSUMPTION_NOTE, HISTORICAL_NOTE,
-            "These audit findings apply to M/N Series, not today's R Series. BAC-only, CA disabled, " +
-                "optional files and DS algorithms are emulator choices; no algorithms are inferred from CSCA keys.",
-            *(if (aa) arrayOf(
-                "The N Series AA key type is still not source-confirmed: the ANAO audit only confirms AA's presence. " +
-                    "RSA is taken from the later P Series sample (`au-passport-2016-p`: AA with rsaEncryption, key size " +
-                    "not given; parsed SOD with an RSA-2048 Document Signer and SHA-256), so both the type and its " +
-                    "2048-bit size are ASSUMED here, as is the RSA-2048/SHA-256 Document Signer."
-            ) else emptyArray<String>()),
             SIGNER_NOTE
         )
     )
@@ -1049,9 +728,6 @@ object ChipProfiles {
         cardSigner = "smartemu-test-ds-au-rsa",
         csca = "PassportEmu TEST CSCA AU"
     )
-
-    private val australianPassport2005 = australianPassport("au-passport-2005-m", "M", 2005, aa = false)
-    private val australianPassport2009 = australianPassport("au-passport-2009-n", "N", 2009, aa = true, rsaSigner = true)
 
     private val australianPassport2016 = ChipProfile(
         id = "au-passport-2016-p",
@@ -1116,37 +792,6 @@ object ChipProfiles {
                 "Authentication row stays ASSUMED. The sample has no PACE (reported), and no Chip Authentication is " +
                 "assumed because its SOD hashes no DG14 and the README row lists only AA; both are disabled here.",
             SIGNER_NOTE
-        )
-    )
-
-    private val spanishPassportThirdGeneration = ChipProfile(
-        id = "es-passport-third-generation",
-        title = "Spain · passport (third electronic generation)",
-        shortTitle = "a third-generation Spanish passport test chip",
-        country = "ESP",
-        documentType = DocumentType.PASSPORT,
-        summary = "The Spanish police's official reader documentation explicitly supports third-generation " +
-            "passports using PACE. BAC fallback, mapping, curves, AA and EAC algorithms remain ASSUMED.",
-        accessControl = AccessControl.BAC_AND_PACE,
-        chipAuthentication = ChipAuthenticationSpec(EcCurve.NIST_P256, SessionCipher.AES_128),
-        terminalAuthentication = true,
-        sod = countrySigner("ES"),
-        sample = ProfileSample("Lucia", "Ejemplo", "F", LocalDate(1985, 6, 15), "ESP654321"),
-        provenance = ProfileAspect.entries.associateWith { Provenance.ASSUMED },
-        evidence = listOf(
-            ProfileEvidence(
-                "The official example reader supports Spanish third-generation electronic passports over a PACE secure channel.",
-                "Spanish Policía Nacional, DNIe portal, Cuáles son", SPANISH_PACE_URL,
-                "Ejemplo DNIe Lectura Datos", ProfileAspect.ACCESS_CONTROL
-            )
-        ),
-        sources = listOf("Policía Nacional — $SPANISH_PACE_URL", ICAO_9303),
-        notes = listOf(
-            ASSUMPTION_NOTE,
-            "The page identifies a generation but gives no start date or passport-specific PACE suite. DNIe card " +
-                "algorithms and vendor security-target capabilities are not evidence of passport personalisation.",
-            "CA/TA and DG3 are EU-style emulator defaults here; the linked reader page does not verify them.",
-            FINGERPRINT_NOTE, SIGNER_NOTE
         )
     )
 
@@ -1317,6 +962,7 @@ object ChipProfiles {
             "and SHA-512. Whether BAC is accepted as well is ASSUMED.",
         accessControl = AccessControl.BAC_AND_PACE,
         paceMapping = PaceMapping.CHIP_AUTHENTICATION,
+        otherPaceMappings = listOf(PaceMapping.GENERIC),
         pace = PaceSpec(EcCurve.BRAINPOOL_P384R1, SessionCipher.AES_256),
         terminalAuthentication = true,
         sod = SodSpec(
@@ -1364,7 +1010,7 @@ object ChipProfiles {
             ASSUMPTION_NOTE,
             GMRTD_NOTE,
             DOCUMENT_CODE_NOTE,
-            "The README row lists both PACE-GM and PACE-CAM; the emulator advertises one mapping, CAM here. The " +
+            "The README row lists both PACE-GM and PACE-CAM, and EF.CardAccess offers both. The " +
                 "row does not show whether BAC is also accepted (ASSUMED). Terminal Authentication is ASSUMED on " +
                 "because the sampled SOD hashes DG3; there is no separate Chip Authentication, as the row lists " +
                 "PACE-CAM only, but that is not evidence of absence, so the aspect stays ASSUMED.",
@@ -1390,6 +1036,7 @@ object ChipProfiles {
             "Signer's algorithm are ASSUMED.",
         accessControl = AccessControl.BAC_AND_PACE,
         paceMapping = PaceMapping.CHIP_AUTHENTICATION,
+        otherPaceMappings = listOf(PaceMapping.GENERIC),
         pace = PaceSpec(EcCurve.BRAINPOOL_P384R1, SessionCipher.AES_256),
         terminalAuthentication = true,
         sod = countrySigner("FI"),
@@ -1408,7 +1055,7 @@ object ChipProfiles {
             ASSUMPTION_NOTE,
             GMRTD_NOTE,
             NO_SOD_SAMPLE_NOTE,
-            "The README row lists both PACE-GM and PACE-CAM; the emulator advertises one mapping, CAM here. Whether " +
+            "The README row lists both PACE-GM and PACE-CAM, and EF.CardAccess offers both. Whether " +
                 "BAC is accepted alongside PACE is ASSUMED. Terminal Authentication is ASSUMED on, as EU passports " +
                 "carry protected fingerprints; nothing in the evidence says so for this row.",
             "The Finnish ID card sample's signer is brainpoolP512r1 (see `fi-id-card-2023`); nothing says the " +
@@ -1429,7 +1076,7 @@ object ChipProfiles {
         summary = "A French 2017 passport test configuration, from one real passport's sampled chip: PACE-GM with " +
             "AES-256 on NIST P-256, Chip Authentication with 3DES on NIST P-256, DG11 and DG12, and an EF.SOD " +
             "signed with RSA-2048 and SHA-256. Whether BAC is accepted as well, and Terminal Authentication, are " +
-            "ASSUMED. The first-generation study sample is `fr-passport-2008-study`.",
+            "ASSUMED.",
         accessControl = AccessControl.BAC_AND_PACE,
         pace = PaceSpec(EcCurve.NIST_P256, SessionCipher.AES_256),
         chipAuthentication = ChipAuthenticationSpec(EcCurve.NIST_P256, SessionCipher.TDES),
@@ -1498,9 +1145,10 @@ object ChipProfiles {
         country = "FRA",
         documentType = DocumentType.ID_CARD,
         summary = "A French 2024 ID card test configuration, from one real card's sampled chip: PACE-GM with AES-256 " +
-            "and Chip Authentication with AES-256, both on brainpoolP256r1. The card also offers PACE with " +
-            "Integrated Mapping, which PassportEmu cannot emulate. Everything else is ASSUMED.",
+            "and PACE-IM on the same parameters, and Chip Authentication with AES-256, all on brainpoolP256r1. " +
+            "Everything else is ASSUMED.",
         accessControl = AccessControl.BAC_AND_PACE,
+        otherPaceMappings = listOf(PaceMapping.INTEGRATED),
         pace = PaceSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256),
         chipAuthentication = ChipAuthenticationSpec(EcCurve.BRAINPOOL_P256R1, SessionCipher.AES_256),
         terminalAuthentication = true,
@@ -1525,8 +1173,8 @@ object ChipProfiles {
             GMRTD_NOTE,
             DOCUMENT_CODE_NOTE,
             NO_SOD_SAMPLE_NOTE,
-            "The card also offers PACE-IM, which neither this emulator nor the r2w nfc-library supports (the README " +
-                "marks it \"not supported\" by gmrtd too): the profile uses Generic Mapping, which the row also lists.",
+            "EF.CardAccess offers PACE-GM and PACE-IM, as the README row lists (it marks PACE-IM \"not supported\" " +
+                "by gmrtd).",
             "Whether BAC is accepted alongside PACE, Active Authentication and Terminal Authentication are ASSUMED.",
             LDS_COLUMNS_NOTE,
             SAMPLE_HOLDER_NOTE,
@@ -2096,24 +1744,14 @@ object ChipProfiles {
         germanPassport,
         germanPassport2023,
         germanIdCard,
-        germanPassport2005,
         dutchPassport,
         dutchPassport2024,
         dutchIdCard,
-        dutchPassport2006,
         britishPassport,
         americanPassport,
-        frenchPassport2008,
         frenchPassport2017,
         frenchIdCard2024,
-        belgianPassport2006,
-        spanishPassport2008,
-        italianPassport2008,
-        swissPassport2007,
-        canadianPassport2013,
         canadianPassport2023,
-        australianPassport2005,
-        australianPassport2009,
         australianPassport2016,
         austrianPassport2023,
         chinesePassport2018,
@@ -2128,14 +1766,14 @@ object ChipProfiles {
         russianPassport2020,
         singaporePassportPa2023,
         singaporePassportPp2025,
-        taiwanesePassport2024,
-        spanishPassportThirdGeneration
+        taiwanesePassport2024
     )
 
     val default: ChipProfile get() = generic
 
     /** The profile with the given id, or the generic one for an id no profile has, as one saved by an older version. */
-    fun byId(id: String): ChipProfile = all.find { it.id == id } ?: generic
+    fun byId(id: String): ChipProfile =
+        com.hddev.smartemu.capture.profile.MeasuredProfileRegistry.profileFor(id) ?: all.find { it.id == id } ?: generic
 
     /** The profiles that fit a document of this type, generic first. */
     fun forDocumentType(type: DocumentType): List<ChipProfile> = all.filter { it.fits(type) }

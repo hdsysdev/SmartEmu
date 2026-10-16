@@ -41,7 +41,6 @@ illustrated walkthrough in plain words. The gear icon opens **Settings**, the sa
 | Keep the screen on | Keeps the phone from locking while the chip is on (default on) |
 | Keep a history of reads | Records each reader session; turning it off clears the history (default on) |
 | Developer mode | Swaps the guided screens for the developer ones: every chip setting, the chip profiles in detail, and each command the reader sends (default off) |
-| Exact cryptography | Developer mode only, and on by default there: the chip uses its profile's cryptography as it is. Off, or out of developer mode, the chip adapts it so that apps built on the r2w nfc-library can read it (see below) |
 
 Settings are kept in `SharedPreferences` (`AndroidSettingsStore`). The guided UI lives in
 [`ui/guided`](./composeApp/src/commonMain/kotlin/com/hddev/smartemu/ui/guided), the developer one in
@@ -54,8 +53,8 @@ Both modes offer the same chip; developer mode names things in ICAO 9303 terms, 
 
 | Feature | What it does | Where |
 |---|---|---|
-| Chip profiles | 20 generation-specific and generic configurations, including France, Belgium, Spain, Italy, Switzerland, Canada and Australia alongside the existing EU, German, Dutch, UK and US presets. Published claims and assumed emulator choices are shown separately. Each sets the access control, PACE curve and cipher, Active Authentication key, Chip and Terminal Authentication, data groups, Document Signer, MRZ conventions and one error response | Developer: Chip > Chip profile. Guided: Choose a ready-made one > By country and generation |
-| Presets | Ready-made documents for common and awkward cases: expired, a child's, long or accented names, sex X, a stateless holder, look-alike characters, each access control, every fault below, and a specimen for each country profile | Developer: ⋮ > Load a preset. Guided: Choose a ready-made one / Try another |
+| Chip profiles | 29 configurations: three generic ones and 26 documents from 19 countries and territories, each backed by a published source for at least its access control or PACE suite. Published claims and assumed emulator choices are shown separately. Each sets the access control, PACE curve and cipher, Active Authentication key, Chip and Terminal Authentication, data groups, Document Signer, MRZ conventions and one error response | Developer: Chip > Change profile, searchable and filterable by protocol and curve, with ⓘ for a profile's details. Emulate shows the chip being emulated and its cryptography. Guided: Choose a ready-made one > By country and generation |
+| Presets | Ready-made documents for common and awkward cases: expired, a child's, long or accented names, sex X, a stateless holder, look-alike characters, each access control, every fault below, and a specimen for each country profile | Developer: Passport > Quick start > Load a preset (or Sample data). Guided: Choose a ready-made one / Try another |
 | ID cards and residence permits | TD1 documents (codes `ID` and `IR`, or a profile's own, such as the Dutch `I`): a three-line, 30-character MRZ in DG1, drawn on the back of the card, and signed by the ID Document Signer | Document type, on the passport form |
 | Active Authentication | DG15 and INTERNAL AUTHENTICATE, under secure messaging only: ECDSA with a plain signature (and DG14 naming the algorithm), or RSA with an ISO 9796-2 SHA-1 signature, as the profile has it | Developer: Chip > Active Authentication. Guided: More options > Anti-copy check, which also turns on PACE-CAM |
 | Chip Authentication | EAC-CA version 1 with the ECDH key in DG14: MSE:Set AT and GENERAL AUTHENTICATE with AES, or MSE:Set KAT with 3DES, under secure messaging; secure messaging then restarts with the new keys | Chip profiles that have it |
@@ -63,10 +62,11 @@ Both modes offer the same chip; developer mode names things in ICAO 9303 terms, 
 | DG11 and DG12 | Full name, personal number and place of birth; issuing authority and date of issue. The personal number goes in the MRZ where the profile says so | Developer: Passport > More details |
 | Fault injection | A chip that fails exactly one check: altered DG1 or DG2 hashes, an invalid SOD signature, an expired or untrusted Document Signer, or a cloned chip whose Active Authentication key doesn't match DG15 | Developer: Chip > Fault injection. Guided: More options > Make it a fake |
 | Read history | Each reader session, kept between runs: how it ended, the protocol that unlocked the chip, the files read, and whether it asked for Active Authentication. Shareable as text | Developer: Emulate > Read history. Guided: the history icon on the home screen |
+| Terms and abbreviations | Every abbreviation and term of art on the developer screens (61 in all, from PACE and MRZ to CSCA, DG14 and BP-256) has a dotted underline; tapping it, or a tag, explains what it stands for and means, with related terms. The full glossary is searchable | Developer: the book icon in the top bar, or Settings > Terms and abbreviations |
 
 #### How far the profiles can be trusted
 
-[Profile evidence and generation boundaries](./docs/chip-profile-evidence.md) records the primary sources and known limits. Each part of a profile is marked with where its facts come from, shown under Chip > What the profile does:
+[Profile evidence and generation boundaries](./docs/chip-profile-evidence.md) records the primary sources and known limits. Each part of a profile is marked with where its facts come from, shown under Chip > What the profile does (and in full, with the evidence, under Details):
 **Specification** (required by ICAO 9303, BSI TR-03110 or EU regulation 2252/2004 for that document),
 **Reported** (in public sources, not checked against a real chip) or **Assumed** (a common choice standing in
 until someone checks). Much of what varies between issuers, such as the Document Signer's key and the exact chip
@@ -80,13 +80,13 @@ for its focused parser tests.
 A phone can't copy everything about a chip: Android's HCE fixes the ATS, the UID and the NFC type, so readers that
 tell chips apart by those still see a phone.
 
-#### Adapted cryptography
+#### Cryptography
 
-Out of developer mode, or with exact cryptography off, the chip runs PACE on the NIST curve of the same strength
-where the profile has a Brainpool curve (brainpoolP256r1 becomes P-256, brainpoolP384r1 P-384, brainpoolP512r1
-P-521), because the r2w nfc-library supports NIST curves only. The event log says so when a chip is adapted. The
-Document Signer, Active Authentication and Chip Authentication keep the profile's curves either way, as the library
-doesn't verify them.
+The chip always runs its profile's cryptography as it is, Brainpool curves and Integrated Mapping included, so a
+reader meets what the real document would offer it. Only the developer settings for PACE domain parameters, cipher
+and extra suites change it, and ICAO 9303 rules (Chip Authentication Mapping with ECDH and AES only, Integrated
+Mapping only on a curve whose prime is 3 mod 4) apply to those choices; the event log says when a chip differs from
+its profile.
 
 ### Logo and mascot
 

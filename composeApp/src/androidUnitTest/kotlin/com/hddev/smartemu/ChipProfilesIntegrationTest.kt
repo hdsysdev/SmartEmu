@@ -16,18 +16,22 @@ import net.sf.scuba.smartcards.ResponseAPDU
 import net.sf.scuba.tlv.TLVUtil
 import kotlinx.coroutines.launch
 import org.bouncycastle.asn1.ASN1Integer
+import org.bouncycastle.asn1.ASN1ObjectIdentifier
+import org.bouncycastle.asn1.ASN1Sequence
+import org.bouncycastle.asn1.ASN1Set
 import org.bouncycastle.asn1.DERSequence
 import org.bouncycastle.cms.CMSSignedData
 import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.jmrtd.BACKey
 import org.jmrtd.PassportService
 import org.jmrtd.Util
 import org.jmrtd.lds.CVCAFile
-import org.jmrtd.lds.CardAccessFile
 import org.jmrtd.lds.ChipAuthenticationInfo
 import org.jmrtd.lds.ChipAuthenticationPublicKeyInfo
 import org.jmrtd.lds.PACEInfo
 import org.jmrtd.lds.SODFile
+import org.jmrtd.lds.SecurityInfo
 import org.jmrtd.lds.icao.DG11File
 import org.jmrtd.lds.icao.DG12File
 import org.jmrtd.lds.icao.DG14File
@@ -41,6 +45,7 @@ import java.io.File
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.security.PublicKey
+import java.security.Security
 import java.security.Signature
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
@@ -54,7 +59,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Reads the chip of every [ChipProfile] with JMRTD's reader side, with the cryptography adapted and exact: access
+ * Reads the chip of every [ChipProfile] with JMRTD's reader side, with the profile's own cryptography: access
  * control, passive authentication against the country's test CSCA, Chip Authentication, Active Authentication, the
  * locked fingerprints and the profile's MRZ and error conventions.
  */
@@ -88,24 +93,24 @@ class ChipProfilesIntegrationTest {
     }
 
     /** The profile's ready-made document, or the base holder on a document of its kind. */
-    private fun documentFor(profile: ChipProfile, exact: Boolean = false): PassportData {
-        val data = PassportPresets.all.firstOrNull { it.id == "profile-${profile.id}" }?.build?.invoke(today)
+    private fun documentFor(profile: ChipProfile): PassportData =
+        PassportPresets.all.firstOrNull { it.id == "profile-${profile.id}" }?.build?.invoke(today)
             ?: base.withChipProfile(profile)
-        return data.copy(exactCryptography = exact)
-    }
 
     private fun readFile(service: PassportService, fid: Short): ByteArray =
         service.getInputStream(fid, PassportService.DEFAULT_MAX_BLOCKSIZE).readBytes()
 
     /** Emulates [data] and unlocks it as JMRTD-based readers do: PACE if EF.CardAccess offers it, else BAC. */
-    private fun unlock(data: PassportData): PassportService {
+    private fun unlock(data: PassportData, choose: (List<PACEInfo>) -> PACEInfo = { it.first() }): PassportService {
         PassportHceService.setSharedPassportData(data)
         val service = HceCardService.openPassportService(hceService)
         val key = BACKey(data.passportNumber, data.mrzDateOfBirth(), data.mrzExpiryDate())
         if (data.accessControl.supportsPace) {
-            val paceInfo = CardAccessFile(ByteArrayInputStream(readFile(service, PassportService.EF_CARD_ACCESS)))
-                .securityInfos.filterIsInstance<PACEInfo>().single()
-            service.doPACE(key, paceInfo.objectIdentifier, PACEInfo.toParameterSpec(paceInfo.parameterId), paceInfo.parameterId)
+            val paceInfo = choose(readPaceInfos(service))
+            val doPace = {
+                service.doPACE(key, paceInfo.objectIdentifier, PACEInfo.toParameterSpec(paceInfo.parameterId), paceInfo.parameterId)
+            }
+            if (PACEInfo.toMappingType(paceInfo.objectIdentifier) == PACEInfo.MappingType.IM) withBouncyCastleFirst(doPace) else doPace()
             service.sendSelectApplet(true)
         } else {
             service.sendSelectApplet(false)
@@ -114,12 +119,45 @@ class ChipProfilesIntegrationTest {
         return service
     }
 
-    private fun readPaceInfo(data: PassportData): PACEInfo {
-        PassportHceService.setSharedPassportData(data)
-        val service = HceCardService.openPassportService(hceService)
-        return CardAccessFile(ByteArrayInputStream(readFile(service, PassportService.EF_CARD_ACCESS)))
-            .securityInfos.filterIsInstance<PACEInfo>().single()
+    /** The PACE suites EF.CardAccess offers, in order. */
+    /**
+     * Runs [block] with Bouncy Castle as the first JCE provider. In Integrated Mapping's pseudo-random function, JMRTD's
+     * reader names its keys' algorithm with the whole transformation, "AES/CBC/NoPadding", which the JVM's own provider
+     * refuses.
+     */
+    private fun <T> withBouncyCastleFirst(block: () -> T): T {
+        val registered = Security.getProvider("BC")
+        val position = Security.getProviders().indexOf(registered) + 1
+        Security.removeProvider("BC")
+        Security.insertProviderAt(registered ?: BouncyCastleProvider(), 1)
+        try {
+            return block()
+        } finally {
+            Security.removeProvider("BC")
+            if (registered != null) Security.insertProviderAt(registered, position)
+        }
     }
+
+    private fun readPaceInfos(data: PassportData): List<PACEInfo> {
+        PassportHceService.setSharedPassportData(data)
+        return readPaceInfos(HceCardService.openPassportService(hceService))
+    }
+
+    /** EF.CardAccess's PACEInfos in the file's order, which JMRTD's CardAccessFile, holding them in a set, loses. */
+    private fun readPaceInfos(service: PassportService): List<PACEInfo> {
+        val securityInfos = ASN1Set.getInstance(readFile(service, PassportService.EF_CARD_ACCESS))
+        return securityInfos.map { ASN1Sequence.getInstance(it) }
+            .filter { ASN1ObjectIdentifier.getInstance(it.getObjectAt(0)).id.startsWith(SecurityInfo.ID_PACE) }
+            .map {
+                PACEInfo(
+                    ASN1ObjectIdentifier.getInstance(it.getObjectAt(0)).id,
+                    ASN1Integer.getInstance(it.getObjectAt(1)).intValueExact(),
+                    ASN1Integer.getInstance(it.getObjectAt(2)).value
+                )
+            }
+    }
+
+    private fun readPaceInfo(data: PassportData): PACEInfo = readPaceInfos(data).first()
 
     private val PACEInfo.cipherName: String
         get() = when (PACEInfo.toCipherAlgorithm(objectIdentifier)) {
@@ -127,12 +165,7 @@ class ChipProfilesIntegrationTest {
             else -> "3DES"
         }
 
-    private fun cardAccessParameterId(data: PassportData): Int {
-        PassportHceService.setSharedPassportData(data)
-        val service = HceCardService.openPassportService(hceService)
-        return CardAccessFile(ByteArrayInputStream(readFile(service, PassportService.EF_CARD_ACCESS)))
-            .securityInfos.filterIsInstance<PACEInfo>().single().parameterId.toInt()
-    }
+    private fun cardAccessParameterId(data: PassportData): Int = readPaceInfo(data).parameterId.toInt()
 
     /** The test CSCA that issued [signer], found by the country suffix of its file name. */
     private fun cscaFor(profile: ChipProfile): X509Certificate {
@@ -176,27 +209,49 @@ class ChipProfilesIntegrationTest {
     }
 
     @Test
-    fun `every profile reads and passes passive authentication, adapted and exact`() {
+    fun `every profile reads and passes passive authentication`() {
         for (profile in ChipProfiles.all) {
-            for (exact in listOf(false, true)) {
-                val data = documentFor(profile, exact)
-                val service = unlock(data)
-                val mrzInfo = DG1File(ByteArrayInputStream(readFile(service, PassportService.EF_DG1))).mrzInfo
-                assertEquals(data.toMrzData(), mrzInfo.toString().replace("\n", ""), "MRZ of ${profile.id}")
-                assertPassiveAuthentication(profile, service, data.chipConfiguration().dataGroups)
-            }
+            val data = documentFor(profile)
+            val service = unlock(data)
+            val mrzInfo = DG1File(ByteArrayInputStream(readFile(service, PassportService.EF_DG1))).mrzInfo
+            assertEquals(data.toMrzData(), mrzInfo.toString().replace("\n", ""), "MRZ of ${profile.id}")
+            assertPassiveAuthentication(profile, service, data.chipConfiguration().dataGroups)
         }
     }
 
     @Test
-    fun `adapted Brainpool PACE runs on the NIST curve and exact on Brainpool`() {
+    fun `Brainpool PACE runs on the profile's Brainpool curve`() {
         val profile = ChipProfiles.byId("de-passport-2017")
         assertEquals(EcCurve.BRAINPOOL_P256R1, profile.pace.curve)
 
-        assertEquals(EcCurve.NIST_P256.paceParameterId, cardAccessParameterId(documentFor(profile, exact = false)))
-        assertEquals(EcCurve.BRAINPOOL_P256R1.paceParameterId, cardAccessParameterId(documentFor(profile, exact = true)))
-        assertTrue(documentFor(profile, exact = false).chipConfiguration().adaptations.isNotEmpty())
-        assertTrue(documentFor(profile, exact = true).chipConfiguration().adaptations.isEmpty())
+        assertEquals(EcCurve.BRAINPOOL_P256R1.paceParameterId, cardAccessParameterId(documentFor(profile)))
+        assertTrue(documentFor(profile).chipConfiguration().adaptations.isEmpty())
+    }
+
+    @Test
+    fun `a chip that offers two PACE mappings, as the real one does, unlocks with either`() {
+        // In the order the profile gives, the document's own mapping first
+        val expected = mapOf(
+            "de-passport-2023" to listOf(PACEInfo.MappingType.CAM, PACEInfo.MappingType.GM),
+            "de-id-card" to listOf(PACEInfo.MappingType.CAM, PACEInfo.MappingType.GM),
+            "fi-id-card-2023" to listOf(PACEInfo.MappingType.CAM, PACEInfo.MappingType.GM),
+            "fi-passport-2024" to listOf(PACEInfo.MappingType.CAM, PACEInfo.MappingType.GM),
+            "fr-id-card-2024" to listOf(PACEInfo.MappingType.GM, PACEInfo.MappingType.IM)
+        )
+        for ((id, mappings) in expected) {
+            val profile = ChipProfiles.byId(id)
+            val data = documentFor(profile)
+            val offered = readPaceInfos(data)
+            assertEquals(mappings, offered.map { PACEInfo.toMappingType(it.objectIdentifier) }, id)
+            assertEquals(1, offered.map { it.parameterId }.toSet().size, "$id: one set of domain parameters")
+            for (index in offered.indices) {
+                val service = unlock(data) { it[index] }
+                val mrzInfo = DG1File(ByteArrayInputStream(readFile(service, PassportService.EF_DG1))).mrzInfo
+                assertEquals(data.passportNumber, mrzInfo.documentNumber, "$id with ${mappings[index]}")
+                // The reader leaves the field, ending the session, before trying the next suite
+                hceService.onDeactivated(android.nfc.cardemulation.HostApduService.DEACTIVATION_LINK_LOSS)
+            }
+        }
     }
 
     @Test
@@ -214,19 +269,17 @@ class ChipProfilesIntegrationTest {
     @Test
     fun `Chip Authentication restarts secure messaging and the data stays readable`() {
         for (profile in ChipProfiles.all.filter { it.chipAuthentication != null }) {
-            for (exact in listOf(false, true)) {
-                val data = documentFor(profile, exact)
-                val service = unlock(data)
-                val dg14 = DG14File(ByteArrayInputStream(readFile(service, PassportService.EF_DG14)))
-                val caInfo = dg14.securityInfos.filterIsInstance<ChipAuthenticationInfo>().single()
-                val keyInfo = dg14.securityInfos.filterIsInstance<ChipAuthenticationPublicKeyInfo>().single()
+            val data = documentFor(profile)
+            val service = unlock(data)
+            val dg14 = DG14File(ByteArrayInputStream(readFile(service, PassportService.EF_DG14)))
+            val caInfo = dg14.securityInfos.filterIsInstance<ChipAuthenticationInfo>().single()
+            val keyInfo = dg14.securityInfos.filterIsInstance<ChipAuthenticationPublicKeyInfo>().single()
 
-                val result = service.doEACCA(keyInfo.keyId, caInfo.objectIdentifier, keyInfo.objectIdentifier, keyInfo.subjectPublicKey)
+            val result = service.doEACCA(keyInfo.keyId, caInfo.objectIdentifier, keyInfo.objectIdentifier, keyInfo.subjectPublicKey)
 
-                assertNotNull(result.wrapper)
-                val mrzInfo = DG1File(ByteArrayInputStream(readFile(service, PassportService.EF_DG1))).mrzInfo
-                assertEquals(data.passportNumber, mrzInfo.documentNumber, "DG1 after Chip Authentication on ${profile.id}")
-            }
+            assertNotNull(result.wrapper)
+            val mrzInfo = DG1File(ByteArrayInputStream(readFile(service, PassportService.EF_DG1))).mrzInfo
+            assertEquals(data.passportNumber, mrzInfo.documentNumber, "DG1 after Chip Authentication on ${profile.id}")
         }
     }
 
@@ -313,8 +366,7 @@ class ChipProfilesIntegrationTest {
     @Test
     fun `EXTERNAL AUTHENTICATE with no challenge gets the profile's status word`() {
         val expected = mapOf(
-            "generic" to 0x6985, "de-passport-2005" to 0x6985, "nl-passport-2006" to 0x6982,
-            "es-passport-2008-study" to 0x6300
+            "generic" to 0x6985, "us-passport-2021" to 0x6985
         )
         for ((id, statusWord) in expected) {
             val data = documentFor(ChipProfiles.byId(id)).copy(accessControl = com.hddev.smartemu.data.AccessControl.BAC_ONLY)
@@ -330,7 +382,7 @@ class ChipProfilesIntegrationTest {
 
     @Test
     fun `new hybrid passport profiles can also be read with BAC fallback`() {
-        for (id in listOf("es-passport-third-generation")) {
+        for (id in listOf("ca-passport-2023", "fr-id-card-2024")) {
             val profile = ChipProfiles.byId(id)
             assertEquals(id, profile.id)
             val data = documentFor(profile)
@@ -354,7 +406,7 @@ class ChipProfilesIntegrationTest {
             val externalAuthenticate = ResponseAPDU(
                 hceService.processCommandApdu(CommandAPDU(0x00, 0x82, 0x00, 0x00, ByteArray(40), 40).bytes, null)
             )
-            // The r2w nfc-library falls back to PACE only on these four
+            // A BAC-first reader falls back to PACE only on these four
             val accepted = setOf(0x6D00, 0x6A81, 0x6982, 0x6A88)
             assertTrue(challenge.sw in accepted, "GET CHALLENGE on ${profile.id}: ${challenge.sw.toString(16)}")
             assertTrue(externalAuthenticate.sw in accepted, "EXTERNAL AUTHENTICATE on ${profile.id}: ${externalAuthenticate.sw.toString(16)}")
@@ -364,22 +416,21 @@ class ChipProfilesIntegrationTest {
     @Test
     fun `the new generation profiles read with the mechanisms their sources give`() {
         val british = ChipProfiles.byId("gb-passport")
-        val britishInfo = readPaceInfo(documentFor(british, exact = true))
+        val britishInfo = readPaceInfo(documentFor(british))
         assertEquals(EcCurve.NIST_P256.paceParameterId, britishInfo.parameterId.toInt())
         assertEquals("AES-256", britishInfo.cipherName)
 
         val german = ChipProfiles.byId("de-passport-2023")
-        val germanInfo = readPaceInfo(documentFor(german, exact = true))
-        assertEquals(EcCurve.BRAINPOOL_P256R1.paceParameterId, germanInfo.parameterId.toInt())
-        assertEquals(PACEInfo.MappingType.CAM, PACEInfo.toMappingType(germanInfo.objectIdentifier))
+        val germanInfos = readPaceInfos(documentFor(german))
+        assertEquals(setOf(EcCurve.BRAINPOOL_P256R1.paceParameterId), germanInfos.map { it.parameterId.toInt() }.toSet())
+        assertTrue(germanInfos.any { PACEInfo.toMappingType(it.objectIdentifier) == PACEInfo.MappingType.CAM })
 
         val dutch = ChipProfiles.byId("nl-passport-2024")
-        val dutchExact = readPaceInfo(documentFor(dutch, exact = true))
-        assertEquals(EcCurve.BRAINPOOL_P320R1.paceParameterId, dutchExact.parameterId.toInt())
-        assertEquals("AES-256", dutchExact.cipherName)
-        assertEquals(EcCurve.NIST_P384.paceParameterId, readPaceInfo(documentFor(dutch, exact = false)).parameterId.toInt())
+        val dutchInfo = readPaceInfo(documentFor(dutch))
+        assertEquals(EcCurve.BRAINPOOL_P320R1.paceParameterId, dutchInfo.parameterId.toInt())
+        assertEquals("AES-256", dutchInfo.cipherName)
 
-        val canadian = readPaceInfo(documentFor(ChipProfiles.byId("ca-passport-2023"), exact = false))
+        val canadian = readPaceInfo(documentFor(ChipProfiles.byId("ca-passport-2023")))
         assertEquals(EcCurve.NIST_P384.paceParameterId, canadian.parameterId.toInt())
         assertEquals("AES-128", canadian.cipherName)
     }

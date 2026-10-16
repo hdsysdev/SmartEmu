@@ -312,9 +312,7 @@ class PassportSimulatorViewModel(
             _uiState.value = _uiState.value.withLoading(true).withError(null)
             
             // How exactly the chip follows its profile is a setting of the app's, fixed for the run
-            val passportData = currentState.passportData.copy(
-                exactCryptography = _settings.value.usesExactCryptography
-            )
+            val passportData = _settings.value.emulating(currentState.passportData)
             repository.startSimulation(passportData)
                 .onSuccess {
                     // Status will be updated through the flow observer

@@ -3,6 +3,9 @@ package com.hddev.smartemu
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import com.hddev.smartemu.capture.profile.ChipState
+import com.hddev.smartemu.capture.profile.ProbeKeys
+import com.hddev.smartemu.capture.profile.ProbeReplay
 import com.hddev.smartemu.data.ChipFault
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
@@ -115,6 +118,10 @@ class PassportHceService : HostApduService() {
     
     // Largest READ BINARY payload returned, so the secure messaging response still fits a short APDU
     private val maxReadLength = PassportService.DEFAULT_MAX_BLOCKSIZE
+    
+    // The measured status words the chip replays for probe steps, or null for a chip nobody measured, which keeps
+    // every behaviour below exactly as it was
+    private var replay: ProbeReplay? = null
     
     private val MASTER_FILE_ID: Short = 0x3F00
     
@@ -254,6 +261,12 @@ class PassportHceService : HostApduService() {
             // Validate APDU using SCUBA library
             val validationResult = validateApduCommand(commandApdu)
             if (!validationResult.isValid) {
+                // A measured chip may have answered this malformed command (a probe step with a wrong Lc) as it
+                // answers it; one nobody measured never does, and goes on to the error below
+                if (commandApdu != null) {
+                    refreshPassportData()
+                    measuredResponse(commandApdu, isSecure = false)?.let { return it }
+                }
                 Log.w(TAG, "APDU validation failed: ${validationResult.errorMessage}")
                 
                 ErrorLogger.logError(
@@ -271,6 +284,8 @@ class PassportHceService : HostApduService() {
             // Mark connection as established on first valid APDU
             if (!isConnected) {
                 isConnected = true
+                // A new session starts every command from its first probe step
+                replay?.reset()
                 ErrorLogger.logError(
                     level = ErrorLogger.LogLevel.INFO,
                     category = ErrorLogger.ErrorCategory.NFC_HARDWARE,
@@ -368,7 +383,8 @@ class PassportHceService : HostApduService() {
      */
     private fun processPlainCommand(apdu: ByteArray, isSecure: Boolean): ByteArray {
         val apduHex = ApduParser.run { apdu.toHexString() }
-        val parseResult = ApduParser.parseApduCommand(apdu)
+        measuredResponse(apdu, isSecure)?.let { return it }
+        val parseResult = ApduParser.parseApduCommand(apdu).withExtendedLe(apdu)
         
         // Handle parsing errors
         if (!parseResult.isValid && parseResult.errorResponse != null) {
@@ -387,6 +403,105 @@ class PassportHceService : HostApduService() {
         }
         
         return generateSmartCardResponse(parseResult, isSecure)
+    }
+    
+    /**
+     * The response a measured chip gives to a command that is one of the probe steps it was measured on, or null for
+     * the emulator's own handling (always, for a chip nobody measured). Only unprotected commands are probe steps.
+     * READ BINARY with the odd INS B1 is answered only by a chip measured supporting it.
+     */
+    private fun measuredResponse(apdu: ByteArray, isSecure: Boolean): ByteArray? {
+        val replay = replay ?: return null
+        if (!isSecure) {
+            when (val decision = replay.decide(apdu, chipState())) {
+                is ProbeReplay.Decision.Status -> return createErrorResponse(decision.statusWord)
+                is ProbeReplay.Decision.Succeed -> when (decision.kind) {
+                    ProbeReplay.Kind.SELECT_APPLICATION ->
+                        if (!ApduParser.parseApduCommand(apdu).isValid) return selectApplicationByName(apdu)
+                    ProbeReplay.Kind.GET_CHALLENGE ->
+                        return handleGetChallengeCommandWithScuba(ApduParser.ApduParseResult(ApduParser.ApduCommandType.GET_CHALLENGE, true))
+                    ProbeReplay.Kind.OTHER -> {}
+                }
+                ProbeReplay.Decision.Own -> {}
+            }
+        }
+        if (replay.supportsOddRead && apdu.size >= 5 && apdu[0].toInt() == 0 && (apdu[1].toInt() and 0xFF) == 0xB1) {
+            return handleOddReadBinaryCommand(apdu, isSecure)
+        }
+        return null
+    }
+    
+    /** Where the chip is, as a probe step's setup names it. */
+    private fun chipState(): ChipState = when {
+        isApplicationSelected && selectedFileId == null -> ChipState.EMRTD_APPLICATION
+        !isApplicationSelected && selectedFileId == null -> ChipState.MASTER_FILE
+        !isApplicationSelected && selectedFileId == PassportService.EF_CARD_ACCESS -> ChipState.CARD_ACCESS_SELECTED
+        else -> ChipState.OTHER
+    }
+    
+    /**
+     * SELECT by DF name with a name that isn't the eMRTD application's, which the measured chip accepted (as ISO 7816-4
+     * allows for a partial name): the application is selected all the same, with the response its P2 asks for.
+     */
+    private fun selectApplicationByName(apdu: ByteArray): ByteArray {
+        if (ldsFiles == null) return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+        endSession()
+        isApplicationSelected = true
+        selectedFileId = null
+        return if ((apdu[3].toInt() and 0x0C) == 0x0C) {
+            createSuccessResponse()
+        } else {
+            val dfName = byteArrayOf(0x84.toByte(), ApduParser.PASSPORT_AID.size.toByte()) + ApduParser.PASSPORT_AID
+            createSuccessResponse(byteArrayOf(0x6F, dfName.size.toByte()) + dfName)
+        }
+    }
+    
+    /**
+     * READ BINARY with INS B1 (ISO 7816-4): P1-P2 name the file (0000 for the selected one), the data field holds the
+     * offset as DO'54', and the answer is the bytes in DO'53'.
+     */
+    private fun handleOddReadBinaryCommand(apdu: ByteArray, isSecure: Boolean): ByteArray {
+        val files = ldsFiles ?: return createErrorResponse(ISO7816.SW_FILE_NOT_FOUND.toInt())
+        val lc = apdu[4].toInt() and 0xFF
+        if (lc < 2 || apdu.size < 5 + lc) return createErrorResponse(ISO7816.SW_WRONG_LENGTH.toInt())
+        val offsetObject = apdu.copyOfRange(5, 5 + lc)
+        val offsetLength = offsetObject[1].toInt() and 0xFF
+        if ((offsetObject[0].toInt() and 0xFF) != 0x54 || offsetLength > 4 || offsetObject.size < 2 + offsetLength) {
+            return createErrorResponse(ISO7816.SW_WRONG_DATA.toInt())
+        }
+        var offset = 0
+        for (i in 0 until offsetLength) offset = (offset shl 8) or (offsetObject[2 + i].toInt() and 0xFF)
+        val le = if (apdu.size > 5 + lc) (apdu[5 + lc].toInt() and 0xFF).let { if (it == 0) 256 else it } else 256
+        val reference = ((apdu[2].toInt() and 0xFF) shl 8) or (apdu[3].toInt() and 0xFF)
+        val fileId: Short = (if (reference == 0) selectedFileId else reference.toShort())
+            ?: return createErrorResponse(ErrorCodeMapper.SW_COMMAND_NOT_ALLOWED)
+        val content = files.fileById(fileId, isApplicationSelected)
+            ?: return createErrorResponse(if (reference == 0) ErrorCodeMapper.SW_COMMAND_NOT_ALLOWED else ISO7816.SW_FILE_NOT_FOUND.toInt())
+        if (!isSecure && !files.isPublic(fileId)) return createErrorResponse(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
+        if (offset >= content.size) return createErrorResponse(ISO7816.SW_WRONG_P1P2.toInt())
+        val data = content.copyOfRange(offset, offset + minOf(le, readLimit(isSecure), content.size - offset))
+        val length = when {
+            data.size < 0x80 -> byteArrayOf(data.size.toByte())
+            data.size < 0x100 -> byteArrayOf(0x81.toByte(), data.size.toByte())
+            else -> byteArrayOf(0x82.toByte(), (data.size shr 8).toByte(), data.size.toByte())
+        }
+        return createSuccessResponse(byteArrayOf(0x53) + length + data)
+    }
+    
+    /** The largest READ BINARY answer: the measured chip's for a plain read, the emulator's own under secure messaging. */
+    private fun readLimit(isSecure: Boolean): Int {
+        val measured = ldsFiles?.configuration?.maxReadLength ?: return maxReadLength
+        return if (isSecure) minOf(measured, maxReadLength) else measured
+    }
+    
+    /**
+     * A READ BINARY in extended-length form (00, then a two-byte Le) asks for that many bytes; the parser sees only the
+     * 00. Only for a chip with measured behaviour: elsewhere it stays as it was.
+     */
+    private fun ApduParser.ApduParseResult.withExtendedLe(apdu: ByteArray): ApduParser.ApduParseResult {
+        if (replay == null || commandType != ApduParser.ApduCommandType.READ_BINARY || apdu.size != 7 || apdu[4].toInt() != 0) return this
+        val le = ((apdu[5].toInt() and 0xFF) shl 8) or (apdu[6].toInt() and 0xFF)
+        return copy(le = if (le == 0) 65536 else le)
     }
     
     override fun onDeactivated(reason: Int) {
@@ -415,6 +530,7 @@ class PassportHceService : HostApduService() {
         isConnected = false
         isApplicationSelected = false
         selectedFileId = null
+        replay?.reset()
         endSession()
         
         emitEvent(NfcEvent.connectionLost(Clock.System.now(), reasonString))
@@ -452,6 +568,7 @@ class PassportHceService : HostApduService() {
         selectedFileId = null
         currentPassportData = passportData
         ldsFiles = passportData?.let { loadPassportData(it) }
+        replay = ldsFiles?.configuration?.let(ProbeReplay::of)
     }
     
     /**
@@ -468,7 +585,7 @@ class PassportHceService : HostApduService() {
         }
         
         val bacInitResult = bacProtocol.initialize(passportData)
-        val paceInitResult = paceProtocol.initialize(passportData, files.chipAuthenticationKeyPair)
+        val paceInitResult = paceProtocol.initialize(passportData, files.paceChipAuthenticationKeyPairs)
         chipAuthenticationProtocol = files.configuration.chipAuthentication?.let { spec ->
             files.eacChipAuthenticationKeyPair?.let { ChipAuthenticationProtocol(spec, it) }
         }
@@ -489,9 +606,9 @@ class PassportHceService : HostApduService() {
         }.joinToString()
         Log.d(TAG, "Chip ready with $configuration")
         emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Chip ready ($configuration)"))
-        chip.adaptations.forEach { Log.i(TAG, "Adapted: $it") }
+        chip.adaptations.forEach { Log.i(TAG, "Differs from the profile: $it") }
         if (chip.adaptations.isNotEmpty()) {
-            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Adapted for the r2w nfc-library: " + chip.adaptations.joinToString(" ")))
+            emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Differs from the profile: " + chip.adaptations.joinToString(" ")))
         }
         return files
     }
@@ -742,7 +859,7 @@ class PassportHceService : HostApduService() {
         
         // Le=0 in a short APDU means up to 256 bytes
         val le = if (parseResult.le == 0) 256 else parseResult.le
-        val bytesToRead = minOf(le, maxReadLength, fileContent.size - offset)
+        val bytesToRead = minOf(le, readLimit(isSecure), fileContent.size - offset)
         val responseData = fileContent.copyOfRange(offset, offset + bytesToRead)
         
         val fileName = files.fileName(fileId, isApplicationSelected)
@@ -836,7 +953,9 @@ class PassportHceService : HostApduService() {
             // Chips differ in how they answer EXTERNAL AUTHENTICATE with no challenge to answer, and readers have
             // been seen to tell issuers apart by it; the profile says which status word
             if (bacProtocol.getCurrentState() != BacProtocol.BacState.CHALLENGE_GENERATED) {
-                val statusWord = ldsFiles?.configuration?.errorResponses?.outOfSequence ?: ErrorCodeMapper.SW_CONDITIONS_NOT_SATISFIED
+                val errorResponses = ldsFiles?.configuration?.errorResponses
+                val statusWord = errorResponses?.forProbe(ProbeKeys.EXTERNAL_AUTHENTICATE_OUT_OF_SEQUENCE)
+                    ?: errorResponses?.outOfSequence ?: ErrorCodeMapper.SW_CONDITIONS_NOT_SATISFIED
                 Log.w(TAG, "EXTERNAL AUTHENTICATE without GET CHALLENGE")
                 emitEvent(NfcEvent.authenticationFailure(Clock.System.now(), "BAC", "EXTERNAL AUTHENTICATE without GET CHALLENGE"))
                 return createErrorResponse(statusWord)

@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -40,6 +41,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -118,3 +120,51 @@ android {
 dependencies {
     debugImplementation(compose.uiTooling)
 }
+
+// Capture-mode maintainer tools (tools/capture-intake/, docs/lab-captures.md). They run on the unit-test classpath, because
+// the hold-out rule and the fidelity diff need the JVM emulator harness, which is test code. Parameters come as project
+// properties (-Pintake.input=...), so a path with spaces needs no quoting. None of them runs git.
+fun registerCaptureTool(taskName: String, taskDescription: String, entryPoint: String, toolArgs: List<String>) {
+    tasks.register<JavaExec>(taskName) {
+        group = "capture"
+        description = taskDescription
+        // The classpath of the unit tests (compiled test classes, main classes, dependencies, the mockable android.jar);
+        // using it as a file collection depends on compiling them, not on running them
+        classpath = tasks.getByName<Test>("testDebugUnitTest").classpath
+        mainClass.set(entryPoint)
+        // Relative paths in the arguments are the caller's, not the module's
+        workingDir = rootProject.projectDir
+        args(toolArgs)
+    }
+}
+
+fun gradleFlag(name: String, option: String): List<String> =
+    if (providers.gradleProperty(name).orNull == "true") listOf(option) else emptyList()
+
+fun gradleOption(name: String, option: String): List<String> =
+    providers.gradleProperty(name).orNull?.takeIf { it.isNotEmpty() }?.let { listOf(option, it) } ?: emptyList()
+
+registerCaptureTool(
+    "captureIntake",
+    "Maintainer intake of contributed captures: lint, quarantine, store, merge into profiles/, diff (-Pintake.input, -Pintake.store, -Pintake.repo, -Pintake.apply=true, -Pintake.links=GEN=ID,...)",
+    "com.hddev.smartemu.capture.intake.IntakeMain",
+    gradleOption("intake.input", "--input") + gradleOption("intake.store", "--store") + gradleOption("intake.repo", "--repo") +
+        gradleFlag("intake.apply", "--apply") +
+        providers.gradleProperty("intake.links").orNull.orEmpty().split(',').filter { it.isNotBlank() }.flatMap { listOf("--link", it) }
+)
+
+registerCaptureTool(
+    "captureExportPack",
+    "Writes the command sheet of probe packs for a lab operator (-Pexport.packs=tier-a/1,..., -Pexport.out=FILE, -Pexport.reader=NAME, -Pexport.extended=false)",
+    "com.hddev.smartemu.capture.transcript.LabMain",
+    listOf("export") + gradleOption("export.packs", "--packs") + gradleOption("export.out", "--out") + gradleOption("export.reader", "--reader") +
+        gradleOption("export.source", "--source") + (if (providers.gradleProperty("export.extended").orNull == "false") listOf("--no-extended") else emptyList())
+)
+
+registerCaptureTool(
+    "captureImportTranscript",
+    "Imports a PC/SC or Proxmark transcript as a capture JSON, linted (-Pimport.transcript=FILE, -Pimport.out=DIR, -Pimport.source=PCSC|PROXMARK, -Pimport.packs=tier-a/1,..., -Pimport.sacrificial=true)",
+    "com.hddev.smartemu.capture.transcript.LabMain",
+    listOf("import") + gradleOption("import.transcript", "--transcript") + gradleOption("import.out", "--out") + gradleOption("import.source", "--source") +
+        gradleOption("import.packs", "--packs") + gradleFlag("import.sacrificial", "--sacrificial")
+)
