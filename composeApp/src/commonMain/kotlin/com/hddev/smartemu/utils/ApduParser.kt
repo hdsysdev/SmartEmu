@@ -385,9 +385,17 @@ object ApduParser {
             )
         }
         
-        val lc = if (apdu.size > 4) apdu[4].toInt() and 0xFF else 0
-        val data = if (lc > 0 && apdu.size >= 5 + lc) {
-            apdu.sliceArray(5 until 5 + lc)
+        // PACE with a 2048-bit Diffie-Hellman group exchanges 256-byte public values, which take an extended-length
+        // APDU (00, then a two-byte Lc)
+        val extended = apdu.size >= 7 && apdu[4].toInt() == 0
+        val dataOffset = if (extended) 7 else 5
+        val lc = when {
+            extended -> ((apdu[5].toInt() and 0xFF) shl 8) or (apdu[6].toInt() and 0xFF)
+            apdu.size > 4 -> apdu[4].toInt() and 0xFF
+            else -> 0
+        }
+        val data = if (lc > 0 && apdu.size >= dataOffset + lc) {
+            apdu.sliceArray(dataOffset until dataOffset + lc)
         } else {
             byteArrayOf()
         }

@@ -20,6 +20,7 @@ import com.hddev.smartemu.data.PassportData
 import com.hddev.smartemu.data.PassportPreset
 import com.hddev.smartemu.data.PassportPresets
 import com.hddev.smartemu.data.PresetGroup
+import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
  * The ready-made documents under their group headings, for a lazy list. [summary] is the line under each title;
@@ -57,7 +58,7 @@ internal fun PresetRow(preset: PassportPreset, summary: String, onClick: () -> U
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = preset.title, style = MaterialTheme.typography.bodyLarge)
-            Text(
+            GlossaryText(
                 text = summary,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -96,7 +97,7 @@ fun PresetDialog(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(text = "Load a preset", style = MaterialTheme.typography.headlineSmall)
-                    Text(
+                    GlossaryText(
                         text = "Replaces the document details and chip settings. The portrait and CAN are kept.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

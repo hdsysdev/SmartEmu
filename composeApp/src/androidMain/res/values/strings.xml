@@ -2,4 +2,5 @@
     <string name="app_name">PassportEmu</string>
     <string name="passport_hce_service_description">Passport NFC Simulator Service</string>
     <string name="passport_aid_group_description">ICAO Passport Application</string>
+    <string name="capture_activity_label">Capture a document</string>
 </resources>

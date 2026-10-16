@@ -1,0 +1,16 @@
+# Tests that fail on master for reasons unrelated to capture mode. The CI check (tools/ci/check_test_results.py) fails
+# on any failing test that is NOT listed here, and says when a listed test now passes, so this file only shrinks.
+#
+# Format: <fully qualified class>::<test name as in the JUnit XML>. Lines starting with # and blank lines are ignored.
+# Do not add a test to hide a new failure: fix it, or get the steward's approval in the PR and say why in a comment here.
+com.hddev.smartemu.PerformanceTest::concurrent authentication attempts should not degrade performance
+com.hddev.smartemu.PerformanceTest::large passport data should not impact performance significantly
+com.hddev.smartemu.PerformanceTest::APDU command processing should have consistent response times
+com.hddev.smartemu.MemoryUsageValidationTest::passport data validation memory usage
+com.hddev.smartemu.data.PassportDataTest::testDateOfBirthValidation
+com.hddev.smartemu.data.PassportDataTest::testEmptyPassportData
+com.hddev.smartemu.data.PassportDataTest::testValidationErrorMessages
+com.hddev.smartemu.domain.SimulatorErrorTest::LibraryInitializationFailed includes library name
+com.hddev.smartemu.ScubaBasicTest::test SCUBA ISO7816 constants
+com.hddev.smartemu.utils.DateValidationUtilsTest::testFormatForDisplay
+com.hddev.smartemu.viewmodel.PassportSimulatorViewModelTest::initial state should be correct

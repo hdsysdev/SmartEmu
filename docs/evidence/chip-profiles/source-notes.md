@@ -1,6 +1,6 @@
 # Authored notes on primary profile sources
 
-Checked 2026-09-30. These are bounded summaries written for PassportEmu, not copies of the publications. Full downloaded sources are outside the repository in `/tmp/passportemu-source-cache`. The [manifest](manifest.json) records their URLs, hashes and locators; [profile evidence](../../chip-profile-evidence.md) maps findings to presets and assumptions.
+Checked 2026-09-30, and for the gmrtd sources 2026-10-12. These are bounded summaries written for PassportEmu, not copies of the publications. Full downloaded sources are outside the repository in `/tmp/passportemu-source-cache`. The [manifest](manifest.json) records their URLs, hashes and locators; [profile evidence](../../chip-profile-evidence.md) maps findings to presets and assumptions.
 
 ## Richter, Mostowski and Poll, 2008
 
@@ -33,3 +33,13 @@ Under “Tampering and inauthenticity: Passive authentication”, RSA-PSS-2048 a
 ## Australian official audit
 
 The separately retained [ANAO notes](anao-australia-2012-notes.md) cover M/N generation dates, BAC, and N's introduction of AA. The AA algorithm is unspecified. Those findings are not extended to P or R Series.
+
+## gmrtd README, Sample Documents table
+
+The [gmrtd README](https://github.com/gmrtd/gmrtd/blob/main/README.md) (commit `2a696fae`, retrieved 2026-10-12) lists real documents its author read, one per row, with columns for PACE, Chip Authentication, Active Authentication, extended length and LDS version. A cell names one mechanism, so a mechanism that is not listed is not shown to be absent; only a cell that says "n/a (BAC)" for PACE, or a row marked "Cloneable" (no Chip or Active Authentication), reports an absence. The table does not define its Type codes (P, PP, PO, PA, I, ID) and lists two Singapore rows without saying how they differ. For Russia it gives only "secp192" for the Chip Authentication curve. These are single documents: they scope the access control, PACE and Chip Authentication suites of a profile, not a country's whole production.
+
+## gmrtd parsed SOD test vectors
+
+`TestNewSod` in [`document/sod_test.go`](https://github.com/gmrtd/gmrtd/blob/main/document/sod_test.go) and `TestPassiveAuth` in [`passiveauth/passive_auth_test.go`](https://github.com/gmrtd/gmrtd/blob/main/passiveauth/passive_auth_test.go) (same commit and date) embed real EF.SOD files, one or more per country, marked by a country comment. Parsing one gives its Document Signer key type, signature and digest algorithms, validity dates, LDS version and the data groups it hashes. Each fact holds for that one SOD. A data group missing from it (DG15, DG14) does not show that the chip lacks Active or Chip Authentication, because an issuer's SODs and chips can differ, so PassportEmu leaves those aspects ASSUMED unless the README row itself says otherwise. The vectors do not say which README row they belong to, so the Singapore SOD is used only as a basis for the RSA-2048 test signer.
+
+The gmrtd source `cms/curves.go` treats a 192-bit curve as ambiguous between NIST P-192 (TR-03110 domain parameter id 8) and brainpoolP192r1 (id 9); this is why the Russian "secp192" is an assumed reading of P-192, not a reported curve.

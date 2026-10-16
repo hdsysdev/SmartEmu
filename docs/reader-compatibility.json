@@ -1,0 +1,578 @@
+{
+    "schemaVersion": 1,
+    "reader": "JMRTD 0.8.8 + SCUBA 0.0.21 + Bouncy Castle 1.85",
+    "profiles": {
+        "at-passport-2023": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-128": "pass",
+            "bac": "pass"
+        },
+        "au-passport-2016-p": {
+            "ef-card-access": "n/a",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "pass",
+            "bac": "pass"
+        },
+        "ca-passport-2023": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-384 AES-128": "pass",
+            "bac": "pass"
+        },
+        "cn-passport-po-2018": {
+            "ef-card-access": "n/a",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "pass",
+            "bac": "pass"
+        },
+        "de-id-card": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-CAM ECDH brainpoolP256r1 AES-128": "pass",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-128": "pass",
+            "bac": "n/a"
+        },
+        "de-passport-2017": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-128": "pass",
+            "bac": "pass"
+        },
+        "de-passport-2023": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-CAM ECDH brainpoolP256r1 AES-128": "pass",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-128": "pass",
+            "bac": "n/a"
+        },
+        "eu-id-card": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-128": "pass",
+            "bac": "pass"
+        },
+        "eu-passport": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-128": "pass",
+            "bac": "pass"
+        },
+        "fi-id-card-2023": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "pace:PACE-CAM ECDH brainpoolP384r1 AES-256": "pass",
+            "pace:PACE-GM ECDH brainpoolP384r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "fi-passport-2024": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "pace:PACE-CAM ECDH brainpoolP384r1 AES-256": "pass",
+            "pace:PACE-GM ECDH brainpoolP384r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "fr-id-card-2024": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-256": "pass",
+            "pace:PACE-IM ECDH brainpoolP256r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "fr-passport-2017": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-256": "pass",
+            "bac": "pass"
+        },
+        "gb-passport": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-256": "pass",
+            "bac": "pass"
+        },
+        "generic": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-128": "pass",
+            "bac": "pass"
+        },
+        "hk-passport-2025": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "id-passport-2025": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "my-passport-2023": {
+            "ef-card-access": "n/a",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "bac": "pass"
+        },
+        "nl-id-card": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH NIST P-256 AES-128": "pass",
+            "bac": "pass"
+        },
+        "nl-passport": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH NIST P-256 AES-128": "pass",
+            "bac": "pass"
+        },
+        "nl-passport-2024": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH brainpoolP320r1 AES-256": "pass",
+            "bac": "n/a"
+        },
+        "nz-passport-2017": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH brainpoolP256r1 3DES": "pass",
+            "bac": "pass"
+        },
+        "ph-passport-2020": {
+            "ef-card-access": "n/a",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "pass",
+            "bac": "pass"
+        },
+        "pt-passport-2026": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-128": "pass",
+            "bac": "pass"
+        },
+        "ru-passport-2020": {
+            "ef-card-access": "n/a",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "pass",
+            "active-authentication": "n/a",
+            "bac": "pass"
+        },
+        "sg-passport-pa-2023": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "sg-passport-pp-2025": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "pass",
+            "pace:PACE-GM ECDH brainpoolP256r1 AES-256": "pass",
+            "bac": "pass"
+        },
+        "tw-passport-2024": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-256": "pass",
+            "bac": "pass"
+        },
+        "us-passport-2021": {
+            "ef-card-access": "n/a",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "bac": "pass"
+        }
+    },
+    "variants": {
+        "DH 1024/160 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "DH 1024/160 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "DH 1024/160 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "DH 2048/224 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "DH 2048/224 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "DH 2048/224 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "DH 2048/256 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "DH 2048/256 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "DH 2048/256 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "NIST P-192 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-192 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-192 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "NIST P-224 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-224 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-224 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-256 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-256 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-256 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "NIST P-384 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-384 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-384 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "NIST P-521 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-521 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "NIST P-521 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "brainpoolP192r1 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP192r1 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP192r1 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "brainpoolP224r1 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP224r1 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP224r1 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "brainpoolP256r1 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP256r1 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP256r1 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "brainpoolP320r1 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP320r1 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP320r1 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "brainpoolP384r1 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP384r1 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP384r1 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        },
+        "brainpoolP512r1 / CAM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP512r1 / GM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "pass",
+            "AES_256": "pass"
+        },
+        "brainpoolP512r1 / IM": {
+            "TDES": "pass",
+            "AES_128": "pass",
+            "AES_192": "reader unsupported: PACE Integrated Mapping with AES-192",
+            "AES_256": "pass"
+        }
+    }
+}

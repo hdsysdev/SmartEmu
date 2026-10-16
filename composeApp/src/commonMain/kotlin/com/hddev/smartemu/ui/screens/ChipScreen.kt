@@ -32,8 +32,12 @@ import com.hddev.smartemu.data.ChipConfiguration
 import com.hddev.smartemu.data.EcCurve
 import com.hddev.smartemu.data.KeySpec
 import com.hddev.smartemu.data.chipConfiguration
-import com.hddev.smartemu.ui.components.ChipProfileDetails
-import com.hddev.smartemu.ui.components.ChipProfilePicker
+import com.hddev.smartemu.data.withChipProfile
+import com.hddev.smartemu.ui.components.ChipProfileCard
+import com.hddev.smartemu.ui.components.ChipProfileDetailsDialog
+import com.hddev.smartemu.ui.components.ChipProfilePickerDialog
+import com.hddev.smartemu.ui.components.ChipProfileSpecCard
+import com.hddev.smartemu.ui.components.documentSignerName
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hddev.smartemu.data.PaceMapping
 import com.hddev.smartemu.data.PassportData
@@ -44,6 +48,7 @@ import com.hddev.smartemu.ui.components.NextStepButton
 import com.hddev.smartemu.ui.components.SectionCard
 import com.hddev.smartemu.ui.navigation.AppDestination
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
+import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
  * How the emulated chip protects its data: the access control protocols, the PACE mapping and the CAN,
@@ -61,21 +66,22 @@ fun ChipScreen(
     val editable = uiState.isPassportFormEnabled()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     // What the chip will do when the emulation starts, with the cryptography the settings choose
-    val configuration = remember(passportData, settings.usesExactCryptography) {
-        passportData.copy(exactCryptography = settings.usesExactCryptography).chipConfiguration()
-    }
+    val configuration = remember(passportData, settings) { settings.emulating(passportData).chipConfiguration() }
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    var showDetails by rememberSaveable { mutableStateOf(false) }
 
     ScreenColumn(modifier = modifier) {
         if (!editable && uiState.simulationStatus.isActiveOrStarting()) {
             EditingLockedBanner(onStopEmulation = viewModel::stopSimulation, stopEnabled = uiState.canStopSimulation())
         }
 
-        ChipProfilePicker(
-            selected = configuration.profile,
+        ChipProfileCard(
+            configuration = configuration,
             enabled = editable,
-            onSelected = viewModel::updateChipProfile
+            onChange = { showPicker = true },
+            onShowDetails = { showDetails = true }
         )
-        ChipProfileDetails(configuration = configuration)
+        ChipProfileSpecCard(configuration = configuration, onShowDetails = { showDetails = true })
 
         SectionCard(
             title = "Access control",
@@ -98,8 +104,14 @@ fun ChipScreen(
         if (passportData.accessControl.supportsPace) {
             SectionCard(
                 title = "PACE mapping",
-                subtitle = "How PACE agrees on a session key: ECDH on ${configuration.pace.curve.displayName} with " +
-                    configuration.pace.cipher.displayName,
+                subtitle = buildString {
+                    val pace = configuration.pace
+                    append("How PACE agrees on a session key: ")
+                    append(if (pace.usesDh) "Diffie-Hellman in ${pace.domainName}" else "ECDH on ${pace.domainName}")
+                    append(" with ${pace.cipher.displayName}")
+                    val others = configuration.paceSuites.size - 1
+                    if (others > 0) append(". EF.CardAccess offers $others more suite${if (others > 1) "s" else ""}")
+                },
                 icon = Icons.Outlined.Key
             ) {
                 ChoiceGroup {
@@ -142,7 +154,7 @@ fun ChipScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
+                GlossaryText(
                     text = activeAuthenticationDescription(configuration.profile.activeAuthentication ?: KeySpec.Ec(EcCurve.NIST_P256)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -165,6 +177,19 @@ fun ChipScreen(
             onClick = onNext,
             icon = AppDestination.EMULATOR.selectedIcon
         )
+    }
+
+    if (showPicker) {
+        ChipProfilePickerDialog(
+            selected = configuration.profile,
+            // What the chip would do with each profile, with this document and these settings
+            preview = { profile -> settings.emulating(passportData.withChipProfile(profile)).chipConfiguration() },
+            onSelected = viewModel::updateChipProfile,
+            onDismiss = { showPicker = false }
+        )
+    }
+    if (showDetails) {
+        ChipProfileDetailsDialog(configuration = configuration, onUse = null, onDismiss = { showDetails = false })
     }
 }
 
@@ -258,8 +283,12 @@ private fun ChipFilesSection(passportData: PassportData, configuration: ChipConf
     val pace = configuration.supportsPace
     val signer = documentSignerName(passportData, configuration)
     val files = buildList {
-        if (pace) add("EF.CardAccess" to "PACE parameters, readable without authentication")
-        if (pace && configuration.paceMapping == PaceMapping.CHIP_AUTHENTICATION) {
+        if (pace) {
+            add("EF.CardAccess" to configuration.paceSuites.joinToString(
+                prefix = "PACE parameters, readable without authentication: "
+            ) { it.displayName })
+        }
+        if (configuration.paceSuites.any { it.mapping == PaceMapping.CHIP_AUTHENTICATION }) {
             add("EF.CardSecurity" to "The chip's public key for CAM, signed by $signer")
         }
         if (configuration.terminalAuthentication) {
@@ -295,14 +324,13 @@ private fun ChipFilesSection(passportData: PassportData, configuration: ChipConf
     ) {
         files.forEach { (name, description) ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
+                GlossaryText(
                     text = name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.width(128.dp)
                 )
-                Text(
+                GlossaryText(
                     text = description,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -353,12 +381,12 @@ internal fun ChoiceRow(
         // The row handles the click, so the button only shows the state
         RadioButton(selected = selected, onClick = null, enabled = enabled, modifier = Modifier.padding(horizontal = 8.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
+            GlossaryText(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
-            Text(
+            GlossaryText(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -366,18 +394,6 @@ internal fun ChoiceRow(
         }
     }
 }
-
-/** The Document Signer that signs the chip's files, as test-pki/README.md names it. */
-private fun documentSignerName(passportData: PassportData, configuration: ChipConfiguration): String =
-    when (passportData.chipFault) {
-        ChipFault.EXPIRED_SIGNER -> "the expired test Document Signer"
-        ChipFault.UNTRUSTED_SIGNER -> "a Document Signer from the unknown CSCA"
-        ChipFault.BROKEN_SIGNATURE -> "a key that isn't the Document Signer's"
-        else -> {
-            val signer = if (passportData.documentType.isCard) configuration.sod.cardSigner else configuration.sod.passportSigner
-            "$signer (${configuration.sod.signerKey.displayName}) under ${configuration.sod.csca}"
-        }
-    }
 
 /** What turning on Active Authentication adds, with the profile's key. */
 private fun activeAuthenticationDescription(key: KeySpec): String = when (key) {

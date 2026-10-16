@@ -31,6 +31,7 @@ import com.hddev.smartemu.utils.EventLogFormatter.Format
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
+import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
  * Title, event count, search, an overflow menu of the copy, export and clear actions, and type filters above the
@@ -241,7 +242,7 @@ fun EventItem(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
+                    GlossaryText(
                         text = event.type.getDescription(),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
@@ -256,7 +257,7 @@ fun EventItem(
                     )
                 }
 
-                Text(
+                GlossaryText(
                     text = event.message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface

@@ -4,4 +4,7 @@
     <external-files-path name="logs" path="logs/" />
     <cache-path name="cached_logs" path="logs/" />
     <cache-path name="portraits" path="portraits/" />
+    <!-- Capture mode: the saved capture JSON, and the one-page report written to share -->
+    <files-path name="captures" path="captures/" />
+    <cache-path name="capture_reports" path="capture-reports/" />
 </paths>

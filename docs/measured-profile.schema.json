@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://passportemu.invalid/schemas/measured-profile.v1.schema.json",
+  "title": "MeasuredProfile v1",
+  "description": "What captures of one generation of chip agreed on, with per-field fidelity and MEASURED status. Mirrors composeApp/src/commonMain/kotlin/com/hddev/smartemu/capture/profile/MeasuredProfile.kt. Stored as profiles/<id>.json. Only counts and random capture ids: nothing that identifies a holder, a device or a single chip. Reader-side confounders (controller transceive length, extended-length support) are never part of a profile. MEASURED = indistinguishable from the real chip at APDU level on probe pack vN, on fields marked compared, from n captures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "generation", "probePack", "sampleCount", "captureIds", "observations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "description": "The file name without .json: country, document and year, as the Kotlin profile ids are.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 80 },
+    "chipProfileId": { "description": "The curated Kotlin ChipProfile this generation links to, or null.", "type": ["string", "null"] },
+    "generation": { "description": "The generation key (CaptureRecord.fingerprint, 16 upper-case hex digits) its captures share: a hash of what the chip itself fixes, not of the probe answers.", "type": "string", "pattern": "^[0-9A-Fa-f]{1,32}$", "maxLength": 32 },
+    "probePack": { "$ref": "#/$defs/ProbePackRef" },
+    "additionalProbePacks": { "type": "array", "items": { "$ref": "#/$defs/ProbePackRef" } },
+    "sampleCount": { "description": "Distinct captures merged.", "type": "integer", "minimum": 1 },
+    "captureIds": { "type": "array", "items": { "type": "string", "minLength": 8, "maxLength": 64, "pattern": "^[A-Za-z0-9-]+$" } },
+    "needsReview": { "description": "True for a single-capture profile: held for a steward before it is shared.", "type": "boolean" },
+    "needsMoreCaptures": { "description": "True below two captures: nothing can be held out, so no field can be MEASURED.", "type": "boolean" },
+    "observations": { "$ref": "#/$defs/MeasuredObservations" },
+    "fields": { "type": "array", "items": { "$ref": "#/$defs/MeasuredField" } },
+    "disagreements": { "type": "array", "items": { "$ref": "#/$defs/Disagreement" } },
+    "notEmulatable": { "description": "What Android HCE can't copy whatever was measured.", "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "Hex": { "type": "string", "pattern": "^([0-9A-Fa-f]{2})*$" },
+    "StatusWord": { "description": "A status word as an integer, 36864 for 9000.", "type": "integer", "minimum": 0, "maximum": 65535 },
+    "SizeRange": {
+      "type": "object", "additionalProperties": false, "required": ["minBytes", "maxBytes"],
+      "properties": { "minBytes": { "type": "integer", "minimum": 0 }, "maxBytes": { "type": "integer", "minimum": 0 } }
+    },
+    "ProbePackRef": {
+      "type": "object", "additionalProperties": false, "required": ["id", "version"],
+      "properties": { "id": { "type": "string", "pattern": "^[a-z0-9-]{1,48}$" }, "version": { "type": "integer", "minimum": 1 } }
+    },
+    "FieldFidelity": { "enum": ["COMPARED", "STRUCTURAL", "NOT_COMPARABLE"] },
+    "NfcTechnology": { "enum": ["NFC_A", "NFC_B"] },
+    "TimingAggregate": {
+      "description": "Informational, never diffed.",
+      "type": "object", "additionalProperties": false, "required": ["minMs", "medianMs", "maxMs", "samples"],
+      "properties": {
+        "minMs": { "type": "integer", "minimum": 0 }, "medianMs": { "type": "integer", "minimum": 0 },
+        "maxMs": { "type": "integer", "minimum": 0 }, "samples": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "LinkSummary": {
+      "description": "Not emulatable on Android HCE: recorded and labelled, never claimed.",
+      "type": "object", "additionalProperties": false, "required": ["technology"],
+      "properties": {
+        "technology": { "$ref": "#/$defs/NfcTechnology" },
+        "historicalBytes": { "oneOf": [{ "$ref": "#/$defs/Hex" }, { "type": "null" }] },
+        "uidRandom": { "type": ["boolean", "null"] }
+      }
+    },
+    "MeasuredObservations": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "cardAccessHex": { "description": "EF.CardAccess as the chip wrote it, in its order.", "oneOf": [{ "$ref": "#/$defs/Hex" }, { "type": "null" }] },
+        "atrInfoHex": { "oneOf": [{ "$ref": "#/$defs/Hex" }, { "type": "null" }] },
+        "dirHex": { "oneOf": [{ "$ref": "#/$defs/Hex" }, { "type": "null" }] },
+        "fileSelectStatusWords": { "description": "By cardAccess, atrInfo, dir.", "type": "object", "additionalProperties": { "$ref": "#/$defs/StatusWord" } },
+        "fileSizeBuckets": { "type": "object", "additionalProperties": { "$ref": "#/$defs/SizeRange" } },
+        "applicationSelectStatusWord": { "oneOf": [{ "$ref": "#/$defs/StatusWord" }, { "type": "null" }] },
+        "applicationResponseSize": { "oneOf": [{ "$ref": "#/$defs/SizeRange" }, { "type": "null" }] },
+        "bacGetChallenge": { "oneOf": [{ "$ref": "#/$defs/StatusWord" }, { "type": "null" }] },
+        "bacExternalAuthenticate": { "oneOf": [{ "$ref": "#/$defs/StatusWord" }, { "type": "null" }] },
+        "statusWords": { "description": "By probeId/stepId.", "type": "object", "additionalProperties": { "$ref": "#/$defs/StatusWord" } },
+        "responseSizes": { "description": "By probeId/stepId.", "type": "object", "additionalProperties": { "$ref": "#/$defs/SizeRange" } },
+        "maxReadLength": { "description": "Largest probed Le answered in full; a lower bound.", "type": ["integer", "null"], "minimum": 1 },
+        "timing": { "type": "object", "additionalProperties": { "$ref": "#/$defs/TimingAggregate" } },
+        "link": { "oneOf": [{ "$ref": "#/$defs/LinkSummary" }, { "type": "null" }] },
+        "authenticated": { "description": "What authenticated captures agreed on, as auth: keys and structural text. Behind authentication: informational, never compared or MEASURED.", "type": "object", "propertyNames": { "pattern": "^auth:" }, "additionalProperties": { "type": "string" } }
+      }
+    },
+    "MeasuredEvidence": {
+      "type": "object", "additionalProperties": false, "required": ["captureIds", "sampleCount", "probePacks"],
+      "properties": {
+        "captureIds": { "type": "array", "items": { "type": "string" } },
+        "sampleCount": { "type": "integer", "minimum": 2 },
+        "probePacks": { "type": "array", "items": { "$ref": "#/$defs/ProbePackRef" } },
+        "heldOutCaptureId": { "description": "The capture the profile was checked against without being built from it.", "type": ["string", "null"] },
+        "heldOutFromDifferentReader": { "description": "True if no capture the profile was built from came from the held-out capture's reader model.", "type": "boolean" }
+      }
+    },
+    "MeasuredField": {
+      "type": "object", "additionalProperties": false, "required": ["key", "fidelity"],
+      "properties": {
+        "key": { "type": "string" },
+        "fidelity": { "$ref": "#/$defs/FieldFidelity" },
+        "reason": { "description": "For NOT_COMPARABLE, why.", "type": ["string", "null"] },
+        "aspect": { "description": "A ProfileAspect name, or null.", "type": ["string", "null"] },
+        "measured": { "description": "True only after the hold-out rule passed for this field with at least two captures.", "type": "boolean" },
+        "evidence": { "oneOf": [{ "$ref": "#/$defs/MeasuredEvidence" }, { "type": "null" }] },
+        "captureIds": { "type": "array", "items": { "type": "string" } },
+        "matchesDefault": { "description": "True if, with this field's step withheld from the replay table, the emulator's own generic rules gave the held-out capture's value anyway: compared and matching, but the replay adds nothing to it. Only on a MEASURED field.", "type": "boolean" }
+      },
+      "allOf": [
+        { "if": { "properties": { "measured": { "const": true } }, "required": ["measured"] }, "then": { "required": ["evidence"], "properties": { "evidence": { "type": "object" } } } },
+        { "if": { "properties": { "fidelity": { "const": "NOT_COMPARABLE" } }, "required": ["fidelity"] }, "then": { "properties": { "measured": { "const": false } } } }
+      ]
+    },
+    "DisagreementValue": {
+      "type": "object", "additionalProperties": false, "required": ["value", "captureIds"],
+      "properties": {
+        "value": { "type": "string" },
+        "captureIds": { "type": "array", "items": { "type": "string" } },
+        "readerModels": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Disagreement": {
+      "description": "A field the captures disagreed on: flagged, never averaged, and left out of observations.",
+      "type": "object", "additionalProperties": false, "required": ["field", "values", "reason"],
+      "properties": {
+        "field": { "type": "string" },
+        "values": { "type": "array", "items": { "$ref": "#/$defs/DisagreementValue" } },
+        "reason": { "type": "string" },
+        "acrossDevices": { "description": "True if the values split along reader models: likely the phone, not the chip.", "type": "boolean" }
+      }
+    }
+  }
+}

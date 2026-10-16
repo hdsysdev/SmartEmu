@@ -1,13 +1,21 @@
 package com.hddev.smartemu.utils
 
+import com.hddev.smartemu.data.DhGroup
+import com.hddev.smartemu.data.EcCurve
 import com.hddev.smartemu.data.PaceMapping
+import com.hddev.smartemu.data.PaceSpec
+import com.hddev.smartemu.data.PaceSuite
 import com.hddev.smartemu.data.PassportData
+import com.hddev.smartemu.data.SessionCipher
 import kotlinx.datetime.LocalDate
 import net.sf.scuba.tlv.TLVUtil
+import org.bouncycastle.util.encoders.Hex
 import org.jmrtd.PassportService
 import org.jmrtd.Util
 import org.jmrtd.lds.PACEInfo
+import org.jmrtd.protocol.PACEProtocol
 import org.junit.Test
+import java.math.BigInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -37,9 +45,11 @@ class PaceProtocolTest {
         passwordReference: Byte = PassportService.MRZ_PACE_KEY_REFERENCE,
         parameterId: Int? = PaceProtocol.PARAMETER_ID
     ): ByteArray {
-        val parameter = parameterId?.let { TLVUtil.wrapDO(0x84, byteArrayOf(it.toByte())) } ?: byteArrayOf()
+        val parameter = parameterId?.let { TLVUtil.wrapDO(0x84, Util.i2os(it.toBigInteger())) } ?: byteArrayOf()
         return Util.toOIDBytes(oid) + TLVUtil.wrapDO(0x83, byteArrayOf(passwordReference)) + parameter
     }
+
+    private fun camKeyPairs() = mapOf(PaceProtocol.PARAMETER_ID to PaceProtocol.generateChipAuthenticationKeyPair())
 
     private fun generalAuthenticate(vararg dataObjects: ByteArray): ByteArray =
         TLVUtil.wrapDO(0x7C, dataObjects.fold(byteArrayOf()) { acc, it -> acc + it })
@@ -82,7 +92,7 @@ class PaceProtocolTest {
         val result = pace.processMseSetAt(mseSetAt(passwordReference = PassportService.CAN_PACE_KEY_REFERENCE))
 
         assertTrue(result.success, result.message)
-        assertEquals("PACE-GM selected with the CAN", result.message)
+        assertEquals("PACE-GM NIST P-256 AES-128 selected with the CAN", result.message)
     }
 
     @Test
@@ -98,7 +108,7 @@ class PaceProtocolTest {
     fun `chip accepts only the mapping it advertises`() {
         val pace = PaceProtocol().also {
             val camData = passportData.copy(paceMapping = PaceMapping.CHIP_AUTHENTICATION)
-            assertTrue(it.initialize(camData, PaceProtocol.generateChipAuthenticationKeyPair()).success)
+            assertTrue(it.initialize(camData, camKeyPairs()).success)
         }
 
         assertEquals(PaceProtocol.SW_WRONG_DATA, pace.processMseSetAt(mseSetAt()).statusWord)
@@ -110,7 +120,7 @@ class PaceProtocolTest {
         val camData = passportData.copy(paceMapping = PaceMapping.CHIP_AUTHENTICATION)
 
         assertFalse(PaceProtocol().initialize(camData).success)
-        assertTrue(PaceProtocol().initialize(camData, PaceProtocol.generateChipAuthenticationKeyPair()).success)
+        assertTrue(PaceProtocol().initialize(camData, camKeyPairs()).success)
     }
 
     @Test
@@ -157,7 +167,113 @@ class PaceProtocolTest {
     }
 
     @Test
+    fun `a curve point with a trailing byte fails the run`() {
+        val pace = initializedProtocol()
+        pace.processMseSetAt(mseSetAt())
+        pace.processGeneralAuthenticate(generalAuthenticate())
+        val point = PACEProtocol.encodePublicKeyForSmartCard(PaceProtocol.generateChipAuthenticationKeyPair().public)
+
+        val result = pace.processGeneralAuthenticate(generalAuthenticate(TLVUtil.wrapDO(0x81, point + 0x00)))
+
+        assertFalse(result.success)
+        assertEquals(PaceProtocol.PaceState.FAILED, pace.getCurrentState())
+    }
+
+    @Test
     fun `MSE Set AT before initialization fails`() {
         assertFalse(PaceProtocol().processMseSetAt(mseSetAt()).success)
+    }
+
+    /** A chip that offers ECDH GM on NIST P-256 (its own), GM on brainpoolP256r1 and DH IM in the 2048/256 group. */
+    private val multiSuiteData = passportData.copy(
+        extraPaceSuites = listOf(
+            PaceSuite(PaceMapping.GENERIC, PaceSpec(curve = EcCurve.BRAINPOOL_P256R1)),
+            PaceSuite(PaceMapping.INTEGRATED, PaceSpec(cipher = SessionCipher.AES_256, dhGroup = DhGroup.MODP_2048_256))
+        )
+    )
+    private val dhImOid = PaceProtocol.oid(PaceMapping.INTEGRATED, SessionCipher.AES_256, dh = true)
+
+    @Test
+    fun `a chip offering several sets of domain parameters selects the suite DO'84 names`() {
+        val pace = initializedProtocol(multiSuiteData)
+
+        assertTrue(pace.processMseSetAt(mseSetAt(parameterId = EcCurve.BRAINPOOL_P256R1.paceParameterId)).success)
+        assertEquals(EcCurve.BRAINPOOL_P256R1, pace.curve)
+        assertTrue(pace.processMseSetAt(mseSetAt(parameterId = EcCurve.NIST_P256.paceParameterId)).success)
+        assertEquals(EcCurve.NIST_P256, pace.curve)
+        assertTrue(pace.processMseSetAt(mseSetAt(oid = dhImOid, parameterId = 2)).success)
+        assertEquals(PaceSuite(PaceMapping.INTEGRATED, PaceSpec(cipher = SessionCipher.AES_256, dhGroup = DhGroup.MODP_2048_256)), pace.suite)
+    }
+
+    @Test
+    fun `a chip offering several sets of domain parameters needs DO'84`() {
+        val result = initializedProtocol(multiSuiteData).processMseSetAt(mseSetAt(parameterId = null))
+
+        assertFalse(result.success)
+        assertEquals(PaceProtocol.SW_WRONG_DATA, result.statusWord)
+    }
+
+    @Test
+    fun `a protocol is accepted only with domain parameters it is offered on`() {
+        val pace = initializedProtocol(multiSuiteData)
+
+        assertEquals(PaceProtocol.SW_REFERENCED_DATA_NOT_FOUND, pace.processMseSetAt(mseSetAt(oid = dhImOid, parameterId = 12)).statusWord)
+        assertEquals(PaceProtocol.SW_REFERENCED_DATA_NOT_FOUND, pace.processMseSetAt(mseSetAt(parameterId = 2)).statusWord)
+    }
+
+    private fun encryptedNonceLength(mapping: PaceMapping, cipher: SessionCipher, dhGroup: DhGroup? = null): Int {
+        val pace = initializedProtocol(passportData.copy(paceMapping = mapping, paceCipher = cipher, paceDhGroup = dhGroup))
+        assertTrue(pace.processMseSetAt(mseSetAt(oid = pace.oid, parameterId = null)).success)
+        val result = pace.processGeneralAuthenticate(generalAuthenticate())
+        assertTrue(result.success, result.message)
+        return TLVUtil.unwrapDO(0x80, TLVUtil.unwrapDO(0x7C, result.data!!)).size
+    }
+
+    @Test
+    fun `the nonce is one block, or for integrated mapping the key size rounded up to whole blocks`() {
+        assertEquals(16, encryptedNonceLength(PaceMapping.GENERIC, SessionCipher.AES_256))
+        assertEquals(8, encryptedNonceLength(PaceMapping.GENERIC, SessionCipher.TDES))
+        assertEquals(16, encryptedNonceLength(PaceMapping.INTEGRATED, SessionCipher.TDES))
+        assertEquals(16, encryptedNonceLength(PaceMapping.INTEGRATED, SessionCipher.AES_128))
+        assertEquals(32, encryptedNonceLength(PaceMapping.INTEGRATED, SessionCipher.AES_192))
+        assertEquals(32, encryptedNonceLength(PaceMapping.INTEGRATED, SessionCipher.AES_256, DhGroup.MODP_2048_224))
+    }
+
+    @Test
+    fun `integrated mapping needs a nonce t of exactly the key size and answers with empty mapping data`() {
+        val data = passportData.copy(paceMapping = PaceMapping.INTEGRATED, paceCipher = SessionCipher.AES_192)
+        for ((size, accepted) in listOf(16 to false, 24 to true, 32 to false)) {
+            val pace = initializedProtocol(data)
+            pace.processMseSetAt(mseSetAt(oid = pace.oid))
+            pace.processGeneralAuthenticate(generalAuthenticate())
+
+            val result = pace.processGeneralAuthenticate(generalAuthenticate(TLVUtil.wrapDO(0x81, ByteArray(size) { 0x5A })))
+
+            assertEquals(accepted, result.success, "t of $size bytes")
+            if (accepted) assertEquals("7c028200", Hex.toHexString(result.data!!))
+        }
+    }
+
+    @Test
+    fun `DH mapping data outside the subgroup or badly encoded fails the run`() {
+        val data = passportData.copy(paceDhGroup = DhGroup.MODP_1024_160)
+        val group = PACEInfo.toParameterSpec(DhGroup.MODP_1024_160.paceParameterId) as PACEInfo.DHCParameterSpec
+        val valid = group.g.modPow(BigInteger.valueOf(12345), group.p)
+        val badValues = mapOf(
+            "1" to byteArrayOf(1),
+            "p - 1" to Util.i2os(group.p - BigInteger.ONE),
+            "outside the subgroup" to Util.i2os(BigInteger.valueOf(2)),
+            "a leading zero byte" to byteArrayOf(0) + Util.i2os(valid)
+        )
+        for ((name, value) in badValues) {
+            val pace = initializedProtocol(data)
+            pace.processMseSetAt(mseSetAt(oid = pace.oid, parameterId = null))
+            pace.processGeneralAuthenticate(generalAuthenticate())
+
+            val result = pace.processGeneralAuthenticate(generalAuthenticate(TLVUtil.wrapDO(0x81, value)))
+
+            assertFalse(result.success, name)
+            assertEquals(PaceProtocol.PaceState.FAILED, pace.getCurrentState(), name)
+        }
     }
 }

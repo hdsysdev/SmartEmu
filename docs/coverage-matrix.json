@@ -1,0 +1,396 @@
+{
+    "rows": [
+        {
+            "profileId": "eu-id-card",
+            "country": "ANY",
+            "document": "EU ID card (2021 design)",
+            "status": "ASSUMED",
+            "statusLabel": "Assumed",
+            "n": 0,
+            "provenance": {
+                "assumed": 8
+            },
+            "thin": false,
+            "captureRank": 1
+        },
+        {
+            "profileId": "eu-passport",
+            "country": "ANY",
+            "document": "EU passport (current design)",
+            "status": "ASSUMED",
+            "statusLabel": "Assumed",
+            "n": 0,
+            "provenance": {
+                "assumed": 8
+            },
+            "thin": false,
+            "captureRank": 2
+        },
+        {
+            "profileId": "au-passport-2016-p",
+            "country": "AUS",
+            "document": "passport (P Series, 2016)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 4,
+                "assumed": 4
+            },
+            "thin": false,
+            "captureRank": 3
+        },
+        {
+            "profileId": "at-passport-2023",
+            "country": "AUT",
+            "document": "passport (2023)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 4
+        },
+        {
+            "profileId": "ca-passport-2023",
+            "country": "CAN",
+            "document": "passport (2023 design)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 5
+        },
+        {
+            "profileId": "cn-passport-po-2018",
+            "country": "CHN",
+            "document": "passport (README type PO, 2018)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 6
+        },
+        {
+            "profileId": "fi-id-card-2023",
+            "country": "FIN",
+            "document": "ID card (2023)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 7
+        },
+        {
+            "profileId": "fi-passport-2024",
+            "country": "FIN",
+            "document": "passport (2024)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 8
+        },
+        {
+            "profileId": "fr-id-card-2024",
+            "country": "FRA",
+            "document": "ID card (2024)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 9
+        },
+        {
+            "profileId": "fr-passport-2017",
+            "country": "FRA",
+            "document": "passport (2017)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 10
+        },
+        {
+            "profileId": "gb-passport",
+            "country": "GBR",
+            "document": "passport (2020 design)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 11
+        },
+        {
+            "profileId": "hk-passport-2025",
+            "country": "HKG",
+            "document": "passport (2025)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 12
+        },
+        {
+            "profileId": "id-passport-2025",
+            "country": "IDN",
+            "document": "passport (2025)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 13
+        },
+        {
+            "profileId": "my-passport-2023",
+            "country": "MYS",
+            "document": "passport (2023)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 14
+        },
+        {
+            "profileId": "nl-id-card",
+            "country": "NLD",
+            "document": "ID card (2014 design)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 15
+        },
+        {
+            "profileId": "nl-passport",
+            "country": "NLD",
+            "document": "passport (2014 design)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 16
+        },
+        {
+            "profileId": "nl-passport-2024",
+            "country": "NLD",
+            "document": "passport (2024 design)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 17
+        },
+        {
+            "profileId": "nz-passport-2017",
+            "country": "NZL",
+            "document": "passport (2017)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 18
+        },
+        {
+            "profileId": "ph-passport-2020",
+            "country": "PHL",
+            "document": "passport (2020)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 19
+        },
+        {
+            "profileId": "pt-passport-2026",
+            "country": "PRT",
+            "document": "passport (README type PP, 2026)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 20
+        },
+        {
+            "profileId": "ru-passport-2020",
+            "country": "RUS",
+            "document": "passport (2020)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 21
+        },
+        {
+            "profileId": "sg-passport-pa-2023",
+            "country": "SGP",
+            "document": "passport (README type PA, 2023)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 22
+        },
+        {
+            "profileId": "sg-passport-pp-2025",
+            "country": "SGP",
+            "document": "passport (README type PP, 2025)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 23
+        },
+        {
+            "profileId": "tw-passport-2024",
+            "country": "TWN",
+            "document": "passport (2024)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 24
+        },
+        {
+            "profileId": "us-passport-2021",
+            "country": "USA",
+            "document": "passport (Next Generation, 2021)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 6,
+                "assumed": 2
+            },
+            "thin": false,
+            "captureRank": 25
+        },
+        {
+            "profileId": "de-id-card",
+            "country": "DEU",
+            "document": "ID card (Personalausweis)",
+            "status": "SPECIFICATION",
+            "statusLabel": "Specification",
+            "n": 0,
+            "provenance": {
+                "specification": 2,
+                "assumed": 6
+            },
+            "thin": false,
+            "captureRank": 26
+        },
+        {
+            "profileId": "de-passport-2017",
+            "country": "DEU",
+            "document": "passport (2017 design)",
+            "status": "SPECIFICATION",
+            "statusLabel": "Specification",
+            "n": 0,
+            "provenance": {
+                "specification": 3,
+                "assumed": 5
+            },
+            "thin": false,
+            "captureRank": 27
+        },
+        {
+            "profileId": "de-passport-2023",
+            "country": "DEU",
+            "document": "passport (2023 design)",
+            "status": "SPECIFICATION",
+            "statusLabel": "Specification",
+            "n": 0,
+            "provenance": {
+                "specification": 2,
+                "reported": 4,
+                "assumed": 2
+            },
+            "thin": false,
+            "captureRank": 28
+        }
+    ],
+    "unlinked": []
+}

@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,11 +33,22 @@ import androidx.compose.ui.unit.dp
 import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportData
+import com.hddev.smartemu.data.ChipConfiguration
 import com.hddev.smartemu.data.ChipFault
+import com.hddev.smartemu.data.Countries
+import com.hddev.smartemu.data.chipConfiguration
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hddev.smartemu.data.PassportSimulatorUiState
 import com.hddev.smartemu.data.ReadRecord
 import com.hddev.smartemu.data.SimulationStatus
+import com.hddev.smartemu.ui.components.AdaptationsNotice
 import com.hddev.smartemu.ui.components.AppButton
+import com.hddev.smartemu.ui.components.ChipTags
+import com.hddev.smartemu.ui.components.CountryTile
+import com.hddev.smartemu.ui.components.ProfileName
+import com.hddev.smartemu.ui.components.SpecRow
+import com.hddev.smartemu.ui.components.documentSignerName
+import com.hddev.smartemu.ui.components.tags
 import com.hddev.smartemu.ui.components.ButtonEmphasis
 import com.hddev.smartemu.ui.components.EmptyEventLog
 import com.hddev.smartemu.ui.components.EventItem
@@ -50,6 +63,7 @@ import com.hddev.smartemu.utils.EventLogFormatter.Format
 import com.hddev.smartemu.utils.ReadHistoryFormatter
 import kotlin.time.Clock
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
+import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
  * Starts and stops the emulation, lists what still stops it from starting, and shows the reader's activity,
@@ -67,6 +81,11 @@ fun EmulatorScreen(
     modifier: Modifier = Modifier
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    // The chip as the emulation runs it, with the cryptography the settings choose
+    val configuration = remember(uiState.passportData, settings) {
+        settings.emulating(uiState.passportData).chipConfiguration()
+    }
     // Oldest first, as exported; the list shows them reversed
     val matchingEvents = remember(uiState.nfcEvents, selectedEventTypes, searchQuery) {
         uiState.nfcEvents.filter { event ->
@@ -107,6 +126,15 @@ fun EmulatorScreen(
                     uiState = uiState,
                     onStart = viewModel::startSimulation,
                     onStop = viewModel::stopSimulation
+                )
+            }
+
+            item {
+                EmulatedChipSection(
+                    passportData = uiState.passportData,
+                    configuration = configuration,
+                    running = uiState.simulationStatus.isActiveOrStarting(),
+                    onEdit = { onNavigate(AppDestination.CHIP) }
                 )
             }
 
@@ -215,7 +243,7 @@ private fun EmulationStatusCard(
                 StatusBadge(status = status, ready = canStart)
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(text = title, style = MaterialTheme.typography.titleLarge)
-                    Text(text = body, style = MaterialTheme.typography.bodyMedium)
+                    GlossaryText(text = body, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
@@ -248,20 +276,14 @@ private fun EmulationStatusCard(
 }
 
 /**
- * The document number, holder and chip settings being emulated, as a single line of chips.
+ * The document and holder being emulated, as a single line of chips; the chip has its own section.
  */
 @Composable
 private fun PassportSummary(passportData: PassportData) {
-    val pace = passportData.accessControl.supportsPace
     val labels = buildList {
-        add(passportData.passportNumber.uppercase())
+        add("${passportData.documentType.displayName} ${passportData.passportNumber.uppercase()}")
         add("${passportData.lastName.uppercase()}, ${passportData.firstName.uppercase()}")
-        add(passportData.accessControl.displayName)
-        if (pace) add("PACE-${passportData.paceMapping.abbreviation}")
-        if (pace && passportData.hasCan()) add("CAN ${passportData.can}")
-        if (passportData.documentType.isCard) add("${passportData.documentType.displayName} (TD1)")
-        if (passportData.activeAuthentication) add("AA")
-        if (passportData.chipFault != ChipFault.NONE) add("Fault: ${passportData.chipFault.displayName}")
+        add(Countries.nameOf(passportData.issuingCountry))
     }
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -277,6 +299,85 @@ private fun PassportSummary(passportData: PassportData) {
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
+    }
+}
+
+/**
+ * What the reader will find: the chip profile, the access control and every PACE suite with its curve or group and
+ * cipher, the other protocols, how the files are signed, and how the chip differs from its profile. Open at first,
+ * since it's what a reader test is about.
+ */
+@Composable
+private fun EmulatedChipSection(
+    passportData: PassportData,
+    configuration: ChipConfiguration,
+    running: Boolean,
+    onEdit: () -> Unit
+) {
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    SectionCard(
+        title = if (running) "Emulated chip" else "Chip to emulate",
+        subtitle = configuration.profile.title,
+        icon = Icons.Outlined.Memory,
+        expanded = expanded,
+        onToggleExpanded = { expanded = !expanded }
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CountryTile(configuration.profile)
+            ProfileName(configuration.profile, modifier = Modifier.weight(1f))
+        }
+        ChipTags(configuration.tags)
+        AdaptationsNotice(configuration.adaptations)
+
+        val suites = configuration.paceSuites
+        SpecRow(label = "Access control", value = configuration.accessControl.description)
+        if (suites.isNotEmpty()) {
+            SpecRow(
+                label = if (suites.size > 1) "PACE suites in EF.CardAccess, in order" else "PACE",
+                value = suites.joinToString("\n") { it.displayName }
+            )
+            SpecRow(
+                label = "PACE passwords",
+                value = if (passportData.hasCan()) "MRZ, or CAN ${passportData.can}" else "MRZ only"
+            )
+        }
+        if (configuration.accessControl.supportsBac) {
+            SpecRow(label = "BAC", value = "MRZ key, 3DES secure messaging")
+        }
+        SpecRow(
+            label = "Chip Authentication",
+            value = configuration.chipAuthentication?.let { "${it.curve.displayName} · ${it.cipher.displayName}" } ?: "None"
+        )
+        SpecRow(label = "Active Authentication", value = configuration.activeAuthentication?.displayName ?: "Off")
+        SpecRow(
+            label = "Terminal Authentication",
+            value = if (configuration.terminalAuthentication) "Guards the fingerprints (DG3), which stay locked" else "None"
+        )
+        SpecRow(
+            label = "Passive Authentication",
+            value = "EF.SOD with ${configuration.sod.digestAlgorithm}, signed by ${documentSignerName(passportData, configuration)}"
+        )
+        SpecRow(label = "Data groups", value = configuration.dataGroups.joinToString { "DG$it" })
+        SpecRow(
+            label = "Cryptography",
+            value = when {
+                configuration.adaptations.isNotEmpty() -> "Adapted, as noted above"
+                else -> "As the profile has it"
+            }
+        )
+        if (passportData.chipFault != ChipFault.NONE) {
+            SpecRow(
+                label = "Fault injected",
+                value = "${passportData.chipFault.displayName}: a reader that checks the chip should reject it",
+                valueColor = MaterialTheme.colorScheme.error
+            )
+        }
+        AppButton(
+            text = if (running) "View chip settings" else "Change chip settings",
+            onClick = onEdit,
+            icon = Icons.Outlined.Tune,
+            emphasis = ButtonEmphasis.Low
+        )
     }
 }
 
@@ -347,8 +448,8 @@ private fun ReadRecordRow(record: ReadRecord) {
             if (record.chipFault != ChipFault.NONE) add("Fault: ${record.chipFault.displayName}")
             add("${record.documentType.displayName} ${record.documentNumber}")
         }
-        Text(text = details.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
-        Text(
+        GlossaryText(text = details.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
+        GlossaryText(
             text = record.failureReason ?: record.filesRead.joinToString().ifEmpty { "No files read" },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -507,8 +608,8 @@ private fun ReadinessRow(
             modifier = Modifier.size(20.dp)
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = label, style = MaterialTheme.typography.bodyLarge)
-            Text(
+            GlossaryText(text = label, style = MaterialTheme.typography.bodyLarge)
+            GlossaryText(
                 text = detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

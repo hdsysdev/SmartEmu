@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and older: captures are never backed up, nor is the flag that unlocks capture mode. The app had no backup rules of its own before this -->
+<full-backup-content>
+    <exclude domain="file" path="captures/" />
+    <exclude domain="file" path="capture-reports/" />
+    <exclude domain="sharedpref" path="capture_gate.xml" />
+</full-backup-content>

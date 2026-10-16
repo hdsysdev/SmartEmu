@@ -1,0 +1,9 @@
+# TODO(owner): the profile steward has not been named yet (capture-mode plan, section 3, item 5).
+# Replace the placeholder below with the real GitHub user or team, uncomment the lines,
+# and make "Require review from Code Owners" a branch protection rule.
+#
+# /profiles/                        @TODO-profile-steward
+# /docs/capture-record.schema.json  @TODO-profile-steward
+# /docs/capture-schema.md           @TODO-profile-steward
+# /docs/probe-packs.md              @TODO-profile-steward
+# /docs/capture-consent-and-retention.md @TODO-profile-steward

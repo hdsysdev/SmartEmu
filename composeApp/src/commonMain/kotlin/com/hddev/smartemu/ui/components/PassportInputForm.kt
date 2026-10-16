@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.hddev.smartemu.data.DocumentType
 import com.hddev.smartemu.data.PassportData
 import kotlinx.datetime.LocalDate
+import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
  * The document and holder details printed on the data page and stored in DG1, grouped as on the passport.
@@ -247,7 +248,7 @@ private fun PassportTextField(
         enabled = enabled,
         singleLine = true,
         isError = error != null,
-        supportingText = supporting?.let { { Text(text = it) } },
+        supportingText = supporting?.let { { GlossaryText(text = it) } },
         keyboardOptions = KeyboardOptions(
             capitalization = capitalization,
             keyboardType = KeyboardType.Text,

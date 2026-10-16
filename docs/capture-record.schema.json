@@ -1,0 +1,1341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://passportemu.invalid/schemas/capture-record.schema.json",
+  "title": "CaptureRecord (schema versions 1 and 2)",
+  "description": "A redacted record of how one real chip behaved. Mirrors composeApp/src/commonMain/kotlin/com/hddev/smartemu/capture/CaptureRecord.kt and is checked against it, field for field, by CaptureSchemaFileTest. Allowlist: no other property is accepted anywhere. Version 2 is the current one; version 1 records are still read and upgraded (docs/capture-schema.md). Rules this schema can't express (the fingerprint recomputed from the contents, redactions equal to the manifest, a bucket's maxBytes, the structure of the public files) are checked by the ingest lint, RedactionLint.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "captureId",
+    "captureMonth",
+    "source",
+    "probePack",
+    "reader",
+    "link"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "description": "2 for a record written now; 1 for one written before the fingerprint became the generation key.",
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "captureId": {
+      "description": "Random version 4 UUID; not derived from the device, the chip or the time.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "captureMonth": {
+      "description": "YYYY-MM, the month only.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+    },
+    "source": {
+      "$ref": "#/$defs/CaptureSource"
+    },
+    "probePack": {
+      "$ref": "#/$defs/ProbePackRef"
+    },
+    "additionalProbePacks": {
+      "description": "Further packs run in the same session after probePack, in the order they ran (for example tier-b after tier-a). Each probe result names its own pack version. Empty or absent for a one-pack capture.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProbePackRef"
+      }
+    },
+    "reader": {
+      "$ref": "#/$defs/ReaderDevice"
+    },
+    "link": {
+      "$ref": "#/$defs/LinkObservation"
+    },
+    "files": {
+      "$ref": "#/$defs/UnauthenticatedFiles"
+    },
+    "application": {
+      "description": "How the chip answered SELECT of the eMRTD application; absent if the run stopped before that.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ApplicationObservation"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "bacCommands": {
+      "description": "The status words of the BAC commands before any authentication; absent if the run stopped before that.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BacCommandObservation"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "probes": {
+      "description": "In the order they ran.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProbeResult"
+      }
+    },
+    "authenticated": {
+      "description": "Phase 2: what an authenticated read (MRZ or CAN) showed. Absent if the capture had none. Structure only: see docs/capture-schema.md.",
+      "$ref": "#/$defs/AuthenticatedObservation"
+    },
+    "aborted": {
+      "description": "Null or absent if the run completed.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AbortReason"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fingerprint": {
+      "description": "The generation key: the first 8 bytes of a SHA-256 over what the chip itself fixes (EF.CardAccess, the application SELECT, EF.ATR/INFO and EF.DIR), as 16 UPPER-CASE hex digits, as CaptureFingerprint.of writes it. Shared by every capture of one kind of chip. In version 1 it hashed every observation. Empty only in a draft that has not been fingerprinted; ingest rejects empty, and one that is not the fingerprint its contents give.",
+      "type": "string",
+      "pattern": "^([0-9A-F]{16})?$"
+    },
+    "observationDigest": {
+      "description": "Version 2: the same kind of hash over every observation (probe answers, packs, authenticated structure), for exact equality. Absent in a version 1 record and in a draft; ingest rejects a version 2 record whose digest is not the one its contents give.",
+      "type": "string",
+      "pattern": "^([0-9A-F]{16})?$"
+    },
+    "redactions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RedactionEntry"
+      }
+    }
+  },
+  "$defs": {
+    "CaptureSource": {
+      "enum": [
+        "ANDROID_READER",
+        "PCSC",
+        "PROXMARK"
+      ]
+    },
+    "NfcTechnology": {
+      "enum": [
+        "NFC_A",
+        "NFC_B"
+      ]
+    },
+    "ProbeTier": {
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "AbortReason": {
+      "enum": [
+        "TAG_LOST",
+        "BLOCKED_STATUS_WORD",
+        "USER_CANCELLED",
+        "UNSUPPORTED_CHIP"
+      ]
+    },
+    "Hex": {
+      "type": "string",
+      "pattern": "^([0-9A-Fa-f]{2})*$"
+    },
+    "StatusWord": {
+      "description": "SW1SW2 as an integer, for example 0x9000 = 36864.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535
+    },
+    "ProbePackRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "ReaderDevice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "androidVersion"
+      ],
+      "properties": {
+        "model": {
+          "description": "A short plain device name; the ingest lint also refuses a six-digit number and a nine-character document-number-like token.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9 ._+\\-/()]{1,64}$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "androidVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9 ._+\\-/()]{1,64}$",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "nfcChipset": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9 ._+\\-/()]{1,64}$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "controllerMaxTransceiveLength": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "controllerExtendedLengthSupported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "LinkObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "technology"
+      ],
+      "properties": {
+        "technology": {
+          "$ref": "#/$defs/NfcTechnology"
+        },
+        "historicalBytes": {
+          "description": "NFC-A historical bytes or NFC-B higher-layer response, hex, at most 64 bytes, compact-TLV without issuer or pre-issuing data (tags 4 and 5); otherwise dropped and only historicalBytesLength is kept.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Hex"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uidRandom": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "maxApduLengthObserved": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "historicalBytesLength": {
+          "description": "Version 2: the length of the historical bytes when they had to be cut down or left out; absent when stored whole.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 64
+        }
+      }
+    },
+    "UnauthenticatedFiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cardAccess": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FileObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "atrInfo": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FileObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dir": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/FileObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "FileObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectStatusWord"
+      ],
+      "properties": {
+        "selectStatusWord": {
+          "$ref": "#/$defs/StatusWord"
+        },
+        "contentsHex": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Hex"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "A public file: the SELECT's status word, the contents (after the structural allowlist: see docs/capture-schema.md) and a 256-byte size bucket."
+    },
+    "SizeRange": {
+      "description": "A 256-byte bucket (Redaction.SIZE_BUCKET) for files and authenticated structure: minBytes a multiple of 256, maxBytes = minBytes + 255. The maxBytes relation is checked by the ingest lint; JSON Schema cannot relate the two fields.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minBytes",
+        "maxBytes"
+      ],
+      "properties": {
+        "minBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "multipleOf": 256
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 255
+        }
+      }
+    },
+    "ProbeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "probeId",
+        "packVersion",
+        "tier",
+        "steps"
+      ],
+      "properties": {
+        "probeId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "packVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tier": {
+          "$ref": "#/$defs/ProbeTier"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepResult"
+          }
+        }
+      }
+    },
+    "StepResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stepId",
+        "statusWord"
+      ],
+      "properties": {
+        "stepId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "statusWord": {
+          "description": "Null if the tag was lost before an answer.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "responseSize": {
+          "description": "The length of the response data in 16-byte buckets.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ProbeSizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timing": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/TimingSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setupStatusWord": {
+          "description": "The status word of the re-SELECT that put the chip in the step's starting state; absent or null if the step needs none.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repeatsAgree": {
+          "description": "False if repeating the command gave different status words, in which case statusWord is the first. Default true.",
+          "type": "boolean"
+        }
+      }
+    },
+    "TimingSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minMs",
+        "medianMs",
+        "maxMs",
+        "samples"
+      ],
+      "properties": {
+        "minMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000
+        },
+        "medianMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000
+        },
+        "maxMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600000
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        }
+      }
+    },
+    "CredentialKind": {
+      "enum": [
+        "MRZ",
+        "CAN"
+      ],
+      "description": "The kind of credentials only; the values are never stored."
+    },
+    "AccessMethod": {
+      "enum": [
+        "PACE",
+        "BAC"
+      ]
+    },
+    "PaceMappingType": {
+      "enum": [
+        "GM",
+        "IM",
+        "CAM"
+      ]
+    },
+    "StatusClass": {
+      "enum": [
+        "OK",
+        "KEY_REJECTED",
+        "BLOCKED",
+        "CONDITIONS_NOT_SATISFIED",
+        "SECURITY_STATUS",
+        "NOT_FOUND",
+        "NOT_SUPPORTED",
+        "WRONG_LENGTH",
+        "NO_ANSWER",
+        "OTHER"
+      ]
+    },
+    "AccessStop": {
+      "enum": [
+        "KEY_REJECTED",
+        "BLOCKED",
+        "CONDITIONS_NOT_SATISFIED",
+        "CAN_SINGLE_ATTEMPT_FAILED",
+        "DECLINED_BY_USER",
+        "CAN_NEEDS_PACE"
+      ]
+    },
+    "SecurityInfoKind": {
+      "enum": [
+        "PACE",
+        "PACE_DOMAIN_PARAMETERS",
+        "CHIP_AUTHENTICATION",
+        "CHIP_AUTHENTICATION_PUBLIC_KEY",
+        "TERMINAL_AUTHENTICATION",
+        "ACTIVE_AUTHENTICATION",
+        "EF_DIR",
+        "OTHER"
+      ]
+    },
+    "AccessAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "succeeded",
+        "statusClass"
+      ],
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/AccessMethod"
+        },
+        "oid": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-2](\\.[0-9]{1,12}){1,24}$",
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mapping": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PaceMappingType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cipher": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^(AES-(128|192|256)|3DES)$",
+              "maxLength": 8
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameterId": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "succeeded": {
+          "type": "boolean"
+        },
+        "statusWord": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "statusClass": {
+          "$ref": "#/$defs/StatusClass"
+        },
+        "camVerified": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ComObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ldsVersion": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9.]{1,12}$",
+              "maxLength": 12
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unicodeVersion": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9.]{1,12}$",
+              "maxLength": 12
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dataGroups": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16
+          }
+        },
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "DataGroupObservation": {
+      "description": "Presence and size only, never contents. For DG3 and DG4 without Terminal Authentication readStatusWord is the refusal (0x6982 = 27010).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "number",
+        "inCom",
+        "inSod"
+      ],
+      "properties": {
+        "number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16
+        },
+        "inCom": {
+          "type": "boolean"
+        },
+        "inSod": {
+          "type": "boolean"
+        },
+        "selectStatusWord": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readStatusWord": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SignerCertificateObservation": {
+      "description": "No serial number, key identifier, names or bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "signatureAlgorithm": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+-]{0,47}$",
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyType": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,16}$",
+              "maxLength": 16
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyBits": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 16384
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "curve": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,32}$",
+              "maxLength": 32
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "issuerCountry": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z]{2,3}$",
+              "maxLength": 3
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "validityMonths": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SodObservation": {
+      "description": "EF.SOD without its data group hash values.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "digestAlgorithm": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+-]{0,47}$",
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "signatureAlgorithm": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+-]{0,47}$",
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ldsVersion": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9.]{1,12}$",
+              "maxLength": 12
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unicodeVersion": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9.]{1,12}$",
+              "maxLength": 12
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hashedDataGroups": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16
+          }
+        },
+        "certificateCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "signer": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SignerCertificateObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SecurityInfoObservation": {
+      "description": "A SecurityInfo as a structure; a key is a type and a size, never its bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "oid"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SecurityInfoKind"
+        },
+        "oid": {
+          "type": "string",
+          "pattern": "^[0-2](\\.[0-9]{1,12}){1,24}$",
+          "maxLength": 80
+        },
+        "version": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameterId": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyType": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,16}$",
+              "maxLength": 16
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyBits": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 16384
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "curve": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,32}$",
+              "maxLength": 32
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "SecurityInfosObservation": {
+      "description": "DG14 or EF.CardSecurity: the SecurityInfos in the chip's order.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "infos": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/SecurityInfoObservation"
+          }
+        },
+        "paceCamPresent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ActiveAuthenticationKeyObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyType": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,16}$",
+              "maxLength": 16
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "keyBits": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 16384
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "curve": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]{1,32}$",
+              "maxLength": 32
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "CvcaObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "carCountry": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$",
+              "maxLength": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hasAlternateReference": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AuthenticationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "succeeded"
+      ],
+      "properties": {
+        "succeeded": {
+          "type": "boolean"
+        },
+        "algorithm": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+-]{0,47}$",
+              "maxLength": 48
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "statusWord": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AuthenticatedObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "credential"
+      ],
+      "properties": {
+        "credential": {
+          "$ref": "#/$defs/CredentialKind"
+        },
+        "access": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/AccessAttempt"
+          }
+        },
+        "accessStopped": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AccessStop"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "readUnder": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 31
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "com": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ComObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dataGroups": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/DataGroupObservation"
+          }
+        },
+        "sod": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SodObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dg14": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SecurityInfosObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dg15": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ActiveAuthenticationKeyObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cardSecurity": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SecurityInfosObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cvca": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/CvcaObservation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activeAuthentication": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AuthenticationResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chipAuthentication": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/AuthenticationResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "RedactionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item",
+        "reason"
+      ],
+      "properties": {
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      }
+    },
+    "ApplicationObservation": {
+      "description": "The answer to SELECT of the eMRTD application (AID A0000002471001).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectStatusWord"
+      ],
+      "properties": {
+        "selectStatusWord": {
+          "$ref": "#/$defs/StatusWord"
+        },
+        "responseSize": {
+          "description": "The length of the response data in 16-byte buckets.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ProbeSizeRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "BacCommandObservation": {
+      "description": "The status words of the commands BAC starts with, before any authentication. Null is no answer; the challenge is never stored.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "getChallenge": {
+          "description": "GET CHALLENGE with Le 08.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "externalAuthenticate": {
+          "description": "EXTERNAL AUTHENTICATE with 40 bytes of zeros and no GET CHALLENGE before it.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StatusWord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ProbeSizeRange": {
+      "description": "A 16-byte bucket (Redaction.PROBE_BUCKET) for the response of a probe step and of the application SELECT: minBytes a multiple of 16, maxBytes = minBytes + 15. Probes read only the public EF.CardAccess, so the finer bucket is no quasi-identifier. The maxBytes relation is checked by the ingest lint.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minBytes",
+        "maxBytes"
+      ],
+      "properties": {
+        "minBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "multipleOf": 16
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 15
+        }
+      }
+    }
+  }
+}

@@ -112,15 +112,17 @@ class PassportLdsFilesTest {
         val cam = PassportLdsFiles.create(passportData.copy(paceMapping = PaceMapping.CHIP_AUTHENTICATION))
         val cardSecurity = CardSecurityFile(ByteArrayInputStream(cam.masterFile(PassportService.EF_CARD_SECURITY)!!))
 
-        val chipKey = cardSecurity.chipAuthenticationPublicKeyInfos.single().subjectPublicKey
-        assertEquals(cam.chipAuthenticationKeyPair!!.public, chipKey)
+        val chipKeyInfo = cardSecurity.chipAuthenticationPublicKeyInfos.single()
+        assertEquals(cam.paceChipAuthenticationKeyPairs.values.single().public, chipKeyInfo.subjectPublicKey)
+        // ICAO 9303-11 4.4.5.5: the CAM key's key ID is the PACEInfo's parameter ID
+        assertEquals(cardSecurity.paceInfos.single().parameterId, chipKeyInfo.keyId)
         assertEquals(PaceProtocol.oid(PaceMapping.CHIP_AUTHENTICATION), cardSecurity.paceInfos.single().objectIdentifier)
         assertFalse(cam.isPublic(PassportService.EF_CARD_SECURITY))
         assertEquals(PassportService.EF_CARD_SECURITY, cam.fidForSfi(PassportService.SFI_CARD_SECURITY.toInt(), isApplicationSelected = false))
 
         val generic = PassportLdsFiles.create(passportData.copy(paceMapping = PaceMapping.GENERIC))
         assertNull(generic.masterFile(PassportService.EF_CARD_SECURITY))
-        assertNull(generic.chipAuthenticationKeyPair)
+        assertTrue(generic.paceChipAuthenticationKeyPairs.isEmpty())
         val bacOnly = PassportLdsFiles.create(
             passportData.copy(accessControl = AccessControl.BAC_ONLY, paceMapping = PaceMapping.CHIP_AUTHENTICATION)
         )

@@ -1,0 +1,465 @@
+{
+    "schemaVersion": 1,
+    "id": "golden-profile",
+    "chipProfileId": null,
+    "generation": "01847DB4723079D6",
+    "probePack": {
+        "id": "tier-a",
+        "version": 1
+    },
+    "additionalProbePacks": [],
+    "sampleCount": 3,
+    "captureIds": [
+        "11111111-1111-4111-8111-111111111111",
+        "22222222-2222-4222-8222-222222222222",
+        "33333333-3333-4333-8333-333333333333"
+    ],
+    "needsReview": false,
+    "needsMoreCaptures": false,
+    "observations": {
+        "cardAccessHex": "31143012060A04007F0007020204020202010202010C",
+        "atrInfoHex": null,
+        "dirHex": "61094F07A0000002471001",
+        "fileSelectStatusWords": {
+            "cardAccess": 36864,
+            "atrInfo": 27266,
+            "dir": 36864
+        },
+        "fileSizeBuckets": {
+            "cardAccess": {
+                "minBytes": 0,
+                "maxBytes": 255
+            },
+            "dir": {
+                "minBytes": 0,
+                "maxBytes": 255
+            }
+        },
+        "applicationSelectStatusWord": 36864,
+        "applicationResponseSize": {
+            "minBytes": 0,
+            "maxBytes": 15
+        },
+        "bacGetChallenge": 36864,
+        "bacExternalAuthenticate": 27013,
+        "statusWords": {
+            "read-binary-max-length/le-df": 36864,
+            "external-authenticate-out-of-sequence/lc-40-le-28": 27013
+        },
+        "responseSizes": {
+            "read-binary-max-length/le-df": {
+                "minBytes": 16,
+                "maxBytes": 31
+            },
+            "read-binary-max-length/extended-le-ffff": {
+                "minBytes": 0,
+                "maxBytes": 15
+            },
+            "external-authenticate-out-of-sequence/lc-40-le-28": {
+                "minBytes": 0,
+                "maxBytes": 15
+            }
+        },
+        "maxReadLength": null,
+        "timing": {
+            "read-binary-max-length/le-df": {
+                "minMs": 12,
+                "medianMs": 13,
+                "maxMs": 15,
+                "samples": 9
+            },
+            "read-binary-max-length/extended-le-ffff": {
+                "minMs": 10,
+                "medianMs": 10,
+                "maxMs": 11,
+                "samples": 9
+            },
+            "external-authenticate-out-of-sequence/lc-40-le-28": {
+                "minMs": 9,
+                "medianMs": 9,
+                "maxMs": 9,
+                "samples": 3
+            }
+        },
+        "link": {
+            "technology": "NFC_A",
+            "historicalBytes": "8000",
+            "uidRandom": false
+        },
+        "authenticated": {}
+    },
+    "fields": [
+        {
+            "key": "file:cardAccess:selectStatusWord",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "file:cardAccess:contents",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": true,
+            "evidence": {
+                "captureIds": [
+                    "11111111-1111-4111-8111-111111111111",
+                    "22222222-2222-4222-8222-222222222222",
+                    "33333333-3333-4333-8333-333333333333"
+                ],
+                "sampleCount": 3,
+                "probePacks": [
+                    {
+                        "id": "tier-a",
+                        "version": 1
+                    }
+                ],
+                "heldOutCaptureId": "33333333-3333-4333-8333-333333333333",
+                "heldOutFromDifferentReader": false
+            },
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "file:cardAccess:size",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "file:atrInfo:selectStatusWord",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "file:dir:selectStatusWord",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "file:dir:contents",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "file:dir:size",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "application:selectStatusWord",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "application:responseSize",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "bac:getChallenge",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ACCESS_CONTROL",
+            "measured": true,
+            "evidence": {
+                "captureIds": [
+                    "11111111-1111-4111-8111-111111111111",
+                    "22222222-2222-4222-8222-222222222222",
+                    "33333333-3333-4333-8333-333333333333"
+                ],
+                "sampleCount": 3,
+                "probePacks": [
+                    {
+                        "id": "tier-a",
+                        "version": 1
+                    }
+                ],
+                "heldOutCaptureId": "33333333-3333-4333-8333-333333333333",
+                "heldOutFromDifferentReader": false
+            },
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "bac:externalAuthenticate",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ERROR_RESPONSES",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:read-binary-max-length/le-df:statusWord",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ERROR_RESPONSES",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:read-binary-max-length/le-df:responseSize",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ERROR_RESPONSES",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:read-binary-max-length/extended-le-ffff:responseSize",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ERROR_RESPONSES",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:external-authenticate-out-of-sequence/lc-40-le-28:statusWord",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ERROR_RESPONSES",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:external-authenticate-out-of-sequence/lc-40-le-28:responseSize",
+            "fidelity": "COMPARED",
+            "reason": null,
+            "aspect": "ERROR_RESPONSES",
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:read-binary-max-length/le-df:timing",
+            "fidelity": "NOT_COMPARABLE",
+            "reason": "Timing is informational: the phone, the field strength and the chip all change it",
+            "aspect": null,
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:read-binary-max-length/extended-le-ffff:timing",
+            "fidelity": "NOT_COMPARABLE",
+            "reason": "Timing is informational: the phone, the field strength and the chip all change it",
+            "aspect": null,
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "step:external-authenticate-out-of-sequence/lc-40-le-28:timing",
+            "fidelity": "NOT_COMPARABLE",
+            "reason": "Timing is informational: the phone, the field strength and the chip all change it",
+            "aspect": null,
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "link:technology",
+            "fidelity": "NOT_COMPARABLE",
+            "reason": "Link layer: not emulatable on Android HCE",
+            "aspect": null,
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "link:historicalBytes",
+            "fidelity": "NOT_COMPARABLE",
+            "reason": "Link layer: not emulatable on Android HCE",
+            "aspect": null,
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        },
+        {
+            "key": "link:uidRandom",
+            "fidelity": "NOT_COMPARABLE",
+            "reason": "Link layer: not emulatable on Android HCE",
+            "aspect": null,
+            "measured": false,
+            "evidence": null,
+            "captureIds": [
+                "11111111-1111-4111-8111-111111111111",
+                "22222222-2222-4222-8222-222222222222",
+                "33333333-3333-4333-8333-333333333333"
+            ],
+            "matchesDefault": false
+        }
+    ],
+    "disagreements": [
+        {
+            "field": "step:read-binary-max-length/extended-le-ffff:statusWord",
+            "values": [
+                {
+                    "value": "6700",
+                    "captureIds": [
+                        "11111111-1111-4111-8111-111111111111",
+                        "33333333-3333-4333-8333-333333333333"
+                    ],
+                    "readerModels": [
+                        "Galaxy S24",
+                        "Pixel 9"
+                    ]
+                },
+                {
+                    "value": "6D00",
+                    "captureIds": [
+                        "22222222-2222-4222-8222-222222222222"
+                    ],
+                    "readerModels": [
+                        "Pixel 8"
+                    ]
+                }
+            ],
+            "reason": "The captures answered differently",
+            "acrossDevices": true
+        }
+    ],
+    "notEmulatable": [
+        "NFC-B: HCE offers NFC-A only",
+        "UID, ATS and historical bytes: HCE can't set them",
+        "Behaviour before the eMRTD application is selected: Android answers only once the AID has been selected"
+    ]
+}

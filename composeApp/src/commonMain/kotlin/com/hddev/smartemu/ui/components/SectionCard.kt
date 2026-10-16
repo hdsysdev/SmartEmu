@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
  * A titled group of related settings or fields, the building block of each screen, with an optional [icon] beside
@@ -57,13 +58,13 @@ fun SectionCard(
             ) {
                 icon?.let { SectionIcon(it) }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
+                    GlossaryText(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     subtitle?.let {
-                        Text(
+                        GlossaryText(
                             text = it,
                             style = MaterialTheme.typography.bodySmall,
                             color = subtitleColor.takeOrElse { MaterialTheme.colorScheme.onSurfaceVariant }
@@ -142,7 +143,7 @@ fun HintCard(
             Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(24.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 title?.let { Text(text = it, style = MaterialTheme.typography.titleSmall) }
-                Text(text = text, style = MaterialTheme.typography.bodyMedium)
+                GlossaryText(text = text, style = MaterialTheme.typography.bodyMedium)
                 action?.let {
                     Spacer(modifier = Modifier.height(4.dp))
                     it()
