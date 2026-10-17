@@ -87,14 +87,15 @@ fun SettingsScreen(
         }
     ) { padding ->
         ScreenColumn(modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
-            // Capture mode is hidden: seven taps on this text unlock it, and then it has a card of its own below
+            // Developer mode always offers capture mode; out of it, seven taps on this text unlock its card below
             val captureEntry = LocalCaptureEntry.current
+            val captureShown = captureEntry != null && (captureEntry.unlocked || settings.developerMode)
             SectionCard(title = "About PassportEmu") {
                 Text(
                     text = "PassportEmu turns this phone into a virtual passport or ID card for another app to read. " +
                         "The documents use test certificates and can't be used as real ID.",
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = if (captureEntry != null && !captureEntry.unlocked) {
+                    modifier = if (captureEntry != null && !captureShown) {
                         Modifier.clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -128,7 +129,7 @@ fun SettingsScreen(
                 }
             }
 
-            if (captureEntry != null && captureEntry.unlocked) {
+            if (captureEntry != null && captureShown) {
                 SectionCard(
                     title = "Capture a real document",
                     subtitle = "Experimental. Reads how a passport or ID card's chip behaves, with no key, and saves " +
@@ -136,7 +137,8 @@ fun SettingsScreen(
                     icon = Icons.Outlined.Nfc
                 ) {
                     AppButton(text = "Open capture mode", onClick = captureEntry::open, icon = Icons.Outlined.Nfc)
-                    TextButton(onClick = captureEntry::lock) { Text("Hide capture mode") }
+                    // Developer mode shows it regardless, so hiding only means something out of it
+                    if (!settings.developerMode) TextButton(onClick = captureEntry::lock) { Text("Hide capture mode") }
                 }
             }
 

@@ -1,16 +1,21 @@
 package com.hddev.smartemu.data
 
+import com.hddev.smartemu.capture.profile.MeasuredProfileRegistry
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 
 /**
- * What a ready-made document is for, in the order they're offered.
+ * What a ready-made document is for, in the order they're offered: what capture mode measured first, then the countries'
+ * documents sampled from real chips, the other countries' documents, and the made-up cases. [countryProfiles] marks the
+ * groups of countries' specimens.
  */
-enum class PresetGroup(val title: String) {
+enum class PresetGroup(val title: String, val countryProfiles: Boolean = false) {
+    CAPTURED("Captured with this app"),
+    SAMPLED("Sampled from real chips", countryProfiles = true),
+    COUNTRIES("By country", countryProfiles = true),
     EVERYDAY("Everyday"),
-    COUNTRIES("By country"),
     TRICKY_DETAILS("Tricky details"),
     OTHER_DOCUMENTS("Other documents"),
     CHIP_SECURITY("Chip security"),
@@ -30,13 +35,20 @@ class PassportPreset(
 )
 
 /**
- * The ready-made documents the app offers, among them a specimen of each country's chip profile. None has a portrait
- * or a CAN: applying one keeps the holder's photo, which is theirs rather than the preset's, and the CAN, which only
- * matters with PACE.
+ * The ready-made documents the app offers, among them a specimen of each country's chip profile and one for each
+ * profile measured by capture mode. None has a portrait or a CAN: applying one keeps the holder's photo, which is
+ * theirs rather than the preset's, and the CAN, which only matters with PACE.
  */
 object PassportPresets {
 
-    val all: List<PassportPreset> = listOf(
+    /** Every preset. The captured ones are read each time, since measured profiles are installed after start-up. */
+    val all: List<PassportPreset> get() = capturedPresets() + fixed
+
+    /** [all] by group, in [PresetGroup] order, leaving out groups with nothing in them. */
+    val grouped: List<Pair<PresetGroup, List<PassportPreset>>>
+        get() = all.groupBy { it.group }.toList().sortedBy { (group, _) -> group.ordinal }
+
+    private val fixed: List<PassportPreset> = listOf(
         preset("everyday", PresetGroup.EVERYDAY, "Everyday passport", "An adult's passport, valid for years") { today ->
             adult(today)
         },
@@ -135,26 +147,50 @@ object PassportPresets {
         }
 
     /**
-     * The specimen document of a country's profile, with its chip: issued a year ago, and valid for as long as the
-     * issuer makes an adult's.
+     * The specimen document of a country's profile, with its chip; see [specimen]. One whose profile rests on a real
+     * chip goes under [PresetGroup.SAMPLED], the rest under [PresetGroup.COUNTRIES].
      */
     private fun countryPreset(profile: ChipProfile): PassportPreset? {
-        val sample = profile.sample ?: return null
-        return preset("profile-${profile.id}", PresetGroup.COUNTRIES, profile.title, profile.summary) { today ->
-            val issued = today.minus(DatePeriod(years = 1))
-            PassportData(
-                passportNumber = sample.documentNumber,
-                firstName = sample.firstName,
-                lastName = sample.lastName,
-                gender = sample.gender,
-                dateOfBirth = sample.dateOfBirth,
-                dateOfIssue = issued,
-                expiryDate = issued.plus(DatePeriod(years = profile.validity.adultYears)),
-                personalNumber = sample.personalNumber,
-                placeOfBirth = sample.placeOfBirth,
-                issuingAuthority = sample.issuingAuthority
-            ).withChipProfile(profile)
+        if (profile.sample == null) return null
+        val group = if (profile.sampledFromRealChip) PresetGroup.SAMPLED else PresetGroup.COUNTRIES
+        return preset("profile-${profile.id}", group, profile.title, profile.summary) { today ->
+            specimen(profile, today)!!
         }
+    }
+
+    /**
+     * A document for each profile capture mode measured and [MeasuredProfileRegistry] installed, which replays what
+     * was measured: the issuer's specimen where the linked profile has one, otherwise the usual adult.
+     */
+    private fun capturedPresets(): List<PassportPreset> = MeasuredProfileRegistry.installed.mapNotNull { profile ->
+        val measured = profile.measured ?: return@mapNotNull null
+        // A measured profile no curated one links to is the generic chip under its own id, so the generic title would mislead
+        val title = if (profile.id == "measured-${measured.id}") "Measured chip ${measured.id}" else profile.title
+        val chips = "${measured.sampleCount} real chip${if (measured.sampleCount == 1) "" else "s"}"
+        preset("captured-${profile.id}", PresetGroup.CAPTURED, title, "Replays what was measured on $chips") { today ->
+            specimen(profile, today) ?: adult(today).withChipProfile(profile)
+        }
+    }.sortedBy { it.title }
+
+    /**
+     * The specimen document of [profile], with its chip: issued a year ago, and valid for as long as the issuer makes
+     * an adult's. Null where the profile has no specimen.
+     */
+    private fun specimen(profile: ChipProfile, today: LocalDate): PassportData? {
+        val sample = profile.sample ?: return null
+        val issued = today.minus(DatePeriod(years = 1))
+        return PassportData(
+            passportNumber = sample.documentNumber,
+            firstName = sample.firstName,
+            lastName = sample.lastName,
+            gender = sample.gender,
+            dateOfBirth = sample.dateOfBirth,
+            dateOfIssue = issued,
+            expiryDate = issued.plus(DatePeriod(years = profile.validity.adultYears)),
+            personalNumber = sample.personalNumber,
+            placeOfBirth = sample.placeOfBirth,
+            issuingAuthority = sample.issuingAuthority
+        ).withChipProfile(profile)
     }
 
     /** The adult the other presets start from, on a passport issued a year ago for ten years. */

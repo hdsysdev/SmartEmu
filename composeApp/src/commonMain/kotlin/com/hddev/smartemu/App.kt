@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Nfc
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.data.PassportSimulatorUiState
 import com.hddev.smartemu.data.SimulationStatus
+import com.hddev.smartemu.ui.capture.LocalCaptureEntry
 import com.hddev.smartemu.ui.components.PassportFullScreenDialog
 import com.hddev.smartemu.ui.components.PresetDialog
 import com.hddev.smartemu.ui.glossary.GlossaryHost
@@ -254,6 +256,12 @@ private fun AppTopBar(
             LocalGlossary.current?.let { glossary ->
                 IconButton(onClick = glossary::showAll) {
                     Icon(imageVector = Icons.AutoMirrored.Outlined.MenuBook, contentDescription = "Terms and abbreviations")
+                }
+            }
+            // Developer mode offers capture mode from every screen, where the platform has it
+            LocalCaptureEntry.current?.let { captureEntry ->
+                IconButton(onClick = captureEntry::open) {
+                    Icon(imageVector = Icons.Outlined.Nfc, contentDescription = "Capture a real document")
                 }
             }
             IconButton(onClick = onOpenSettings) {

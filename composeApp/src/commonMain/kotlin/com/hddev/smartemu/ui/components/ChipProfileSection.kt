@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.hddev.smartemu.capture.profile.MeasuredProfileRegistry
 import com.hddev.smartemu.data.AccessControl
 import com.hddev.smartemu.data.ChipAuthenticationSpec
 import com.hddev.smartemu.data.ChipConfiguration
@@ -123,8 +124,9 @@ fun ChipProfileSpecCard(configuration: ChipConfiguration, onShowDetails: () -> U
 }
 
 /**
- * Every profile, grouped by country, each in one short row with the same tags, to search and filter. Tapping a row
- * calls [onSelected]; its info button shows what the chip would do with it, from [preview].
+ * Every profile: the ones capture mode measured first, then the ones sampled from real chips, then the rest grouped by
+ * country, each in one short row with the same tags, to search and filter. Each group opens and closes under its heading; a search or filter opens every group
+ * with a match. Tapping a row calls [onSelected]; its info button shows what the chip would do with it, from [preview].
  */
 @Composable
 fun ChipProfilePickerDialog(
@@ -139,12 +141,24 @@ fun ChipProfilePickerDialog(
     val shown = remember(query, filters) {
         ChipProfiles.all.filter { profile -> profile.matches(query) && filters.all { it.test(profile) } }
     }
-    val groups = remember(shown) { shown.groupBy { it.heading }.toList().sortedBy { (heading, _) -> groupOrder(heading) } }
-    // Opens on the selected profile's country, so that the current choice is in view
+    val captured = remember(query, filters) {
+        MeasuredProfileRegistry.installed.filter { profile -> profile.matches(query) && filters.all { it.test(profile) } }
+    }
+    val groups = remember(shown, captured) {
+        val (sampled, others) = shown.partition { it.sampledFromRealChip }
+        val countries = others.groupBy { it.heading }.toList().sortedBy { (heading, _) -> groupOrder(heading) }
+        listOf(CAPTURED_HEADING to captured.sortedBy { it.title }, SAMPLED_HEADING to sampled.sortedBy { it.title })
+            .filter { (_, profiles) -> profiles.isNotEmpty() } + countries
+    }
+    // Opens with the captured profiles and the selected profile's country, which starts at the top
+    var expanded by remember {
+        mutableStateOf(setOfNotNull(CAPTURED_HEADING, groups.firstOrNull { (_, profiles) -> profiles.any { it.id == selected.id } }?.first))
+    }
+    val searching = query.isNotBlank() || filters.isNotEmpty()
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = groups.takeWhile { (_, profiles) -> profiles.none { it.id == selected.id } }
-            .sumOf { (_, profiles) -> profiles.size + 1 }
-            .takeIf { it < shown.size + groups.size } ?: 0
+            .sumOf { (heading, profiles) -> 1 + if (heading in expanded) profiles.size else 0 }
+            .takeIf { it < shown.size + captured.size + groups.size } ?: 0
     )
     val glossary = LocalGlossary.current
 
@@ -224,31 +238,22 @@ fun ChipProfilePickerDialog(
                         }
                     }
                     groups.forEach { (heading, profiles) ->
+                        val open = searching || heading in expanded
                         // The country stays at the top while its profiles scroll under it
                         stickyHeader(key = "group-$heading") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                    .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                CountryTile(profiles.first(), small = true)
-                                Text(
-                                    text = heading,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = profiles.size.toString(),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            CollapsibleHeader(
+                                title = heading,
+                                count = profiles.size,
+                                expanded = open,
+                                onToggle = { expanded = expanded.toggled(heading) },
+                                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                contentPadding = PaddingValues(start = 24.dp, end = 16.dp, top = 12.dp, bottom = 6.dp),
+                                leading = { CountryTile(profiles.first(), small = true) }
+                            )
                         }
-                        itemsIndexed(profiles, key = { _, profile -> profile.id }) { index, profile ->
+                        if (!open) return@forEach
+                        // A captured profile can share its id with the curated one it is linked to, so keys carry the group
+                        itemsIndexed(profiles, key = { _, profile -> "$heading/${profile.id}" }) { index, profile ->
                             if (index > 0) {
                                 HorizontalDivider(
                                     modifier = Modifier.padding(horizontal = 24.dp),
@@ -439,6 +444,10 @@ private fun ChipProfile.matches(query: String): Boolean {
     return listOf(title, id, country.orEmpty(), summary, pace.curve.displayName, tags.joinToString { it.text })
         .any { it.contains(needle, ignoreCase = true) }
 }
+
+/** The headings of the profiles capture mode measured and of those sampled from real chips, before the countries. */
+private const val CAPTURED_HEADING = "Captured with this app"
+private const val SAMPLED_HEADING = "Sampled from real chips"
 
 /** The generic profiles first, then the countries in alphabetical order. */
 private fun groupOrder(heading: String): String = when (heading) {

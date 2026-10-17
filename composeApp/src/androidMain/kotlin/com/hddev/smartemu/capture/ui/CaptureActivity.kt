@@ -15,7 +15,7 @@ import com.hddev.smartemu.ui.theme.isDark
 /**
  * Hosts capture mode on its own, apart from the emulator's Activity: the phone can't emulate a document and read one
  * at once, and this keeps `FLAG_SECURE` and NFC reader mode confined to the capture screens. It is not exported, and
- * it closes at once unless capture mode was unlocked.
+ * it closes at once unless developer mode is on or capture mode was unlocked.
  */
 class CaptureActivity : ComponentActivity() {
 
@@ -30,7 +30,7 @@ class CaptureActivity : ComponentActivity() {
         // Not restored from a saved state: a capture is never kept in one
         super.onCreate(null)
 
-        if (!AndroidCaptureEntry.isUnlocked(this)) {
+        if (!AndroidCaptureEntry.isAvailable(this)) {
             finish()
             return
         }

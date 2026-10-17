@@ -16,6 +16,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hddev.smartemu.capture.profile.BundledProfiles
 import com.hddev.smartemu.capture.ui.AndroidCaptureEntry
 import com.hddev.smartemu.di.AndroidAppModule
 import com.hddev.smartemu.ui.capture.LocalCaptureEntry
@@ -23,12 +24,13 @@ import com.hddev.smartemu.ui.theme.isDark
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 
 class MainActivity : ComponentActivity() {
-    /** The hidden way into capture mode, which the settings show once it is unlocked */
+    /** The way into capture mode: in developer mode, or from the settings once it is unlocked */
     private val captureEntry by lazy { AndroidCaptureEntry(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        BundledProfiles.install(this)
 
         setContent {
             CompositionLocalProvider(LocalCaptureEntry provides captureEntry) {

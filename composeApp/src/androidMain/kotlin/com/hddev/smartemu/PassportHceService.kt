@@ -3,6 +3,7 @@ package com.hddev.smartemu
 import android.nfc.cardemulation.HostApduService
 import android.os.Bundle
 import android.util.Log
+import com.hddev.smartemu.capture.profile.BundledProfiles
 import com.hddev.smartemu.capture.profile.ChipState
 import com.hddev.smartemu.capture.profile.ProbeKeys
 import com.hddev.smartemu.capture.profile.ProbeReplay
@@ -127,6 +128,8 @@ class PassportHceService : HostApduService() {
     
     override fun onCreate() {
         super.onCreate()
+        // The emulator replays measured profiles even when the app's screens haven't run in this process
+        BundledProfiles.install(this)
         sessionCorrelationId = UUID.randomUUID().toString()
         
         Log.d(TAG, "PassportHceService created with session ID: $sessionCorrelationId")
