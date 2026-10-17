@@ -235,8 +235,8 @@ object ReaderMatrix {
         appendLine()
         appendLine("Each profile's chip is unlocked with every access method it offers (BAC, and each PACE suite of EF.CardAccess in order, with the MRZ as the password). With the first that works the reader reads EF.COM, EF.SOD and DG1, checks passive authentication against the test CSCA, and runs Chip Authentication and Active Authentication where the profile has them.")
         appendLine()
-        appendLine("| Profile | BAC | PACE suites | EF.COM | EF.SOD | DG1 | Passive auth | Chip Auth | Active Auth | JMRTD+SCUBA+BC total | r2w nfc-library |")
-        appendLine("|---|---|---|---|---|---|---|---|---|---|---|")
+        appendLine("| Profile | BAC | PACE suites | EF.COM | EF.SOD | DG1 | Passive auth | Chip Auth | Active Auth | JMRTD+SCUBA+BC total |")
+        appendLine("|---|---|---|---|---|---|---|---|---|---|")
         results.profiles.sortedBy { it.profileId }.forEach { run ->
             val pace = run.steps.filterKeys { it.startsWith(Steps.PACE_PREFIX) }
             val paceCell = if (pace.isEmpty()) "n/a" else pace.entries.joinToString("<br>") { (key, outcome) -> "${key.removePrefix(Steps.PACE_PREFIX)}: ${cell(outcome)}" }
@@ -249,7 +249,7 @@ object ReaderMatrix {
             val title = results.titles[run.profileId]?.let { " ($it)" }.orEmpty()
             appendLine(
                 "| `${run.profileId}`$title | ${cell(run.steps[Steps.BAC] ?: StepOutcome.notApplicable)} | $paceCell | " +
-                    Steps.columns.drop(1).joinToString(" | ") { cell(run.steps[it] ?: StepOutcome.notApplicable) } + " | $total | not run |"
+                    Steps.columns.drop(1).joinToString(" | ") { cell(run.steps[it] ?: StepOutcome.notApplicable) } + " | $total |"
             )
         }
         appendLine()

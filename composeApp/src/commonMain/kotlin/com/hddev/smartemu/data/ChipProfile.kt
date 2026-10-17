@@ -70,6 +70,9 @@ class ChipProfile(
     fun provenanceOf(aspect: ProfileAspect): Provenance =
         if (measured?.isMeasured(aspect) == true) Provenance.MEASURED else provenance[aspect] ?: Provenance.ASSUMED
 
+    /** Whether the profile rests on a real chip someone else read and published ([ProfileEvidence.observedOnRealChip]). */
+    val sampledFromRealChip: Boolean get() = evidence.any { it.observedOnRealChip }
+
     /** This profile with [measured] data attached (or removed, with null); everything else stays as it is. */
     fun withMeasured(measured: MeasuredProfile?, id: String = this.id): ChipProfile = copyWith(id = id, measured = measured)
 
@@ -130,7 +133,9 @@ data class ProfileEvidence(
     val url: String,
     val locator: String,
     val aspect: ProfileAspect? = null,
-    val provenance: Provenance = Provenance.REPORTED
+    val provenance: Provenance = Provenance.REPORTED,
+    /** True where the claim was read off a real document's chip by someone else and published, such as a sample table. */
+    val observedOnRealChip: Boolean = false
 )
 
 /**

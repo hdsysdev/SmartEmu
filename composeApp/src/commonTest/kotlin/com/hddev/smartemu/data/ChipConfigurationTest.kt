@@ -121,7 +121,7 @@ class ChipConfigurationTest {
     @Test
     fun `country presets are valid and use their profile`() {
         val today = LocalDate(2026, 9, 30)
-        val presets = PassportPresets.all.filter { it.group == PresetGroup.COUNTRIES }
+        val presets = PassportPresets.all.filter { it.group.countryProfiles }
         assertTrue(presets.isNotEmpty())
         for (preset in presets) {
             val data = preset.build(today)

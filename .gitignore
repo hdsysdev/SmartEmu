@@ -28,3 +28,7 @@ keystore/
 
 # Per-generation profiles held back for steward review (rebuilt from the restricted store by the intake)
 profiles/pending/
+
+# Local code-index and agent tool state
+.tokensave/
+.serena/

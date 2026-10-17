@@ -83,12 +83,6 @@ to accurately mimic the behaviour of passports it claims in profiles."
 - HCE can't set the UID, ATS or historical bytes.
 - The reader must SELECT the eMRTD AID before the phone answers.
 
-## Related context (r2w side, not this task)
-`/Users/hubertdudowicz/Projects/r2w-app-libraries` branch `feature/hubert/RCD-8424` has uncommitted iOS OpenSSL PACE
-work. Memory files in `~/.claude/projects/-Users-hubertdudowicz-Projects-r2w-app-libraries/memory/` cover it. The r2w
-nfc-library supports PACE GM/CAM on ECDH (not IM, not DH), NIST P-256/384/521 and brainpoolP192r1–P512r1. That makes
-it a good reader to check captured profiles against.
-
 ## Open decisions to put to the user
 - Where shared profiles live: a separate repo, or `profiles/` in SmartEmu, plus the review process.
 - Whether a CAN (ID cards) is in scope for phase 2.

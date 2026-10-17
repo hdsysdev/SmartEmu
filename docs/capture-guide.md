@@ -17,7 +17,7 @@ You do not need the document number, the MRZ or the CAN for the standard capture
 
 ## Steps
 
-1. Open PassportEmu and choose **Capture**. This is a separate screen from the emulator. The phone cannot read and emulate at the same time.
+1. Open PassportEmu and turn on **Developer mode** in Settings, then tap the NFC icon in the top bar (or **Open capture mode** in Settings). Out of developer mode, capture mode stays hidden until you tap the **About PassportEmu** text in Settings seven times. This is a separate screen from the emulator. The phone cannot read and emulate at the same time.
 2. Tick whether the document is **yours** or belongs to a **consenting colleague**. No names are recorded, only that choice.
 3. Tap **Start**. Put the document flat against the back of the phone, over the NFC antenna. The antenna is usually near the camera or the middle of the back. Try both if nothing happens.
 4. Hold still until the screen says the read is finished. Do not lift the document during the run. Plain-language messages tell you what is happening.

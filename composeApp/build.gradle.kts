@@ -121,6 +121,34 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
+/** Copies the merged measured profiles into the app's assets, where BundledProfiles installs them at start-up. */
+abstract class BundleMeasuredProfiles : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val profiles: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val target = outputDir.get().asFile.resolve("profiles")
+        target.deleteRecursively()
+        target.mkdirs()
+        profiles.files.forEach { it.copyTo(target.resolve(it.name)) }
+    }
+}
+
+// Only the shared profiles/*.json: profiles/pending/ is held back for the steward and never ships
+val bundleMeasuredProfiles = tasks.register<BundleMeasuredProfiles>("bundleMeasuredProfiles") {
+    profiles.from(rootProject.fileTree("profiles") { include("*.json") })
+}
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleMeasuredProfiles, BundleMeasuredProfiles::outputDir)
+    }
+}
+
 // Capture-mode maintainer tools (tools/capture-intake/, docs/lab-captures.md). They run on the unit-test classpath, because
 // the hold-out rule and the fidelity diff need the JVM emulator harness, which is test code. Parameters come as project
 // properties (-Pintake.input=...), so a path with spaces needs no quoting. None of them runs git.

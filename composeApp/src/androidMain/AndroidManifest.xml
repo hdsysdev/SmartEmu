@@ -27,7 +27,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Capture mode: reads a real document. Hidden until unlocked in the settings; separate from the emulator -->
+        <!-- Capture mode: reads a real document. Open in developer mode, otherwise hidden until unlocked in the settings; separate from the emulator -->
         <activity
             android:name=".capture.ui.CaptureActivity"
             android:exported="false"

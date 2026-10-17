@@ -12,6 +12,8 @@ Merged, redacted chip profiles built from captures. These are the files the emul
 
 Per-capture records are kept in a separate restricted store for 12 months, then deleted. See [docs/capture-consent-and-retention.md](../docs/capture-consent-and-retention.md) (draft). Never commit a per-capture record, an MRZ, a CAN, a UID, a photo or a name here.
 
+The app ships every `*.json` here (not `pending/`) as an asset, and installs them at start-up (`BundledProfiles`): each shows under **Captured with this app**, first in the preset list and in the chip profile picker (profiles built from published real-chip samples follow under **Sampled from real chips**), and the emulator replays it. A new profile reaches testers with the next build.
+
 Until profiles move to data, the existing profiles stay in Kotlin (`composeApp/.../data/ChipProfiles.kt`). The loader supports both during the migration.
 
 ## Naming

@@ -656,7 +656,8 @@ object ChipProfiles {
         sourceTitle = "gmrtd, README, Sample Documents table",
         url = GMRTD_README_URL,
         locator = "Sample Documents table, row \"$row\"",
-        aspect = aspect
+        aspect = aspect,
+        observedOnRealChip = true
     )
 
     /** A fact read from a real EF.SOD parsed in gmrtd's tests: it holds for that one sample. */

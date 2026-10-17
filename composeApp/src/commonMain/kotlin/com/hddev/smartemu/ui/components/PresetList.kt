@@ -9,6 +9,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -23,28 +27,38 @@ import com.hddev.smartemu.data.PresetGroup
 import com.hddev.smartemu.ui.glossary.GlossaryText
 
 /**
- * The ready-made documents under their group headings, for a lazy list. [summary] is the line under each title;
+ * The ready-made documents under headings that open and close their group, for a lazy list: only the groups in
+ * [expanded] show their documents, and a heading's tap calls [onToggle]. [summary] is the line under each title;
  * choosing one calls [onSelected].
  */
 fun LazyListScope.presetItems(
+    groups: List<Pair<PresetGroup, List<PassportPreset>>>,
+    expanded: Set<PresetGroup>,
+    onToggle: (PresetGroup) -> Unit,
     summary: (PassportPreset) -> String,
     groupTitle: (PresetGroup) -> String = { it.title },
     onSelected: (PassportPreset) -> Unit
 ) {
-    PassportPresets.all.groupBy { it.group }.forEach { (group, presets) ->
+    groups.forEach { (group, presets) ->
         item(key = "group-${group.name}") {
-            Text(
-                text = groupTitle(group),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 4.dp)
+            CollapsibleHeader(
+                title = groupTitle(group),
+                count = presets.size,
+                expanded = group in expanded,
+                onToggle = { onToggle(group) }
             )
         }
-        items(presets, key = { it.id }) { preset ->
-            PresetRow(preset = preset, summary = summary(preset), onClick = { onSelected(preset) })
+        if (group in expanded) {
+            items(presets, key = { it.id }) { preset ->
+                PresetRow(preset = preset, summary = summary(preset), onClick = { onSelected(preset) })
+            }
         }
     }
 }
+
+/** The groups open when a preset list first shows: the first one, which is the captured documents when there are any. */
+internal fun initiallyExpanded(groups: List<Pair<PresetGroup, List<PassportPreset>>>): Set<PresetGroup> =
+    setOfNotNull(groups.firstOrNull()?.first)
 
 @Composable
 internal fun PresetRow(preset: PassportPreset, summary: String, onClick: () -> Unit) {
@@ -82,6 +96,8 @@ fun PresetDialog(
     onSelected: (PassportPreset) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val groups = remember { PassportPresets.grouped }
+    var expanded by remember { mutableStateOf(initiallyExpanded(groups)) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
@@ -105,6 +121,9 @@ fun PresetDialog(
                 }
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     presetItems(
+                        groups = groups,
+                        expanded = expanded,
+                        onToggle = { expanded = expanded.toggled(it) },
                         summary = { preset -> "${preset.description} · ${preset.build(today).technicalSummary()}" },
                         onSelected = { preset ->
                             onSelected(preset)

@@ -44,6 +44,8 @@ internal val ChipFault.friendlyDescription: String
 
 internal val PresetGroup.friendlyTitle: String
     get() = when (this) {
+        PresetGroup.CAPTURED -> "Measured with this app"
+        PresetGroup.SAMPLED -> "Copied from real documents"
         PresetGroup.EVERYDAY -> "Everyday passports"
         PresetGroup.COUNTRIES -> "By country and generation"
         PresetGroup.TRICKY_DETAILS -> "Unusual details"

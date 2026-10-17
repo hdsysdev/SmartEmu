@@ -71,7 +71,7 @@ class ReaderCompatibilityTest {
     }
 
     @Test
-    fun `the page labels unsupported with its feature and the evidence, fails in bold, and r2w as not run`() {
+    fun `the page labels unsupported with its feature and the evidence, and fails in bold`() {
         val text = ReaderMatrix.render(
             fakeResults(
                 "pace:PACE-IM ECDH NIST P-256 AES-192" to step(StepKind.UNSUPPORTED, "PACE Integrated Mapping with AES-192", "CardServiceProtocolException [SW=6A80]"),
@@ -83,7 +83,6 @@ class ReaderCompatibilityTest {
         assertTrue(text.contains("reader unsupported: PACE Integrated Mapping with AES-192 [1]"))
         assertTrue(text.contains("1. The exception the reader threw: `CardServiceProtocolException [SW=6A80]`"))
         assertTrue(text.contains("**fail: boom**"))
-        assertTrue(text.contains("| not run |"))
     }
 
     @Test
