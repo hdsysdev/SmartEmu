@@ -24,7 +24,7 @@ should reject documents signed by either.
 | `document-signer/smartemu-test-ds-id.*` | Document Signer for ID cards and residence permits (document types `ID` and `IR`), issued by the CSCA |
 | `document-signer/smartemu-test-ds-expired.*` | Issued by the CSCA, but valid for one day only; the "Expired Document Signer" fault signs with it |
 | `document-signer/smartemu-test-ds-untrusted.*` | Issued by the Unknown CSCA; the "Untrusted CSCA" fault signs with it |
-| `csca/smartemu-test-csca-<cc>.*`, `document-signer/smartemu-test-ds-<cc>*.*` | Test CSCAs and Document Signers for country chip profiles (DE, NL, GB, US, FR, BE, ES, IT, CH, CA, AU, AT, FI, SG, TW, PT, IDN, HK, MY, NZ, RU, PH, CN); see [Country test PKIs](#country-test-pkis) |
+| `csca/smartemu-test-csca-<cc>.*`, `document-signer/smartemu-test-ds-<cc>*.*` | Test CSCAs and Document Signers for country chip profiles (DE, NL, GB, US, FR, BE, ES, IT, CH, CA, AU, AT, FI, SG, TW, PT, IDN, HK, MY, NZ, RU, PH, CN, XK); see [Country test PKIs](#country-test-pkis) |
 | `untrusted-csca/smartemu-unknown-csca.*` | A second self-signed CSCA. Never install it: it's there to be untrusted |
 | `openssl.cnf`, `generate.sh` | Certificate profiles and the script that generated everything |
 
@@ -150,6 +150,8 @@ documents that use them sign PKCS#1 v1.5 and `ldsSecurityObject` instead.
 | `document-signer/smartemu-test-ds-ph` | PassportEmu TEST Document Signer PH (PH) | RSA 2048 | 2026-09-30 to 2036-09-29 | `P` | `B7:3E:B0:50:72:77:EC:EC:AD:CB:00:B2:67:15:10:D7:6E:77:4A:27:4F:E9:62:EC:77:1F:5B:04:3E:5A:63:3E` |
 | `csca/smartemu-test-csca-cn` | PassportEmu TEST CSCA CN (CN) | EC P-256 | 2026-09-30 to 2046-09-30 | | `AE:E6:53:A8:68:F0:8D:33:ED:2F:8D:6A:99:92:43:F6:2B:0C:47:2D:EE:E6:B9:2A:33:D2:E4:DF:81:2E:A5:80` |
 | `document-signer/smartemu-test-ds-cn` | PassportEmu TEST Document Signer CN (CN) | RSA 2048 | 2026-09-30 to 2036-09-29 | `P` | `CE:64:C0:D4:4E:C3:DF:16:0A:9C:74:98:80:16:EC:1E:35:47:D3:61:8E:81:03:EE:CC:DA:85:64:FD:CA:70:8E` |
+| `csca/smartemu-test-csca-xk` | PassportEmu TEST CSCA XK (XK) | EC P-256 | 2026-09-30 to 2046-09-30 | | `63:AF:0E:6D:14:17:EA:B7:C6:C7:C8:4D:09:D5:20:63:39:7B:14:B7:0C:EC:7D:8C:86:24:9C:28:01:EB:C2:AE` |
+| `document-signer/smartemu-test-ds-xk` | PassportEmu TEST Document Signer XK (XK) | EC P-256 (stand-in) | 2026-09-30 to 2036-09-29 | `P` | `E3:96:F5:6B:88:F2:2B:E0:73:18:D9:E0:0D:EF:B4:DB:15:F3:6B:75:52:EF:C3:76:CF:ED:1A:7A:70:7C:BE:75` |
 
 The French RSA signer chains to the existing `PassportEmu TEST CSCA FR` (no CSCA changed) and starts when it does:
 

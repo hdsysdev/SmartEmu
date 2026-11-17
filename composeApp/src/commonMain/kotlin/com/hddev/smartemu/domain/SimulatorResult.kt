@@ -52,7 +52,7 @@ fun <T> Result<T>.isRecoverable(): Boolean {
 /**
  * Extension function to map a Result to SimulatorResult, converting exceptions to SimulatorError.
  */
-inline fun <T> Result<T>.toSimulatorResult(): SimulatorResult<T> {
+fun <T> Result<T>.toSimulatorResult(): SimulatorResult<T> {
     return fold(
         onSuccess = { SimulatorResultExtensions.success(it) },
         onFailure = { throwable ->

@@ -4,8 +4,8 @@ import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlin.time.*
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.format
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
 
@@ -59,18 +59,7 @@ object DateValidationUtils {
      * Formats a date for display in the UI.
      */
     fun formatForDisplay(date: LocalDate): String {
-        return "${date.dayOfMonth.toString().padStart(2, '0')}/${date.monthNumber.toString().padStart(2, '0')}/${date.year}"
-    }
-    
-    /**
-     * Formats a date for MRZ generation (YYMMDD format).
-     */
-    fun formatForMrz(date: LocalDate): String {
-        return date.format(LocalDate.Format {
-            year()
-            monthNumber()
-            dayOfMonth()
-        })
+        return "${date.day.toString().padStart(2, '0')}/${date.month.number.toString().padStart(2, '0')}/${date.year}"
     }
     
     /**
@@ -92,34 +81,10 @@ object DateValidationUtils {
     }
     
     /**
-     * Gets the age in years from a birth date.
-     */
-    fun getAge(birthDate: LocalDate): Int {
-        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-        var age = today.year - birthDate.year
-        
-        if (today.monthNumber < birthDate.monthNumber || 
-            (today.monthNumber == birthDate.monthNumber && today.dayOfMonth < birthDate.dayOfMonth)) {
-            age--
-        }
-        
-        return age
-    }
-    
-    /**
      * Checks if a passport is expired.
      */
     fun isExpired(expiryDate: LocalDate): Boolean {
         val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
         return expiryDate < today
-    }
-    
-    /**
-     * Checks if a passport will expire within the given number of months.
-     */
-    fun willExpireSoon(expiryDate: LocalDate, monthsThreshold: Int = 6): Boolean {
-        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
-        val thresholdDate = today.plus(monthsThreshold, DateTimeUnit.MONTH)
-        return expiryDate <= thresholdDate
     }
 }

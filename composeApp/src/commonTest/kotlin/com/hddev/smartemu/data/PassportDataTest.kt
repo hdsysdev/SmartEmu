@@ -1,9 +1,16 @@
 package com.hddev.smartemu.data
 
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.todayIn
 import kotlin.test.*
+import kotlin.time.Clock
 
 class PassportDataTest {
+
+    private val nextYear = Clock.System.todayIn(TimeZone.currentSystemDefault()).plus(1, DateTimeUnit.YEAR)
     
     private val validPassportData = PassportData(
         passportNumber = "AB123456",
@@ -31,7 +38,8 @@ class PassportDataTest {
         assertTrue(errors.containsKey("passportNumber"))
         assertTrue(errors.containsKey("dateOfBirth"))
         assertTrue(errors.containsKey("expiryDate"))
-        assertTrue(errors.containsKey("names"))
+        assertTrue(errors.containsKey("firstName"))
+        assertTrue(errors.containsKey("lastName"))
     }
     
     @Test
@@ -51,15 +59,13 @@ class PassportDataTest {
     
     @Test
     fun testDateOfBirthValidation() {
-        val today = LocalDate(2024, 1, 1) // Assuming current date for testing
-        
         // Valid birth dates
         assertTrue(validPassportData.copy(dateOfBirth = LocalDate(1990, 5, 15)).isValid())
         assertTrue(validPassportData.copy(dateOfBirth = LocalDate(1950, 1, 1)).isValid())
         
         // Invalid birth dates
         assertFalse(validPassportData.copy(dateOfBirth = null).isValid())
-        assertFalse(validPassportData.copy(dateOfBirth = LocalDate(2025, 1, 1)).isValid()) // Future date
+        assertFalse(validPassportData.copy(dateOfBirth = nextYear).isValid()) // Future date
         assertFalse(validPassportData.copy(dateOfBirth = LocalDate(1800, 1, 1)).isValid()) // Too old
     }
     
@@ -186,8 +192,8 @@ class PassportDataTest {
     fun testValidationErrorMessages() {
         val invalidData = PassportData(
             passportNumber = "123", // Too short
-            dateOfBirth = LocalDate(2025, 1, 1), // Future date
-            expiryDate = LocalDate(2020, 1, 1), // Past date
+            dateOfBirth = nextYear, // Future date
+            expiryDate = LocalDate(2020, 1, 1), // Before the date of birth
             issuingCountry = "ZZZ", // Invalid country
             nationality = "YYY", // Invalid nationality
             firstName = "", // Empty
@@ -197,11 +203,13 @@ class PassportDataTest {
         
         val errors = invalidData.getValidationErrors()
         
-        assertTrue(errors["passportNumber"]?.contains("6-9 alphanumeric") == true)
+        assertTrue(errors["passportNumber"]?.contains("at least 6 characters") == true)
         assertTrue(errors["dateOfBirth"]?.contains("past") == true)
-        assertTrue(errors["expiryDate"]?.contains("future") == true)
-        assertTrue(errors["countryCode"]?.contains("Invalid") == true)
-        assertTrue(errors["names"]?.contains("required") == true)
+        assertTrue(errors["expiryDate"]?.contains("after date of birth") == true)
+        assertTrue(errors["issuingCountry"]?.contains("Invalid") == true)
+        assertTrue(errors["nationality"]?.contains("Invalid") == true)
+        assertTrue(errors["firstName"]?.contains("required") == true)
+        assertTrue(errors["lastName"]?.contains("required") == true)
     }
     
     @Test

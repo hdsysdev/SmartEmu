@@ -381,7 +381,7 @@ class ChipConfigurationTest {
     }
 
     @Test
-    fun `a PACE curve and cipher from developer settings replace the profile's`() {
+    fun `a PACE curve and cipher from advanced settings replace the profile's`() {
         val german = holder.withChipProfile(ChipProfiles.byId("de-passport-2017"))
         for (curve in EcCurve.entries) {
             val config = german.copy(paceCurve = curve, paceCipher = SessionCipher.AES_192).chipConfiguration()
@@ -401,7 +401,7 @@ class ChipConfigurationTest {
     }
 
     @Test
-    fun `the PACE suite from developer settings reaches the document only in developer mode`() {
+    fun `the PACE suite from advanced settings reaches the document only in advanced mode`() {
         val settings = AppSettings(paceCurve = EcCurve.BRAINPOOL_P224R1, paceCipher = SessionCipher.TDES)
 
         assertNull(settings.emulating(holder).paceCurve)
@@ -412,7 +412,7 @@ class ChipConfigurationTest {
     }
 
     @Test
-    fun `a DH group from developer settings takes over from the curve`() {
+    fun `a DH group from advanced settings takes over from the curve`() {
         val german = holder.withChipProfile(ChipProfiles.byId("de-passport-2017"))
         for (group in DhGroup.entries) {
             val config = german.copy(paceDhGroup = group, paceCurve = EcCurve.NIST_P384).chipConfiguration()
@@ -465,7 +465,7 @@ class ChipConfigurationTest {
     }
 
     @Test
-    fun `DH groups and extra PACE suites reach the document only in developer mode`() {
+    fun `DH groups and extra PACE suites reach the document only in advanced mode`() {
         val extra = PaceSuite(PaceMapping.INTEGRATED, PaceSpec(dhGroup = DhGroup.MODP_2048_224))
         val settings = AppSettings(paceDhGroup = DhGroup.MODP_2048_256, extraPaceSuites = listOf(extra), extraPaceSuitesFirst = true)
 

@@ -72,7 +72,8 @@ class PassportSimulatorViewModelTest {
         assertFalse(state.hasNfcPermission)
         assertTrue(state.validationErrors.isEmpty())
         assertFalse(state.isLoading)
-        assertNull(state.errorMessage)
+        // The mock repository reports no NFC, which the view model says on start-up
+        assertEquals("NFC is not available on this device", state.errorMessage)
         assertTrue(state.nfcEvents.isEmpty())
     }
     

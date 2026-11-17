@@ -60,8 +60,8 @@ import com.hddev.smartemu.ui.glossary.GlossaryText
 import com.hddev.smartemu.ui.glossary.LocalGlossary
 
 /**
- * The app's settings, the same in developer mode and out of it: how it looks, whether the screen stays on while
- * the chip is on, the read history, and developer mode with the chip's cryptography, the PACE suite every
+ * The app's settings, the same in advanced mode and out of it: how it looks, whether the screen stays on while
+ * the chip is on, the read history, and advanced mode with the chip's cryptography, the PACE suite every
  * document's chip runs, whatever its profile, and more suites for it to offer.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,7 +87,7 @@ fun SettingsScreen(
         }
     ) { padding ->
         ScreenColumn(modifier = Modifier.padding(padding).consumeWindowInsets(padding)) {
-            // Developer mode always offers capture mode; out of it, seven taps on this text unlock its card below
+            // Advanced mode always offers capture mode; out of it, seven taps on this text unlock its card below
             val captureEntry = LocalCaptureEntry.current
             val captureShown = captureEntry != null && (captureEntry.unlocked || settings.developerMode)
             SectionCard(title = "About PassportEmu") {
@@ -137,7 +137,7 @@ fun SettingsScreen(
                     icon = Icons.Outlined.Nfc
                 ) {
                     AppButton(text = "Open capture mode", onClick = captureEntry::open, icon = Icons.Outlined.Nfc)
-                    // Developer mode shows it regardless, so hiding only means something out of it
+                    // Advanced mode shows it regardless, so hiding only means something out of it
                     if (!settings.developerMode) TextButton(onClick = captureEntry::lock) { Text("Hide capture mode") }
                 }
             }
@@ -183,12 +183,12 @@ fun SettingsScreen(
             }
 
             SectionCard(
-                title = "Developer mode",
+                title = "Advanced mode",
                 subtitle = "For developers testing apps that read passports and ID cards",
                 icon = Icons.Outlined.Code
             ) {
                 SettingSwitch(
-                    title = "Developer mode",
+                    title = "Advanced mode",
                     description = "Shows every chip setting, the chip profiles by country with where their facts " +
                         "come from, and each command the reader sends",
                     checked = settings.developerMode,
@@ -220,7 +220,7 @@ fun SettingsScreen(
                     ExtraPaceSuites(settings, onSettingsChange)
                 } else {
                     Text(
-                        text = "Profiles use compatible settings by default. Turn on developer mode for detailed " +
+                        text = "Profiles use compatible settings by default. Turn on advanced mode for detailed " +
                             "chip controls and the sources behind each profile.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

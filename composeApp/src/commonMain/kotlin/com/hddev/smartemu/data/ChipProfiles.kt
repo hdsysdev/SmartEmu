@@ -1738,6 +1738,59 @@ object ChipProfiles {
         )
     )
 
+    private const val PRADO_KOSOVO_URL = "https://www.consilium.europa.eu/prado/en/RKS-AO-03002/index.html"
+    private const val WIKIPEDIA_KOSOVO_PASSPORT_URL = "https://en.wikipedia.org/wiki/Kosovo_passport"
+
+    private val kosovanPassport2013 = ChipProfile(
+        id = "xk-passport-2013",
+        title = "Kosovo · passport (2013 design)",
+        shortTitle = "a Kosovan passport (2013 design)",
+        country = "RKS",
+        documentType = DocumentType.PASSPORT,
+        summary = "A Kosovan biometric passport test configuration. The MRZ carries Kosovo's code RKS, which ICAO " +
+            "Doc 9303 does not list but Kosovo's passports use. No chip of this passport has been sampled: access " +
+            "control, PACE cryptography, optional data groups and the signer are ASSUMED common choices.",
+        accessControl = AccessControl.BAC_AND_PACE,
+        dataGroups = setOf(11, 12),
+        sod = countrySigner("XK"),
+        mrz = MrzRules(documentNumberFormat = "9 characters: a letter and 8 digits (ASSUMED)"),
+        validity = Validity(adultYears = 10, childYears = 5, adultFromAge = 18),
+        sample = ProfileSample(
+            firstName = "Drita",
+            lastName = "Krasniqi",
+            gender = "F",
+            dateOfBirth = LocalDate(1990, 5, 14),
+            documentNumber = "P08419265",
+            personalNumber = "1089234571",
+            placeOfBirth = "Prishtinë",
+            issuingAuthority = "MPB"
+        ),
+        provenance = provenanceWith(ProfileAspect.MRZ to Provenance.REPORTED),
+        evidence = listOf(
+            ProfileEvidence(
+                claim = "Kosovo's biometric passports (PRADO RKS-AO-03002, first issued 14/06/2013) show the country " +
+                    "code RKS, which is not an ISO 3166 code and so not ICAO-endorsed, and are valid for 10 years " +
+                    "for adults and 5 for minors; the issuer is the Ministry of Internal Affairs (MPB).",
+                sourceTitle = "Council of the EU, PRADO, RKS-AO-03002, and Wikipedia, Kosovo passport",
+                url = PRADO_KOSOVO_URL,
+                locator = "PRADO document RKS-AO-03002; Wikipedia, Kosovo passport, data page and validity",
+                aspect = ProfileAspect.MRZ
+            )
+        ),
+        sources = listOf(PRADO_KOSOVO_URL, WIKIPEDIA_KOSOVO_PASSPORT_URL, ICAO_9303),
+        notes = listOf(
+            ASSUMPTION_NOTE,
+            NO_SOD_SAMPLE_NOTE,
+            "The document number's format (a letter and 8 digits), the 10-digit personal number and whether it " +
+                "is also written in the MRZ's optional data are not published in the sources found: they are " +
+                "ASSUMED, here only to a valid 9-character TD3 number, and the personal number goes in DG11 only. " +
+                "The holder, number and place of birth are synthetic.",
+            "RKS is Kosovo's code in the MRZ; the test certificates say XK, the user-assigned alpha-2 code, since " +
+                "Kosovo has no ISO 3166 code.",
+            SIGNER_NOTE
+        )
+    )
+
     val all: List<ChipProfile> = listOf(
         generic,
         euPassport,
@@ -1767,7 +1820,8 @@ object ChipProfiles {
         russianPassport2020,
         singaporePassportPa2023,
         singaporePassportPp2025,
-        taiwanesePassport2024
+        taiwanesePassport2024,
+        kosovanPassport2013
     )
 
     val default: ChipProfile get() = generic
@@ -1775,7 +1829,4 @@ object ChipProfiles {
     /** The profile with the given id, or the generic one for an id no profile has, as one saved by an older version. */
     fun byId(id: String): ChipProfile =
         com.hddev.smartemu.capture.profile.MeasuredProfileRegistry.profileFor(id) ?: all.find { it.id == id } ?: generic
-
-    /** The profiles that fit a document of this type, generic first. */
-    fun forDocumentType(type: DocumentType): List<ChipProfile> = all.filter { it.fits(type) }
 }

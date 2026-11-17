@@ -7,7 +7,7 @@ import com.hddev.smartemu.capture.profile.MeasuredProfile
  * PACE mapping and Active Authentication switch from [PassportData], the rest from the profile.
  *
  * The cryptography is the profile's as it is, so the chip behaves like the document the profile describes. Only PACE
- * domain parameters or a cipher chosen in developer settings ([PassportData.paceCurve], [PassportData.paceDhGroup],
+ * domain parameters or a cipher chosen in advanced settings ([PassportData.paceCurve], [PassportData.paceDhGroup],
  * [PassportData.paceCipher]) replace the profile's, and [PassportData.extraPaceSuites] adds suites to it; [adaptations]
  * says so.
  *
@@ -24,7 +24,7 @@ data class ChipConfiguration(
     val pace: PaceSpec,
     /**
      * The PACE suites EF.CardAccess offers, in order: the document's own ([paceMapping] on [pace], then any
-     * [ChipProfile.otherPaceMappings] on the same parameters) and any extra ones from developer settings. Empty
+     * [ChipProfile.otherPaceMappings] on the same parameters) and any extra ones from advanced settings. Empty
      * without PACE.
      */
     val paceSuites: List<PaceSuite>,
@@ -78,18 +78,18 @@ fun PassportData.chipConfiguration(): ChipConfiguration {
         val dhGroup = paceDhGroup
         if (dhGroup != null) {
             adaptations += "PACE runs Diffie-Hellman in ${dhGroup.displayName} (${dhGroup.description}) rather than " +
-                "ECDH on the profile's ${pace.curve.displayName}, as chosen in developer settings."
+                "ECDH on the profile's ${pace.curve.displayName}, as chosen in advanced settings."
             pace = pace.copy(dhGroup = dhGroup)
         } else {
             paceCurve?.takeIf { it != pace.curve }?.let { curve ->
                 adaptations += "PACE runs on ${curve.displayName} rather than the profile's ${pace.curve.displayName}, " +
-                    "as chosen in developer settings."
+                    "as chosen in advanced settings."
                 pace = pace.copy(curve = curve)
             }
         }
         paceCipher?.takeIf { it != pace.cipher }?.let { cipher ->
             adaptations += "PACE uses ${cipher.displayName} rather than the profile's ${pace.cipher.displayName}, " +
-                "as chosen in developer settings."
+                "as chosen in advanced settings."
             pace = pace.copy(cipher = cipher)
         }
     }

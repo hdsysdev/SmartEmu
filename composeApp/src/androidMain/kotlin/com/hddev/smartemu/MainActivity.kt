@@ -5,16 +5,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hddev.smartemu.capture.profile.BundledProfiles
 import com.hddev.smartemu.capture.ui.AndroidCaptureEntry
@@ -24,7 +19,7 @@ import com.hddev.smartemu.ui.theme.isDark
 import com.hddev.smartemu.viewmodel.PassportSimulatorViewModel
 
 class MainActivity : ComponentActivity() {
-    /** The way into capture mode: in developer mode, or from the settings once it is unlocked */
+    /** The way into capture mode: in advanced mode, or from the settings once it is unlocked */
     private val captureEntry by lazy { AndroidCaptureEntry(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,40 +95,6 @@ fun PassportSimulatorApp() {
     }
 
     SmartEmuApp(viewModel = viewModel)
-}
-
-@Composable
-private fun ErrorBoundary(error: Throwable) {
-    MaterialTheme {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "Application Error",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
-                Text(
-                    text = error.message ?: "An unexpected error occurred",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Button(
-                    onClick = { 
-                        // In a real app, this could restart the activity or navigate to a safe state
-                        android.os.Process.killProcess(android.os.Process.myPid())
-                    }
-                ) {
-                    Text("Restart App")
-                }
-            }
-        }
-    }
 }
 
 @Preview

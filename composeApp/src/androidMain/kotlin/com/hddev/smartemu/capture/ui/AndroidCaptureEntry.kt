@@ -11,7 +11,7 @@ import com.hddev.smartemu.repository.AndroidSettingsStore
 import com.hddev.smartemu.ui.capture.CaptureEntry
 
 /**
- * The way into capture mode: always open in developer mode, and otherwise hidden until seven taps on the "About" text
+ * The way into capture mode: always open in advanced mode, and otherwise hidden until seven taps on the "About" text
  * in the settings unlock it, which is remembered until [lock]. The unlock is kept apart from the app settings, so that
  * the settings model stays the emulator's.
  */
@@ -62,7 +62,7 @@ class AndroidCaptureEntry(private val context: Context) : CaptureEntry {
             context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
                 .getBoolean(KEY_UNLOCKED, false)
 
-        /** Whether capture mode may open: developer mode is on, or the seven taps unlocked it. */
+        /** Whether capture mode may open: advanced mode is on, or the seven taps unlocked it. */
         fun isAvailable(context: Context): Boolean =
             isUnlocked(context) || AndroidSettingsStore(context).load().developerMode
     }

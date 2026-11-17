@@ -13,6 +13,7 @@ import com.hddev.smartemu.data.chipConfiguration
 import net.sf.scuba.data.Gender
 import org.bouncycastle.asn1.ASN1EncodableVector
 import org.bouncycastle.asn1.ASN1Encoding
+import org.bouncycastle.asn1.ASN1Primitive
 import org.bouncycastle.asn1.DLSet
 import org.jmrtd.PassportService
 import org.jmrtd.Util
@@ -215,7 +216,7 @@ class PassportLdsFiles private constructor(
             for (number in configuration.dataGroups) {
                 dataGroups[number] = when (number) {
                     1 -> DG1File(createMrzInfo(passportData)).encoded
-                    2 -> DG2File(listOf(FaceInfo(listOf(createFaceImageInfo(passportData))))).encoded
+                    2 -> DG2File.createISO19794DG2File(listOf(FaceInfo(listOf(createFaceImageInfo(passportData))))).encoded
                     3 -> createFingerprints()
                     11 -> createAdditionalPersonalDetails(passportData)
                     12 -> createAdditionalDocumentDetails(passportData)
@@ -382,7 +383,7 @@ class PassportLdsFiles private constructor(
          * they support take them in the file's order, as many chips write them, so the order is the configured one.
          */
         private fun cardAccess(paceInfos: List<SecurityInfo>): ByteArray =
-            DLSet(ASN1EncodableVector().apply { paceInfos.forEach { add(it.derObject) } }).getEncoded(ASN1Encoding.DL)
+            DLSet(ASN1EncodableVector().apply { paceInfos.forEach { add(ASN1Primitive.fromByteArray(it.encoded)) } }).getEncoded(ASN1Encoding.DL)
 
         /**
          * DG3 with no fingerprint records but random data in their place, as JMRTD fills an empty one: no reader

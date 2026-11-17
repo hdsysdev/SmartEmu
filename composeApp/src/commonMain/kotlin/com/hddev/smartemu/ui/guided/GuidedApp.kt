@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 enum class GuidedScreen { INTRO, HOME, PRESETS, HISTORY, EDIT, USE, HELP }
 
 /**
- * The guided screens, out of developer mode: a guided journey for someone who isn't a developer, using this phone as a
+ * The guided screens, out of advanced mode: a guided journey for someone who isn't a developer, using this phone as a
  * passport that apps on another phone can read. It opens with a short introduction the first time, while [showIntro], and calls [onIntroFinished]
  * once it has been seen. The chip settings stay simple, and the emulation only runs while the passport is in use.
  */

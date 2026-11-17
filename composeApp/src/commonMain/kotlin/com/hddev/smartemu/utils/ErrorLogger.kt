@@ -4,7 +4,7 @@ import com.hddev.smartemu.data.NfcEvent
 import com.hddev.smartemu.data.NfcEventType
 import com.hddev.smartemu.domain.SimulatorError
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /**
  * Centralized error logging utility for the passport simulator.

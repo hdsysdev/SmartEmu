@@ -140,15 +140,6 @@ class SimulatorErrorTest {
     }
     
     @Test
-    fun `LibraryInitializationFailed includes library name`() {
-        val error = SimulatorError.SystemError.LibraryInitializationFailed(
-            "SCUBA", 
-            RuntimeException("init failed")
-        )
-        assertEquals("Failed to initialize SCUBA library", error.toUserMessage())
-    }
-    
-    @Test
     fun `UnexpectedError includes throwable message`() {
         val throwable = RuntimeException("Something went wrong")
         val error = SimulatorError.SystemError.UnexpectedError(throwable)

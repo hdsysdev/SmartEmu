@@ -319,6 +319,17 @@
             "chip-authentication": "n/a",
             "active-authentication": "n/a",
             "bac": "pass"
+        },
+        "xk-passport-2013": {
+            "ef-card-access": "pass",
+            "ef-com": "pass",
+            "ef-sod": "pass",
+            "dg1": "pass",
+            "passive-authentication": "pass",
+            "chip-authentication": "n/a",
+            "active-authentication": "n/a",
+            "pace:PACE-GM ECDH NIST P-256 AES-128": "pass",
+            "bac": "pass"
         }
     },
     "variants": {

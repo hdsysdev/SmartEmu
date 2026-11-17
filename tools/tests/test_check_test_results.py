@@ -98,9 +98,9 @@ class CheckTestResults(unittest.TestCase):
         self.write("TEST-com.x.A.xml", suite("com.x.A", (PASS, "one")))
         self.assertEqual(2, self.run_check()[0])
 
-    def test_the_committed_allowlist_parses_and_has_the_eleven_known_failures(self):
-        allowed = check.read_allowlist(ROOT / ".github/known-failing-tests.txt")
-        self.assertEqual(11, len(allowed))
+    def test_the_committed_allowlist_parses(self):
+        # read_allowlist raises on a malformed line. The file only shrinks, and every known failure has been fixed
+        self.assertEqual(set(), set(check.read_allowlist(ROOT / ".github/known-failing-tests.txt")))
 
 
 if __name__ == "__main__":

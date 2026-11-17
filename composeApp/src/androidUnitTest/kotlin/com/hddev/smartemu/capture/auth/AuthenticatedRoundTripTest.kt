@@ -85,12 +85,11 @@ class AuthenticatedRoundTripTest {
             if (3 !in config.dataGroups && facts.dg3ReadStatusWord != null) failures += "${profile.id}: DG3 readable but not in the profile"
 
             if ((facts.activeAuthentication != null) != (config.activeAuthentication != null)) failures += "${profile.id}: AA present ${facts.activeAuthentication != null}"
-            if (config.activeAuthentication != null) {
+            config.activeAuthentication?.let { key ->
                 if (facts.activeAuthentication?.succeeded != true) failures += "${profile.id}: AA ${facts.activeAuthentication}"
-                when (val key = config.activeAuthentication) {
+                when (key) {
                     is KeySpec.Rsa -> if (facts.aaKeyType != "RSA" || facts.aaKeyBits != key.bits) failures += "${profile.id}: AA key ${facts.aaKeyType}/${facts.aaKeyBits}"
                     is KeySpec.Ec -> if (facts.aaKeyType != "EC") failures += "${profile.id}: AA key ${facts.aaKeyType}"
-                    null -> Unit
                 }
             }
             if ((facts.chipAuthentication != null) != (config.chipAuthentication != null)) failures += "${profile.id}: CA present ${facts.chipAuthentication != null}"

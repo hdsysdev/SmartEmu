@@ -17,7 +17,7 @@ Which open-source readers can complete which profiles. It tests the emulator aga
 3. BAC, if the profile offers it;
 4. with the first access method that works: EF.COM, EF.SOD, DG1, passive authentication against the test CSCA (certificate chain, signature, data group hashes), Chip Authentication if the profile has it, Active Authentication if the profile has it.
 
-A second table runs PACE on every domain parameter, mapping and cipher the developer settings can select, to find where a reader's limits are.
+A second table runs PACE on every domain parameter, mapping and cipher the advanced settings can select, to find where a reader's limits are.
 
 ## Baseline and regressions
 
@@ -84,8 +84,9 @@ Each profile's chip is unlocked with every access method it offers (BAC, and eac
 | `sg-passport-pp-2025` (Singapore · passport (README type PP, 2025)) | pass | PACE-GM ECDH brainpoolP256r1 AES-256: pass | pass | pass | pass | pass | n/a | pass | pass |
 | `tw-passport-2024` (Taiwan · passport (2024)) | pass | PACE-GM ECDH NIST P-256 AES-256: pass | pass | pass | pass | pass | n/a | n/a | pass |
 | `us-passport-2021` (United States · passport (Next Generation, 2021)) | pass | n/a | pass | pass | pass | pass | n/a | n/a | pass |
+| `xk-passport-2013` (Kosovo · passport (2013 design)) | pass | PACE-GM ECDH NIST P-256 AES-128: pass | pass | pass | pass | pass | n/a | n/a | pass |
 
-### PACE variants the developer settings can ask for
+### PACE variants the advanced settings can ask for
 
 The emulator can be set to any ICAO PACE domain parameters, mapping and cipher. The reader runs PACE with the MRZ on the first suite EF.CardAccess then offers, and reads DG1. `pass` means all four ciphers pass. Where the emulator can't offer the requested combination it offers another suite (Integrated Mapping on NIST P-224, PACE-CAM on a DH group, PACE-CAM with 3DES), and the cell says which: that is the emulator's choice, not the reader's.
 

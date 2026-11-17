@@ -141,7 +141,7 @@ data class ProfileEvidence(
 /**
  * The elliptic curves ICAO 9303 part 11 standardises for PACE, with their standardised domain parameter identifiers,
  * in identifier order; [DhGroup] has the Diffie-Hellman ones. Profiles don't run PACE on the 192-bit curves (see
- * [usableForPace]), but the developer setting [AppSettings.paceCurve] can put PACE on any of them, to test how a
+ * [usableForPace]), but the advanced setting [AppSettings.paceCurve] can put PACE on any of them, to test how a
  * reader copes.
  */
 enum class EcCurve(val displayName: String, val paceParameterId: Int, val bits: Int, val isNist: Boolean) {
@@ -207,7 +207,7 @@ sealed interface KeySpec {
 
 /**
  * The Diffie-Hellman groups ICAO 9303 part 11 standardises for PACE, from RFC 5114, with their standardised domain
- * parameter identifiers. No profile runs PACE on them, but the developer setting [AppSettings.paceDhGroup] can.
+ * parameter identifiers. No profile runs PACE on them, but the advanced setting [AppSettings.paceDhGroup] can.
  */
 enum class DhGroup(val displayName: String, val paceParameterId: Int, val bits: Int, val subgroupBits: Int) {
     MODP_1024_160("DH 1024/160", 0, 1024, 160),

@@ -41,7 +41,6 @@
       "generation_boundary": "One real document per row; the row's year only. No claim about other documents of the same country or year.",
       "downloaded_source": {
         "filename": "README.md",
-        "local_cache_path": "/private/tmp/claude-502/-Users-hubertdudowicz-OtherProjects-SmartEmu/ec9a18ea-1506-47ab-a366-7914a9d86687/scratchpad/gm/README.md",
         "sha256": "b201183463b44c746e7d17180b803092c60a54c2220b969b5b2c6ef26267845c",
         "bytes": 12789,
         "retained_in_repository": false,
@@ -79,7 +78,6 @@
       "generation_boundary": "One sampled SOD per vector; not a statement about every document of the country or year.",
       "downloaded_source": {
         "filename": "sod_test.go",
-        "local_cache_path": "/private/tmp/claude-502/-Users-hubertdudowicz-OtherProjects-SmartEmu/ec9a18ea-1506-47ab-a366-7914a9d86687/scratchpad/gm/sod_test.go",
         "sha256": "1c9584296c7630241a1d27e9ec323ab3b248abaac8ae787930f893f664cfda98",
         "bytes": 147345,
         "retained_in_repository": false,
@@ -117,7 +115,6 @@
       "generation_boundary": "One sampled SOD per vector; not a statement about every document of the country or year.",
       "downloaded_source": {
         "filename": "passive_auth_test.go",
-        "local_cache_path": "/private/tmp/claude-502/-Users-hubertdudowicz-OtherProjects-SmartEmu/ec9a18ea-1506-47ab-a366-7914a9d86687/scratchpad/gm/passive_auth_test.go",
         "sha256": "3791bde12a98e31eae8c996d964c9b5a4519bacea981a47bd4a7f5eda4625d41",
         "bytes": 221252,
         "retained_in_repository": false,

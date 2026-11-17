@@ -37,6 +37,7 @@ import org.jmrtd.protocol.PACECAMResult
 import org.jmrtd.protocol.PACEGMMappingResult
 import org.jmrtd.protocol.PACEResult
 import org.jmrtd.protocol.ReadBinaryAPDUSender
+import org.jmrtd.protocol.SecureMessagingAPDUSender
 import net.sf.scuba.smartcards.CardFileInputStream
 import java.math.BigInteger
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -376,7 +377,7 @@ class AuthenticatedReadExtractor(
          * uses JMRTD's file system with the PACE wrapper. Null if the chip has none.
          */
         private fun readCardSecurity(result: PACEResult): CardSecurityRead? = try {
-            val fileSystem = DefaultFileSystem(ReadBinaryAPDUSender(card), false)
+            val fileSystem = DefaultFileSystem(ReadBinaryAPDUSender(SecureMessagingAPDUSender(card)), false)
             fileSystem.setWrapper(result.wrapper)
             fileSystem.selectFile(PassportService.EF_CARD_SECURITY)
             val bytes = CardFileInputStream(PassportService.DEFAULT_MAX_BLOCKSIZE, fileSystem).readBytes()

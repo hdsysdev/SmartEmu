@@ -114,16 +114,6 @@ class ErrorCodeMapperTest {
     
     @Test
     fun testMapError_systemErrors() {
-        // Test LibraryInitializationFailed
-        val libError = SimulatorError.SystemError.LibraryInitializationFailed("SCUBA", RuntimeException())
-        val libResponse = ErrorCodeMapper.mapError(libError)
-        
-        assertEquals(ErrorCodeMapper.SW_CONDITIONS_NOT_SATISFIED, libResponse.statusWord)
-        assertEquals("LIBRARY_INITIALIZATION_FAILED", libResponse.errorCode)
-        assertTrue(libResponse.recoverable)
-        assertEquals(5000L, libResponse.retryAfterMs)
-        assertEquals("SCUBA", libResponse.details["library"])
-        
         // Test UnexpectedError
         val unexpectedError = SimulatorError.SystemError.UnexpectedError(RuntimeException("Test"))
         val unexpectedResponse = ErrorCodeMapper.mapError(unexpectedError)

@@ -131,7 +131,7 @@ fi
 # reader whose clock is a little behind still accepts them. <country> is the code the names carry; Indonesia's IDN
 # keeps its signer apart from the generic ID document signer, smartemu-test-ds-id, and its certificates say C=ID.
 NEW_CSCA_START=20260930224757Z
-NEW_COUNTRIES=" AT FI SG TW PT IDN HK MY NZ RU PH CN "
+NEW_COUNTRIES=" AT FI SG TW PT IDN HK MY NZ RU PH CN XK "
 country_pki() {
   local country=$1 csca_key=$2[@]
   local lower
@@ -209,6 +209,8 @@ country_pki NZ EC_P256 "" ds_ext RSA_2048
 country_pki RU EC_P256 "" ds_ext EC_P256
 country_pki PH EC_P256 "" ds_ext RSA_2048
 country_pki CN EC_P256 "" ds_ext RSA_2048
+# Kosovo (ICAO code RKS, not an ISO 3166 state, so the certificates say XK, the user-assigned alpha-2 code)
+country_pki XK EC_P256 "" ds_ext EC_P256
 
 openssl verify -CAfile "$CSCA.cert.pem" "$DS.cert.pem" "$DS_ID.cert.pem"
 openssl verify -CAfile "$UNTRUSTED_CSCA.cert.pem" "$DS_UNTRUSTED.cert.pem"

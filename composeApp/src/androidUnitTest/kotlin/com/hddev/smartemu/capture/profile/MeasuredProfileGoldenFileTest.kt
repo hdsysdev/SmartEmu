@@ -45,7 +45,7 @@ class MeasuredProfileGoldenFileTest {
     @Test
     fun `regenerate the golden file on request`() {
         if (System.getenv("UPDATE_GOLDEN") != "1") return
-        File("src/androidUnitTest/resources$resource").also { it.parentFile.mkdirs() }
+        File("src/androidUnitTest/resources$resource").also { it.parentFile!!.mkdirs() }
             .writeText(MeasuredProfileJson.encode(GoldenMeasuredProfile.profile) + "\n")
     }
 

@@ -50,7 +50,7 @@ fun PresetsScreen(onSelected: (PassportPreset) -> Unit, onBack: () -> Unit) {
                     NoticeCard(
                         title = "Based on published information",
                         text = "Each name identifies a document generation. Some chip details are approximations. " +
-                            "Developer mode shows the sources and exactly what is known.",
+                            "Advanced mode shows the sources and exactly what is known.",
                         icon = Icons.Outlined.Info,
                         tone = NoticeTone.INFO
                     )
@@ -65,7 +65,7 @@ fun PresetsScreen(onSelected: (PassportPreset) -> Unit, onBack: () -> Unit) {
                     )
                 }
                 presets.forEach { preset ->
-                    // The technical name in brackets is for developer mode
+                    // The technical name in brackets is for advanced mode
                     PresetRow(
                         preset = preset,
                         summary = preset.guidedSummary(),

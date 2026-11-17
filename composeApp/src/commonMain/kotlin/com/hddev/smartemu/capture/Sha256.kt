@@ -4,6 +4,7 @@ package com.hddev.smartemu.capture
  * SHA-256 in plain Kotlin, so [CaptureFingerprint] (and with it the fingerprint rule of [RedactionLint]) runs on any
  * target and in the intake tool without `java.security`. Used for a digest of non-secret structure only.
  */
+@OptIn(ExperimentalUnsignedTypes::class)
 internal object Sha256 {
     private val k: IntArray = uintArrayOf(
         0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u, 0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,

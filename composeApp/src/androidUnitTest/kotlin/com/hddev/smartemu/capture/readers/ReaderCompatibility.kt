@@ -66,7 +66,7 @@ class ReaderResults(
     val variants: List<VariantRun>
 )
 
-/** The PACE variants the developer settings can ask for, one run per domain parameters, mapping and cipher. */
+/** The PACE variants the advanced settings can ask for, one run per domain parameters, mapping and cipher. */
 class VariantRun(val domain: String, val mapping: PaceMapping, val cipher: SessionCipher, val offered: String?, val outcome: StepOutcome) {
     /** The emulator can't offer every combination (Integrated Mapping on P-224, PACE-CAM on DH) and offers another suite. */
     val adapted: Boolean get() = offered != null && (!offered.startsWith("PACE-${mapping.abbreviation} ") || !offered.endsWith(cipher.displayName))
@@ -253,7 +253,7 @@ object ReaderMatrix {
             )
         }
         appendLine()
-        appendLine("### PACE variants the developer settings can ask for")
+        appendLine("### PACE variants the advanced settings can ask for")
         appendLine()
         appendLine("The emulator can be set to any ICAO PACE domain parameters, mapping and cipher. The reader runs PACE with the MRZ on the first suite EF.CardAccess then offers, and reads DG1. `pass` means all four ciphers pass. Where the emulator can't offer the requested combination it offers another suite (Integrated Mapping on NIST P-224, PACE-CAM on a DH group, PACE-CAM with 3DES), and the cell says which: that is the emulator's choice, not the reader's.")
         appendLine()

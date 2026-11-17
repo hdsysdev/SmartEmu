@@ -176,37 +176,3 @@ object RedactionLint {
         }
     }
 }
-
-/** A well-formedness check of BER-TLV, enough to tell a file of data objects from arbitrary bytes. */
-internal object BerTlv {
-    private const val MAX_DEPTH = 8
-
-    fun isWellFormed(bytes: ByteArray): Boolean = bytes.isNotEmpty() && parse(bytes, 0, bytes.size, 0)
-
-    private fun parse(bytes: ByteArray, start: Int, end: Int, depth: Int): Boolean {
-        if (depth > MAX_DEPTH) return false
-        var i = start
-        while (i < end) {
-            val first = bytes[i++].toInt() and 0xFF
-            if (first and 0x1F == 0x1F) {
-                // A multi-byte tag: further bytes follow while bit 8 is set
-                do {
-                    if (i >= end) return false
-                    val more = bytes[i++].toInt() and 0x80 != 0
-                } while (more)
-            }
-            if (i >= end) return false
-            var length = bytes[i++].toInt() and 0xFF
-            if (length and 0x80 != 0) {
-                val count = length and 0x7F
-                if (count == 0 || count > 3 || i + count > end) return false
-                length = 0
-                repeat(count) { length = (length shl 8) or (bytes[i++].toInt() and 0xFF) }
-            }
-            if (length > end - i) return false
-            if (first and 0x20 != 0 && !parse(bytes, i, i + length, depth + 1)) return false
-            i += length
-        }
-        return true
-    }
-}

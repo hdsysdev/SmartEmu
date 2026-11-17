@@ -39,7 +39,7 @@ UPDATE_GENERATED_DOCS=1 ./gradlew :composeApp:testDebugUnitTest --tests '*Covera
 
 **GENERATED. Do not edit this table.**
 
-28 documents: 0 with captures, 28 without. Capture the top rows first.
+29 documents: 0 with captures, 29 without. Capture the top rows first.
 
 | Capture next | Country | Document | Profile | Status | n | Provenance of the aspects |
 |---|---|---|---|---|---|---|
@@ -63,13 +63,14 @@ UPDATE_GENERATED_DOCS=1 ./gradlew :composeApp:testDebugUnitTest --tests '*Covera
 | 18 | NZL | passport (2017) | `nz-passport-2017` | Reported | 0 | 2 reported, 6 assumed |
 | 19 | PHL | passport (2020) | `ph-passport-2020` | Reported | 0 | 2 reported, 6 assumed |
 | 20 | PRT | passport (README type PP, 2026) | `pt-passport-2026` | Reported | 0 | 1 reported, 7 assumed |
-| 21 | RUS | passport (2020) | `ru-passport-2020` | Reported | 0 | 3 reported, 5 assumed |
-| 22 | SGP | passport (README type PA, 2023) | `sg-passport-pa-2023` | Reported | 0 | 2 reported, 6 assumed |
-| 23 | SGP | passport (README type PP, 2025) | `sg-passport-pp-2025` | Reported | 0 | 1 reported, 7 assumed |
-| 24 | TWN | passport (2024) | `tw-passport-2024` | Reported | 0 | 2 reported, 6 assumed |
-| 25 | USA | passport (Next Generation, 2021) | `us-passport-2021` | Reported | 0 | 6 reported, 2 assumed |
-| 26 | DEU | ID card (Personalausweis) | `de-id-card` | Specification | 0 | 2 specification, 6 assumed |
-| 27 | DEU | passport (2017 design) | `de-passport-2017` | Specification | 0 | 3 specification, 5 assumed |
-| 28 | DEU | passport (2023 design) | `de-passport-2023` | Specification | 0 | 2 specification, 4 reported, 2 assumed |
+| 21 | RKS | passport (2013 design) | `xk-passport-2013` | Reported | 0 | 1 reported, 7 assumed |
+| 22 | RUS | passport (2020) | `ru-passport-2020` | Reported | 0 | 3 reported, 5 assumed |
+| 23 | SGP | passport (README type PA, 2023) | `sg-passport-pa-2023` | Reported | 0 | 2 reported, 6 assumed |
+| 24 | SGP | passport (README type PP, 2025) | `sg-passport-pp-2025` | Reported | 0 | 1 reported, 7 assumed |
+| 25 | TWN | passport (2024) | `tw-passport-2024` | Reported | 0 | 2 reported, 6 assumed |
+| 26 | USA | passport (Next Generation, 2021) | `us-passport-2021` | Reported | 0 | 6 reported, 2 assumed |
+| 27 | DEU | ID card (Personalausweis) | `de-id-card` | Specification | 0 | 2 specification, 6 assumed |
+| 28 | DEU | passport (2017 design) | `de-passport-2017` | Specification | 0 | 3 specification, 5 assumed |
+| 29 | DEU | passport (2023 design) | `de-passport-2023` | Specification | 0 | 2 specification, 4 reported, 2 assumed |
 
 <!-- END GENERATED: coverage matrix -->

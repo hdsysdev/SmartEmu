@@ -4,7 +4,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,22 +35,6 @@ class SensitiveInputState(private val shape: (String) -> String = { it }) {
     fun clear() {
         text = ""
     }
-
-    /** Hands the text to [block] and clears it afterwards, even if [block] throws. */
-    inline fun <T> useAndClear(block: (String) -> T): T {
-        try {
-            return block(text)
-        } finally {
-            clear()
-        }
-    }
-}
-
-@Composable
-fun rememberSensitiveInputState(shape: (String) -> String = { it }): SensitiveInputState {
-    val state = remember { SensitiveInputState(shape) }
-    DisposableEffect(state) { onDispose { state.clear() } }
-    return state
 }
 
 /**

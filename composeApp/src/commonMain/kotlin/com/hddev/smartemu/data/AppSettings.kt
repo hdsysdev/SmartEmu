@@ -3,8 +3,8 @@ package com.hddev.smartemu.data
 /**
  * How the app looks and behaves, as opposed to the document it emulates.
  *
- * [developerMode] swaps the guided screens for the developer ones: every chip setting and chip profile, and the
- * reader's commands as they arrive. The chip always uses its profile's cryptography as it is. Only in developer mode,
+ * [developerMode] swaps the guided screens for the advanced ones: every chip setting and chip profile, and the
+ * reader's commands as they arrive. The chip always uses its profile's cryptography as it is. Only in advanced mode,
  * [paceCurve] or [paceDhGroup] and [paceCipher] put every
  * document's PACE on those domain parameters or that cipher instead of its profile's, and [extraPaceSuites] makes the
  * chip offer more PACE suites than the document's own, to test a reader against each suite ICAO 9303 defines and its

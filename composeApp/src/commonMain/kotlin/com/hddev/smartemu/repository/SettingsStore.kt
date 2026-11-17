@@ -4,7 +4,7 @@ import com.hddev.smartemu.data.AppSettings
 
 /**
  * Keeps the app settings across restarts. Loading is synchronous, as the settings are small and decide what the first
- * frame shows: the developer or the guided screens, light or dark.
+ * frame shows: the advanced or the guided screens, light or dark.
  */
 interface SettingsStore {
 

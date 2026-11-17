@@ -51,12 +51,13 @@ class ScubaBasicTest {
     @Test
     fun `test SCUBA ISO7816 constants`() {
         // Test that ISO7816 constants are accessible
-        assertEquals(0x9000, ISO7816.SW_NO_ERROR.toInt())
-        assertEquals(0x6A82, ISO7816.SW_FILE_NOT_FOUND.toInt())
-        assertEquals(0x6982, ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt())
-        assertEquals(0x6700, ISO7816.SW_WRONG_LENGTH.toInt())
-        assertEquals(0x6E00, ISO7816.SW_CLA_NOT_SUPPORTED.toInt())
-        assertEquals(0x6D00, ISO7816.SW_INS_NOT_SUPPORTED.toInt())
+        // The status words are Shorts, so the ones from 0x8000 up are negative until masked
+        assertEquals(0x9000, ISO7816.SW_NO_ERROR.toInt() and 0xFFFF)
+        assertEquals(0x6A82, ISO7816.SW_FILE_NOT_FOUND.toInt() and 0xFFFF)
+        assertEquals(0x6982, ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED.toInt() and 0xFFFF)
+        assertEquals(0x6700, ISO7816.SW_WRONG_LENGTH.toInt() and 0xFFFF)
+        assertEquals(0x6E00, ISO7816.SW_CLA_NOT_SUPPORTED.toInt() and 0xFFFF)
+        assertEquals(0x6D00, ISO7816.SW_INS_NOT_SUPPORTED.toInt() and 0xFFFF)
     }
 
     @Test

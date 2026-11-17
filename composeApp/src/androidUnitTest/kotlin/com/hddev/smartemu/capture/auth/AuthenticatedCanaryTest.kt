@@ -275,7 +275,7 @@ class AuthenticatedCanaryTest {
             val data = canary.withChipProfile(ChipProfiles.byId("nl-passport"))
             capture(data, chip.mrz(data))
             assertTrue(captured.isEmpty(), "logged: ${captured.take(3).map { it.message }}")
-            assertEquals(listOf(Level.ALL, Level.ALL), loggers.map { it.level })
+            assertEquals(listOf<Level?>(Level.ALL, Level.ALL), loggers.map { it.level })
         } finally {
             loggers.forEachIndexed { i, l -> l.level = before[i]; l.removeHandler(handler) }
         }

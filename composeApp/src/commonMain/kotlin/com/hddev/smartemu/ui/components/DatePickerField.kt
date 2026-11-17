@@ -105,7 +105,7 @@ private fun DatePickerDialog(
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = initialDate?.let { date ->
             // Convert LocalDate to milliseconds since epoch
-            kotlinx.datetime.Instant.parse("${date}T00:00:00Z").toEpochMilliseconds()
+            kotlin.time.Instant.parse("${date}T00:00:00Z").toEpochMilliseconds()
         }
     )
     
@@ -117,7 +117,7 @@ private fun DatePickerDialog(
                     val selectedDateMillis = datePickerState.selectedDateMillis
                     val selectedDate = selectedDateMillis?.let { millis ->
                         // Convert milliseconds back to LocalDate
-                        val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
+                        val instant = kotlin.time.Instant.fromEpochMilliseconds(millis)
                         instant.toString().substringBefore('T').let { dateString ->
                             LocalDate.parse(dateString)
                         }

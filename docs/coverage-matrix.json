@@ -279,6 +279,20 @@
             "captureRank": 20
         },
         {
+            "profileId": "xk-passport-2013",
+            "country": "RKS",
+            "document": "passport (2013 design)",
+            "status": "REPORTED",
+            "statusLabel": "Reported",
+            "n": 0,
+            "provenance": {
+                "reported": 1,
+                "assumed": 7
+            },
+            "thin": false,
+            "captureRank": 21
+        },
+        {
             "profileId": "ru-passport-2020",
             "country": "RUS",
             "document": "passport (2020)",
@@ -290,7 +304,7 @@
                 "assumed": 5
             },
             "thin": false,
-            "captureRank": 21
+            "captureRank": 22
         },
         {
             "profileId": "sg-passport-pa-2023",
@@ -304,7 +318,7 @@
                 "assumed": 6
             },
             "thin": false,
-            "captureRank": 22
+            "captureRank": 23
         },
         {
             "profileId": "sg-passport-pp-2025",
@@ -318,7 +332,7 @@
                 "assumed": 7
             },
             "thin": false,
-            "captureRank": 23
+            "captureRank": 24
         },
         {
             "profileId": "tw-passport-2024",
@@ -332,7 +346,7 @@
                 "assumed": 6
             },
             "thin": false,
-            "captureRank": 24
+            "captureRank": 25
         },
         {
             "profileId": "us-passport-2021",
@@ -346,7 +360,7 @@
                 "assumed": 2
             },
             "thin": false,
-            "captureRank": 25
+            "captureRank": 26
         },
         {
             "profileId": "de-id-card",
@@ -360,7 +374,7 @@
                 "assumed": 6
             },
             "thin": false,
-            "captureRank": 26
+            "captureRank": 27
         },
         {
             "profileId": "de-passport-2017",
@@ -374,7 +388,7 @@
                 "assumed": 5
             },
             "thin": false,
-            "captureRank": 27
+            "captureRank": 28
         },
         {
             "profileId": "de-passport-2023",
@@ -389,7 +403,7 @@
                 "assumed": 2
             },
             "thin": false,
-            "captureRank": 28
+            "captureRank": 29
         }
     ],
     "unlinked": []

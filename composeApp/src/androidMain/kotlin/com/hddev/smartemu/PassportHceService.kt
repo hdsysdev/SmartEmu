@@ -20,8 +20,6 @@ import com.hddev.smartemu.utils.PaceProtocol
 import com.hddev.smartemu.utils.PassportLdsFiles
 import com.hddev.smartemu.utils.ErrorLogger
 import com.hddev.smartemu.utils.ErrorCodeMapper
-import com.hddev.smartemu.utils.TimeoutHandler
-import com.hddev.smartemu.utils.ErrorRecovery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +29,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlin.time.Clock
 import net.sf.scuba.smartcards.CommandAPDU
 import org.jmrtd.PassportService
@@ -93,13 +90,8 @@ class PassportHceService : HostApduService() {
     private var isApplicationSelected = false
     private var selectedFileId: Short? = null
     
-    // Error handling and recovery
-    private val timeoutHandler = TimeoutHandler()
-    private val errorRecovery = ErrorRecovery()
+    // Ties this service instance's log entries together
     private var sessionCorrelationId: String? = null
-    
-    // SCUBA library components
-    private var isScubaInitialized = false
     
     // Access control protocol handlers
     private val bacProtocol = BacProtocol()
@@ -142,72 +134,7 @@ class PassportHceService : HostApduService() {
             correlationId = sessionCorrelationId
         )
         
-        initializeScubaLibrary()
-        
         emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "Service initialized"))
-    }
-    
-    /**
-     * Initialize SCUBA library components for smart card operations.
-     */
-    private fun initializeScubaLibrary() {
-        runBlocking {
-            val result = errorRecovery.withRecovery(
-                operation = "SCUBA_INITIALIZATION",
-                config = ErrorRecovery.RecoveryConfig(
-                    maxRetries = 2,
-                    correlationId = sessionCorrelationId
-                )
-            ) { attemptNumber ->
-                Log.d(TAG, "Initializing SCUBA library (attempt $attemptNumber)")
-                
-                Log.d(TAG, "SCUBA library initialized successfully")
-                true
-            }
-            
-            when (result) {
-                is ErrorRecovery.RecoveryResult.Success -> {
-                    isScubaInitialized = true
-                    ErrorLogger.logError(
-                        level = ErrorLogger.LogLevel.INFO,
-                        category = ErrorLogger.ErrorCategory.SYSTEM,
-                        message = "SCUBA library initialized successfully",
-                        correlationId = sessionCorrelationId
-                    )
-                    emitEvent(NfcEvent.connectionEstablished(Clock.System.now(), "SCUBA library initialized"))
-                }
-                
-                is ErrorRecovery.RecoveryResult.Failed -> {
-                    isScubaInitialized = false
-                    val error = SimulatorError.SystemError.LibraryInitializationFailed("SCUBA", Exception(result.lastError.message))
-                    
-                    ErrorLogger.logError(
-                        level = ErrorLogger.LogLevel.CRITICAL,
-                        category = ErrorLogger.ErrorCategory.SYSTEM,
-                        message = "Failed to initialize SCUBA library after ${result.totalAttempts} attempts",
-                        error = error,
-                        correlationId = sessionCorrelationId
-                    )
-                    
-                    val errorResponse = ErrorCodeMapper.mapError(error)
-                    emitEvent(NfcEvent.error(Clock.System.now(), errorResponse.message, errorResponse.errorCode))
-                }
-                
-                is ErrorRecovery.RecoveryResult.NonRetryable -> {
-                    isScubaInitialized = false
-                    ErrorLogger.logError(
-                        level = ErrorLogger.LogLevel.CRITICAL,
-                        category = ErrorLogger.ErrorCategory.SYSTEM,
-                        message = "SCUBA initialization failed with non-retryable error",
-                        error = result.error,
-                        correlationId = sessionCorrelationId
-                    )
-                    
-                    val errorResponse = ErrorCodeMapper.mapError(result.error)
-                    emitEvent(NfcEvent.error(Clock.System.now(), errorResponse.message, errorResponse.errorCode))
-                }
-            }
-        }
     }
     
     override fun processCommandApdu(commandApdu: ByteArray?, extras: Bundle?): ByteArray {
@@ -524,11 +451,6 @@ class PassportHceService : HostApduService() {
             correlationId = sessionCorrelationId
         )
         
-        // Cancel any active timeout operations
-        runBlocking {
-            sessionCorrelationId?.let { timeoutHandler.cancelOperation(it) }
-        }
-        
         // Reset connection state; the reader has to select the application and authenticate again
         isConnected = false
         isApplicationSelected = false
@@ -549,11 +471,6 @@ class PassportHceService : HostApduService() {
             message = "PassportHceService destroyed",
             correlationId = sessionCorrelationId
         )
-        
-        // Cancel all active operations
-        runBlocking {
-            timeoutHandler.cancelAllOperations()
-        }
         
         serviceScope.cancel()
     }
@@ -630,14 +547,6 @@ class PassportHceService : HostApduService() {
      * Validates APDU command using SCUBA library.
      */
     private fun validateApduCommand(commandApdu: ByteArray?): ApduValidationResult {
-        if (!isScubaInitialized) {
-            return ApduValidationResult(
-                false, 
-                "SCUBA library not initialized", 
-                createErrorResponse(ISO7816.SW_UNKNOWN.toInt())
-            )
-        }
-        
         if (commandApdu == null || commandApdu.isEmpty()) {
             return ApduValidationResult(
                 false, 

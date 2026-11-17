@@ -295,7 +295,7 @@ class CaptureIntake(private val options: IntakeOptions) {
 
     private fun writeProfiles(generations: List<GenerationOutcome>) {
         generations.forEach { outcome ->
-            val repository = ProfileRepository(outcome.file.parentFile)
+            val repository = ProfileRepository(outcome.file.parentFile!!)
             repository.save(outcome.profile)
             // A profile released from pending, or one a second capture lifted into the shared set, leaves pending
             if (outcome.placement == Placement.SHARED) File(options.pendingDir, "${outcome.profile.id}.json").delete()
@@ -324,7 +324,7 @@ class CaptureIntake(private val options: IntakeOptions) {
         return renders.map { (file, text) ->
             val changed = !file.isFile || file.readText() != text
             if (options.apply && changed) {
-                file.parentFile.mkdirs()
+                file.parentFile!!.mkdirs()
                 file.writeText(text)
             }
             DocChange(file, changed)
@@ -357,7 +357,7 @@ class CaptureStore(val directory: File) {
 
     fun add(record: CaptureRecord) {
         val file = fileOf(record)
-        restricted(file.parentFile)
+        restricted(file.parentFile!!)
         file.writeText(CaptureJson.encode(record) + "\n")
         try {
             Files.setPosixFilePermissions(file.toPath(), PosixFilePermissions.fromString("rw-------"))

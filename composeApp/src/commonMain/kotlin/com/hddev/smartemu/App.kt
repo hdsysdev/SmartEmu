@@ -41,7 +41,7 @@ import kotlin.time.Clock
 private val RailMinWidth = 600.dp
 
 /**
- * Root of the app, in the theme the settings choose: the guided screens, or in developer mode the developer ones,
+ * Root of the app, in the theme the settings choose: the guided screens, or in advanced mode the advanced ones,
  * with the settings over either. Each keeps its place while the settings are open.
  */
 @Composable
@@ -82,7 +82,7 @@ fun SmartEmuApp(
 }
 
 /**
- * The developer screens: one screen per [AppDestination], switched with a navigation bar, or a rail on wide
+ * The advanced screens: one screen per [AppDestination], switched with a navigation bar, or a rail on wide
  * windows. Errors from the ViewModel appear as snackbars.
  */
 @Composable
@@ -258,7 +258,7 @@ private fun AppTopBar(
                     Icon(imageVector = Icons.AutoMirrored.Outlined.MenuBook, contentDescription = "Terms and abbreviations")
                 }
             }
-            // Developer mode offers capture mode from every screen, where the platform has it
+            // Advanced mode offers capture mode from every screen, where the platform has it
             LocalCaptureEntry.current?.let { captureEntry ->
                 IconButton(onClick = captureEntry::open) {
                     Icon(imageVector = Icons.Outlined.Nfc, contentDescription = "Capture a real document")

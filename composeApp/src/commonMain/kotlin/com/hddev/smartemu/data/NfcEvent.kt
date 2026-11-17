@@ -1,6 +1,6 @@
 package com.hddev.smartemu.data
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /**
  * Represents an NFC-related event that occurs during passport simulation.

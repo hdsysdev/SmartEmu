@@ -1,6 +1,6 @@
 package com.hddev.smartemu.data
 
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -146,27 +146,6 @@ class PassportSimulatorUiStateTest {
     }
     
     @Test
-    fun testNeedsNfcPermission() {
-        val needsPermission = PassportSimulatorUiState(
-            nfcAvailable = true,
-            hasNfcPermission = false
-        )
-        assertTrue(needsPermission.needsNfcPermission())
-        
-        val hasPermission = PassportSimulatorUiState(
-            nfcAvailable = true,
-            hasNfcPermission = true
-        )
-        assertFalse(hasPermission.needsNfcPermission())
-        
-        val noNfc = PassportSimulatorUiState(
-            nfcAvailable = false,
-            hasNfcPermission = false
-        )
-        assertFalse(noNfc.needsNfcPermission())
-    }
-    
-    @Test
     fun testHasValidationErrors() {
         val withErrors = PassportSimulatorUiState(
             validationErrors = mapOf("field" to "error")
@@ -177,67 +156,6 @@ class PassportSimulatorUiStateTest {
             validationErrors = emptyMap()
         )
         assertFalse(withoutErrors.hasValidationErrors())
-    }
-    
-    @Test
-    fun testIsSimulationActive() {
-        val activeState = PassportSimulatorUiState(
-            simulationStatus = SimulationStatus.ACTIVE
-        )
-        assertTrue(activeState.isSimulationActive())
-        
-        val stoppedState = PassportSimulatorUiState(
-            simulationStatus = SimulationStatus.STOPPED
-        )
-        assertFalse(stoppedState.isSimulationActive())
-    }
-    
-    @Test
-    fun testHasRecentErrors() {
-        val errorEvent = NfcEvent.error(testTimestamp, "Test error")
-        val successEvent = NfcEvent.connectionEstablished(testTimestamp)
-        
-        val withErrors = PassportSimulatorUiState(
-            nfcEvents = listOf(successEvent, errorEvent)
-        )
-        assertTrue(withErrors.hasRecentErrors())
-        
-        val withoutErrors = PassportSimulatorUiState(
-            nfcEvents = listOf(successEvent)
-        )
-        assertFalse(withoutErrors.hasRecentErrors())
-    }
-    
-    @Test
-    fun testGetRecentEvents() {
-        val events = (1..15).map { i ->
-            NfcEvent.connectionEstablished(Instant.fromEpochSeconds(i.toLong()))
-        }
-        
-        val state = PassportSimulatorUiState(nfcEvents = events)
-        val recentEvents = state.getRecentEvents(5)
-        
-        assertEquals(5, recentEvents.size)
-        assertEquals(events.takeLast(5), recentEvents)
-    }
-    
-    @Test
-    fun testGetEventsByType() {
-        val connectionEvent = NfcEvent.connectionEstablished(testTimestamp)
-        val errorEvent = NfcEvent.error(testTimestamp, "Test error")
-        val bacEvent = NfcEvent.bacAuthenticationRequest(testTimestamp)
-        
-        val state = PassportSimulatorUiState(
-            nfcEvents = listOf(connectionEvent, errorEvent, bacEvent)
-        )
-        
-        val errorEvents = state.getEventsByType(NfcEventType.ERROR)
-        assertEquals(1, errorEvents.size)
-        assertEquals(errorEvent, errorEvents.first())
-        
-        val connectionEvents = state.getEventsByType(NfcEventType.CONNECTION_ESTABLISHED)
-        assertEquals(1, connectionEvents.size)
-        assertEquals(connectionEvent, connectionEvents.first())
     }
     
     @Test

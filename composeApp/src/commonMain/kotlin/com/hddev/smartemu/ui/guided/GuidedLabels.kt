@@ -5,7 +5,7 @@ import com.hddev.smartemu.data.DocumentType
 import com.hddev.smartemu.data.PresetGroup
 import com.hddev.smartemu.data.ReadOutcome
 
-// The guided screens' words for what developer mode names in a reader tester's terms
+// The guided screens' words for what advanced mode names in a reader tester's terms
 
 /** What to call the document in a sentence, as in "Use this passport". */
 internal val DocumentType.noun: String get() = displayName.lowercase().replace("id card", "ID card")

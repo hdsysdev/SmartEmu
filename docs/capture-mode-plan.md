@@ -1,7 +1,6 @@
-# SmartEmu capture mode: plan v2 (measured chip profiles)
+# Capture mode: plan v2 (measured chip profiles)
 
-Supersedes `smartemu-capture-mode-handoff.md`. Repo: `/Users/hubertdudowicz/OtherProjects/SmartEmu`, branch `master`.
-Do not revert the uncommitted working tree. Do not commit unless asked. Never run `git push`.
+The design record for capture mode. Other docs and the code cite its sections by number, so keep the numbering stable.
 
 ## 1. Goal and what "accurate" means
 
@@ -24,7 +23,7 @@ and are never claimed.
 | Engineers / QA | JSON schema, probe packs, fidelity diff in CI, reader compatibility matrix (open-source readers) |
 | Legal / DPO | One-page consent and retention rule, redaction manifest, sign-off before Phase 2 |
 
-## 3. Decisions to settle first (Phase 0, ask the user; recommendations given)
+## 3. Decisions to settle first (Phase 0; recommendations given)
 
 1. **Where profiles live.** Recommend `profiles/` in SmartEmu for merged profiles (CODEOWNERS, PR template with redaction
    checklist). Per-capture records go in a separate restricted store with a retention limit (suggest 12 months). Merged
@@ -37,8 +36,7 @@ and are never claimed.
 4. **Build gating.** Capture mode ships only in internal builds or behind a hidden toggle until (3) is signed off.
 5. **Profile steward.** Name an owner for review and merges.
 
-Use `mattpocock-skills:grilling` for 1–5, and `mattpocock-skills:domain-modeling` to write a GLOSSARY and the term
-"generation" (see Phase 1).
+The terms used by capture mode, including "generation" (see Phase 1), are defined in [glossary.md](glossary.md).
 
 ## 4. Cross-cutting rules
 
@@ -88,8 +86,8 @@ and Android exposes only the historical bytes, not the full ATS (no FSCI/FWI).
 
 ## 5. Phases
 
-Each phase ends with `mattpocock-skills:code-review`. Use `mattpocock-skills:tdd` throughout, with probes and redaction
-tested against `HceCardService`. Baseline: 468 tests with 10–11 known unrelated failures (see the handoff).
+Each phase ends with a code review. Probes and redaction are tested against `HceCardService`, the JVM adapter that
+delivers reader APDUs to the emulator.
 
 ### Phase 0: Decisions, schema skeleton, round-trip harness
 - Settle section 3.
@@ -168,7 +166,5 @@ tested against `HceCardService`. Baseline: 468 tests with 10–11 known unrelate
 | Plan too large for one pass | Phase 1 is a standalone release. Later phases are separately shippable |
 | Re-identification by rare documents | Rounded sizes, month-only dates, review hold for n=1 rare classes |
 
-## 7. Open items for the user
+## 7. Open items
 - Answers to section 3 (items 1–5).
-- Whether this plan should live in the repo (for example `docs/capture-mode-plan.md`) or be published as a page for the
-  team.

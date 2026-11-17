@@ -87,7 +87,7 @@ internal fun PresetRow(preset: PassportPreset, summary: String, onClick: () -> U
 }
 
 /**
- * A dialog listing the ready-made documents with what each sets up, in developer mode. Choosing one calls
+ * A dialog listing the ready-made documents with what each sets up, in advanced mode. Choosing one calls
  * [onSelected], which replaces the passport details and chip settings; the portrait and CAN stay.
  */
 @Composable

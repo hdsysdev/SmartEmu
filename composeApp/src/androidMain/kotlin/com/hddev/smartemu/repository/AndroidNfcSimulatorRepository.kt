@@ -35,7 +35,6 @@ class AndroidNfcSimulatorRepository(
 ) : NfcSimulatorRepository {
     
     private val mutex = Mutex()
-    private var currentPassportData: PassportData? = null
     private var permissionController: PermissionController? = null
     
     interface PermissionController {
@@ -87,7 +86,6 @@ class AndroidNfcSimulatorRepository(
                 ))
                 
                 // Store passport data for HCE service
-                currentPassportData = passportData
                 PassportHceService.setSharedPassportData(passportData)
                 
                 // Simulate successful startup (in real implementation, this would configure HCE)
@@ -124,7 +122,6 @@ class AndroidNfcSimulatorRepository(
                 ))
                 
                 // Clear stored passport data
-                currentPassportData = null
                 PassportHceService.setSharedPassportData(null)
                 
                 // Update status to stopped
@@ -198,15 +195,8 @@ class AndroidNfcSimulatorRepository(
         return try {
             if (permissionController != null) {
                 return suspendCoroutine { cont ->
-                    permissionController?.requestPermissions { granted ->
-                        if (!granted) {
-                            // If denied, we can't easily add an event here because we are in a suspend function
-                            // and addEvent is suspend. But we can launch a coroutine if we had a scope.
-                            // However, the ViewModel handles the failure/success.
-                            // Let's just return the result.
-                        }
-                        cont.resume(Result.success(granted))
-                    }
+                    // The view model reports a refusal
+                    permissionController?.requestPermissions { granted -> cont.resume(Result.success(granted)) }
                 }
             }
 
@@ -241,57 +231,5 @@ class AndroidNfcSimulatorRepository(
 
     private fun addEventInternal(event: NfcEvent) {
         _nfcEvents.tryEmit(event)
-    }
-    
-    /**
-     * Gets the currently stored passport data for HCE operations.
-     */
-    fun getCurrentPassportData(): PassportData? {
-        return currentPassportData
-    }
-    
-    /**
-     * Simulates receiving an NFC connection from a reader.
-     * This would be called by the HCE service when a reader connects.
-     */
-    suspend fun simulateNfcConnection(readerInfo: String = "") {
-        addEvent(NfcEvent.connectionEstablished(Clock.System.now(), readerInfo))
-    }
-    
-    /**
-     * Simulates receiving a BAC authentication request.
-     * This would be called by the HCE service when processing APDU commands.
-     */
-    suspend fun simulateBacAuthenticationRequest(challengeData: String = "") {
-        addEvent(NfcEvent.bacAuthenticationRequest(Clock.System.now(), challengeData))
-    }
-    
-    /**
-     * Simulates receiving a PACE authentication request.
-     * This would be called by the HCE service when processing APDU commands.
-     */
-    suspend fun simulatePaceAuthenticationRequest(protocolInfo: String = "") {
-        addEvent(NfcEvent.paceAuthenticationRequest(Clock.System.now(), protocolInfo))
-    }
-    
-    /**
-     * Simulates successful authentication.
-     */
-    suspend fun simulateAuthenticationSuccess(protocol: String) {
-        addEvent(NfcEvent.authenticationSuccess(Clock.System.now(), protocol))
-    }
-    
-    /**
-     * Simulates authentication failure.
-     */
-    suspend fun simulateAuthenticationFailure(protocol: String, reason: String) {
-        addEvent(NfcEvent.authenticationFailure(Clock.System.now(), protocol, reason))
-    }
-    
-    /**
-     * Simulates losing NFC connection.
-     */
-    suspend fun simulateConnectionLost(reason: String = "") {
-        addEvent(NfcEvent.connectionLost(Clock.System.now(), reason))
     }
 }

@@ -58,4 +58,21 @@ class PassportPresetsTest {
             assertTrue(ChipProfiles.byId(document.chipProfileId).measured != null, "${preset.id} replays what was measured")
         }
     }
+
+    @Test
+    fun theKosovoPresetIsIssuedAndHeldAsRksWithAValidTd3Mrz() {
+        val preset = PassportPresets.all.single { it.id == "profile-xk-passport-2013" }
+        assertEquals(PresetGroup.COUNTRIES, preset.group)
+        val document = preset.build(today)
+        assertEquals("RKS", document.issuingCountry)
+        assertEquals("RKS", document.nationality)
+        assertTrue(document.isValid())
+        assertEquals(
+            listOf(
+                "P<RKSKRASNIQI<<DRITA<<<<<<<<<<<<<<<<<<<<<<<<",
+                "P084192650RKS9005145F3510166<<<<<<<<<<<<<<<8"
+            ),
+            document.toMrzLines()
+        )
+    }
 }

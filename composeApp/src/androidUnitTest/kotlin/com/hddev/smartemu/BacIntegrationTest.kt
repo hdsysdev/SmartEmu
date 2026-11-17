@@ -27,6 +27,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import org.jmrtd.lds.iso19794.FaceInfo
 
 /**
  * End-to-end tests of the emulated chip with BAC: JMRTD's reader-side PassportService talks to
@@ -76,7 +77,7 @@ class BacIntegrationTest {
 
         // Readers probe EF.CardAccess for PACE first; a BAC-only chip has none, so they fall back to BAC
         assertFailsWith<CardServiceException> {
-            CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS))
+            CardAccessFile(service.getInputStream(PassportService.EF_CARD_ACCESS, PassportService.DEFAULT_MAX_BLOCKSIZE))
         }
 
         service.sendSelectApplet(false)
@@ -95,7 +96,7 @@ class BacIntegrationTest {
         assertEquals(passportData.toMrzData(), mrzInfo.toString().replace("\n", ""))
 
         val dg2Bytes = readFile(service, PassportService.EF_DG2)
-        val faceImage = DG2File(ByteArrayInputStream(dg2Bytes)).faceInfos.single().faceImageInfos.single()
+        val faceImage = DG2File(ByteArrayInputStream(dg2Bytes)).subRecords.filterIsInstance<FaceInfo>().single().faceImageInfos.single()
         val portrait = ImageIO.read(faceImage.imageInputStream)
         assertNotNull(portrait, "DG2 portrait should be a decodable JPEG")
         assertEquals(8, portrait.width)

@@ -116,44 +116,6 @@ private fun SectionIcon(icon: ImageVector) {
 }
 
 /**
- * A short explanation in a tinted box, for context that helps newcomers without getting in the way, with an
- * optional [action] below the text.
- */
-@Composable
-fun HintCard(
-    text: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    title: String? = null,
-    action: (@Composable () -> Unit)? = null
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(24.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                title?.let { Text(text = it, style = MaterialTheme.typography.titleSmall) }
-                GlossaryText(text = text, style = MaterialTheme.typography.bodyMedium)
-                action?.let {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    it()
-                }
-            }
-        }
-    }
-}
-
-/**
  * The button at the end of a setup screen that leads to the next one, so that a newcomer is walked through the
  * screens in order. [label] names the next screen.
  */

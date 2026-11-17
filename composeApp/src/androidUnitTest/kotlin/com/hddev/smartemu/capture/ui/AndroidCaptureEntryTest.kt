@@ -28,7 +28,7 @@ class AndroidCaptureEntryTest {
     )
 
     @Test
-    fun `capture mode opens in developer mode or once unlocked, and stays closed otherwise`() {
+    fun `capture mode opens in advanced mode or once unlocked, and stays closed otherwise`() {
         assertEquals(false, available(unlocked = false, developerMode = false))
         assertEquals(true, available(unlocked = true, developerMode = false))
         assertEquals(true, available(unlocked = false, developerMode = true))
@@ -36,7 +36,7 @@ class AndroidCaptureEntryTest {
     }
 
     @Test
-    fun `developer mode does not count as the seven-tap unlock`() {
+    fun `advanced mode does not count as the seven-tap unlock`() {
         val context = context(mapOf("settings" to mapOf("developer_mode" to true)))
         assertEquals(false, AndroidCaptureEntry.isUnlocked(context))
         assertEquals(true, AndroidCaptureEntry.isAvailable(context))

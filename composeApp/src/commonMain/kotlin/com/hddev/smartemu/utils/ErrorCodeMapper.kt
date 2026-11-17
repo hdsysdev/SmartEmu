@@ -10,37 +10,16 @@ object ErrorCodeMapper {
     
     // ISO 7816-4 Status Words
     const val SW_NO_ERROR = 0x9000
-    const val SW_BYTES_REMAINING_00 = 0x6100
-    const val SW_STATE_NON_VOLATILE_MEMORY_UNCHANGED = 0x6200
-    const val SW_STATE_NON_VOLATILE_MEMORY_CHANGED = 0x6300
-    const val SW_STATE_NON_VOLATILE_MEMORY_UNCHANGED_2 = 0x6400
-    const val SW_STATE_NON_VOLATILE_MEMORY_CHANGED_2 = 0x6500
     const val SW_WRONG_LENGTH = 0x6700
-    const val SW_LOGICAL_CHANNEL_NOT_SUPPORTED = 0x6881
-    const val SW_SECURE_MESSAGING_NOT_SUPPORTED = 0x6882
-    const val SW_LAST_COMMAND_EXPECTED = 0x6883
-    const val SW_COMMAND_CHAINING_NOT_SUPPORTED = 0x6884
     const val SW_SECURITY_STATUS_NOT_SATISFIED = 0x6982
-    const val SW_FILE_INVALID = 0x6983
-    const val SW_DATA_INVALID = 0x6984
     const val SW_CONDITIONS_NOT_SATISFIED = 0x6985
     const val SW_COMMAND_NOT_ALLOWED = 0x6986
     const val SW_EXPECTED_SM_DATA_OBJECTS_MISSING = 0x6987
     const val SW_SM_DATA_OBJECTS_INCORRECT = 0x6988
-    const val SW_APPLET_SELECT_FAILED = 0x6999
     const val SW_WRONG_DATA = 0x6A80
-    const val SW_FUNC_NOT_SUPPORTED = 0x6A81
     const val SW_FILE_NOT_FOUND = 0x6A82
-    const val SW_RECORD_NOT_FOUND = 0x6A83
-    const val SW_INSUFFICIENT_MEMORY_SPACE = 0x6A84
-    const val SW_NC_INCONSISTENT_WITH_TLV = 0x6A85
-    const val SW_INCORRECT_P1P2 = 0x6A86
-    const val SW_NC_INCONSISTENT_WITH_P1P2 = 0x6A87
     const val SW_REFERENCED_DATA_NOT_FOUND = 0x6A88
-    const val SW_FILE_ALREADY_EXISTS = 0x6A89
-    const val SW_DF_NAME_ALREADY_EXISTS = 0x6A8A
     const val SW_WRONG_P1P2 = 0x6B00
-    const val SW_CORRECT_LENGTH_00 = 0x6C00
     const val SW_INS_NOT_SUPPORTED = 0x6D00
     const val SW_CLA_NOT_SUPPORTED = 0x6E00
     const val SW_UNKNOWN = 0x6F00
@@ -219,14 +198,6 @@ object ErrorCodeMapper {
             )
             
             // System Errors
-            is SimulatorError.SystemError.LibraryInitializationFailed -> ErrorResponse(
-                statusWord = SW_CONDITIONS_NOT_SATISFIED,
-                errorCode = "LIBRARY_INITIALIZATION_FAILED",
-                message = "Failed to initialize ${error.library} library",
-                details = context + mapOf("library" to error.library),
-                recoverable = true,
-                retryAfterMs = 5000L
-            )
             
             is SimulatorError.SystemError.UnexpectedError -> ErrorResponse(
                 statusWord = SW_UNKNOWN,

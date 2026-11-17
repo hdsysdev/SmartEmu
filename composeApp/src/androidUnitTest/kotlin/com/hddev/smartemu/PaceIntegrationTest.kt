@@ -63,6 +63,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import org.jmrtd.protocol.SecureMessagingAPDUSender
+import org.jmrtd.lds.ChipAuthenticationPublicKeyInfo
 
 /**
  * End-to-end tests of the emulated chip with PACE: JMRTD's reader-side PassportService reads EF.CardAccess and
@@ -285,7 +287,7 @@ class PaceIntegrationTest {
         val cardSecurityBytes = readMasterFileUnderPace(result, PassportService.EF_CARD_SECURITY)
         verifySignedByTestDocumentSigner(cardSecurityBytes)
         val cardSecurity = CardSecurityFile(ByteArrayInputStream(cardSecurityBytes))
-        val chipKey = cardSecurity.chipAuthenticationPublicKeyInfos.single().subjectPublicKey as ECPublicKey
+        val chipKey = cardSecurity.securityInfos.filterIsInstance<ChipAuthenticationPublicKeyInfo>().single().subjectPublicKey as ECPublicKey
         val mappingKey = (result.mappingResult as PACEGMMappingResult).piccMappingPublicKey as ECPublicKey
         val parameters = PACEInfo.toParameterSpec(PACEInfo.PARAM_ID_ECP_NIST_P256_R1) as ECParameterSpec
 
@@ -301,7 +303,7 @@ class PaceIntegrationTest {
     }
 
     @Test
-    fun `JMRTD reader performs PACE on every ICAO curve with every cipher chosen in developer settings`() {
+    fun `JMRTD reader performs PACE on every ICAO curve with every cipher chosen in advanced settings`() {
         for (curve in EcCurve.entries) {
             for (cipher in SessionCipher.entries) {
                 val service = startChip(passportData.copy(paceCurve = curve, paceCipher = cipher))
@@ -329,7 +331,7 @@ class PaceIntegrationTest {
             val cardSecurity = CardSecurityFile(
                 ByteArrayInputStream(readMasterFileUnderPace(result, PassportService.EF_CARD_SECURITY))
             )
-            val chipKey = cardSecurity.chipAuthenticationPublicKeyInfos.single().subjectPublicKey as ECPublicKey
+            val chipKey = cardSecurity.securityInfos.filterIsInstance<ChipAuthenticationPublicKeyInfo>().single().subjectPublicKey as ECPublicKey
             val mappingKey = (result.mappingResult as PACEGMMappingResult).piccMappingPublicKey as ECPublicKey
             val parameters = PACEInfo.toParameterSpec(curve.paceParameterId) as ECParameterSpec
             val expectedMappingPoint = Util.toBouncyCastleECPoint(chipKey.w, parameters)
@@ -352,7 +354,7 @@ class PaceIntegrationTest {
      * PACE wrapper directly.
      */
     private fun readMasterFileUnderPace(result: PACEResult, fid: Short): ByteArray {
-        val fileSystem = DefaultFileSystem(ReadBinaryAPDUSender(HceCardService(hceService)), false)
+        val fileSystem = DefaultFileSystem(ReadBinaryAPDUSender(SecureMessagingAPDUSender(HceCardService(hceService))), false)
         fileSystem.setWrapper(result.wrapper)
         fileSystem.selectFile(fid)
         return CardFileInputStream(PassportService.DEFAULT_MAX_BLOCKSIZE, fileSystem).readBytes()
@@ -466,7 +468,7 @@ class PaceIntegrationTest {
 
             val select = CommandAPDU(0x0C, 0xA4, 0x04, 0x0C, byteArrayOf(0xA0.toByte(), 0x00, 0x00, 0x02, 0x47, 0x10, 0x01))
             assertEquals(0x9000, wrapper.unwrap(transmit(wrapper.wrap(select))).sw)
-            val fileSystem = DefaultFileSystem(ReadBinaryAPDUSender(HceCardService(hceService)), false)
+            val fileSystem = DefaultFileSystem(ReadBinaryAPDUSender(SecureMessagingAPDUSender(HceCardService(hceService))), false)
             fileSystem.setWrapper(wrapper)
             fileSystem.selectFile(PassportService.EF_DG1)
             val dg1 = DG1File(CardFileInputStream(PassportService.DEFAULT_MAX_BLOCKSIZE, fileSystem))
@@ -572,8 +574,8 @@ class PaceIntegrationTest {
                 val cardSecurity = CardSecurityFile(
                     ByteArrayInputStream(readMasterFileUnderPace(result, PassportService.EF_CARD_SECURITY))
                 )
-                assertEquals(4, cardSecurity.paceInfos.size)
-                val keyInfos = cardSecurity.chipAuthenticationPublicKeyInfos
+                assertEquals(4, cardSecurity.securityInfos.filterIsInstance<PACEInfo>().size)
+                val keyInfos = cardSecurity.securityInfos.filterIsInstance<ChipAuthenticationPublicKeyInfo>()
                 assertEquals(setOf(12, 13), keyInfos.map { it.keyId.toInt() }.toSet())
                 val chipKey = keyInfos.single { it.keyId.toInt() == parameterId }.subjectPublicKey as ECPublicKey
                 val mappingKey = (result.mappingResult as PACEGMMappingResult).piccMappingPublicKey as ECPublicKey

@@ -40,9 +40,6 @@ class DiffReport(
     /** True if the run completed and every comparable field matched or is an allowed deviation. */
     val isClean: Boolean get() = failure == null && deviations.isEmpty()
 
-    /** The keys of fields that matched, which is all the hold-out rule needs of a replay. */
-    val matchedKeys: Set<String> get() = matches.map { it.key }.toSet()
-
     /** A table for a CI log; fixed columns, one row per field, deviations first. */
     fun toTable(): String {
         val rows = entries.sortedWith(compareBy({ if (it.outcome == DiffOutcome.DEVIATION) 0 else 1 }, { it.key }))

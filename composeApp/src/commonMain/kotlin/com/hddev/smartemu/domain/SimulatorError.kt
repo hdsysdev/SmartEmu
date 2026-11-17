@@ -53,8 +53,6 @@ sealed class SimulatorError(
      * System-level errors and unexpected exceptions.
      */
     sealed class SystemError(message: String, cause: Throwable? = null) : SimulatorError(message, cause) {
-        data class LibraryInitializationFailed(val library: String, val throwable: Throwable) : 
-            SystemError("Failed to initialize $library library", throwable)
         data class UnexpectedError(val throwable: Throwable) : 
             SystemError("Unexpected error occurred: ${throwable.message}", throwable)
         object SimulationAlreadyRunning : SystemError("Simulation is already running")
@@ -89,7 +87,6 @@ sealed class SimulatorError(
             is ProtocolError.ProtocolViolation -> "Protocol error occurred"
             is ProtocolError.CryptographicError -> "Cryptographic operation failed"
             
-            is SystemError.LibraryInitializationFailed -> "Failed to initialize required libraries"
             is SystemError.UnexpectedError -> "An unexpected error occurred"
             is SystemError.SimulationAlreadyRunning -> "Simulation is already running"
             is SystemError.SimulationNotRunning -> "No simulation is currently running"

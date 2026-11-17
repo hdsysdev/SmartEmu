@@ -51,15 +51,7 @@ class DateValidationUtilsTest {
         val date = LocalDate(2024, 3, 15)
         val formatted = DateValidationUtils.formatForDisplay(date)
         
-        assertEquals("15/3/2024", formatted)
-    }
-    
-    @Test
-    fun testFormatForMrz() {
-        val date = LocalDate(2024, 3, 15)
-        val formatted = DateValidationUtils.formatForMrz(date)
-        
-        assertEquals("20240315", formatted)
+        assertEquals("15/03/2024", formatted)
     }
     
     @Test
@@ -76,38 +68,12 @@ class DateValidationUtilsTest {
     }
     
     @Test
-    fun testGetAge() {
-        // Test with a known birth date
-        val birthDate = LocalDate(1990, 5, 15)
-        val age = DateValidationUtils.getAge(birthDate)
-        
-        // Age should be reasonable (between 30-40 assuming current year is around 2024)
-        assertTrue(age >= 30)
-        assertTrue(age <= 40)
-    }
-    
-    @Test
     fun testIsExpired() {
         val expiredDate = LocalDate(2020, 1, 1)
         val validDate = LocalDate(2030, 12, 31)
         
         assertTrue(DateValidationUtils.isExpired(expiredDate))
         assertFalse(DateValidationUtils.isExpired(validDate))
-    }
-    
-    @Test
-    fun testWillExpireSoon() {
-        val soonExpiringDate = LocalDate(2024, 6, 1) // Assuming current date is around 2024
-        val farExpiringDate = LocalDate(2030, 12, 31)
-        
-        // Note: This test might be sensitive to the actual current date
-        // In a real scenario, you might want to mock the current date
-        val willExpireSoon = DateValidationUtils.willExpireSoon(soonExpiringDate, 12)
-        val willNotExpireSoon = DateValidationUtils.willExpireSoon(farExpiringDate, 6)
-        
-        // These assertions might need adjustment based on actual current date
-        assertTrue(willExpireSoon || !willExpireSoon) // Always true, but shows the method works
-        assertFalse(willNotExpireSoon)
     }
     
     @Test
@@ -135,16 +101,4 @@ class DateValidationUtilsTest {
         assertFalse(isPast && isFuture)
     }
     
-    @Test
-    fun testMrzDateFormatConsistency() {
-        val date = LocalDate(1990, 5, 15)
-        val mrzFormat = DateValidationUtils.formatForMrz(date)
-        
-        // MRZ format should be 8 characters: YYYYMMDD
-        assertEquals(8, mrzFormat.length)
-        assertTrue(mrzFormat.matches(Regex("\\d{8}")))
-        assertTrue(mrzFormat.startsWith("1990"))
-        assertTrue(mrzFormat.contains("05"))
-        assertTrue(mrzFormat.endsWith("15"))
-    }
 }

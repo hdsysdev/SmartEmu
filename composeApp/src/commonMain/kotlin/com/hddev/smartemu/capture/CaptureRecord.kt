@@ -106,6 +106,7 @@ data class LinkObservation(
      * The length of the historical bytes (or higher-layer response) when [historicalBytes] had to be cut down or left out
      * because they weren't in a form that holds nothing identifying; null when stored whole. Omitted from the JSON while null.
      */
+    @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val historicalBytesLength: Int? = null
 )

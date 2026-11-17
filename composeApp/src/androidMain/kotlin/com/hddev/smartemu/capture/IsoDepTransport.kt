@@ -43,15 +43,6 @@ class IsoDepTransport(private val isoDep: IsoDep) : ApduTransport, Closeable {
         throw TagLostException(e)
     }
 
-    /** Raises the time a command may take, for a slow chip; the default is [TIMEOUT_MS]. */
-    fun extendTimeout(timeoutMs: Int) {
-        try {
-            isoDep.timeout = timeoutMs
-        } catch (_: RuntimeException) {
-            // The tag is gone; the next transmit says so
-        }
-    }
-
     override fun linkInfo(): LinkObservation = LinkObservation(
         technology = technology,
         historicalBytes = historicalBytes,

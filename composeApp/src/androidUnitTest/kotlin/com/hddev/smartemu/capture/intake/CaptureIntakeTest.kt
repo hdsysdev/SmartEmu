@@ -57,7 +57,7 @@ class CaptureIntakeTest {
         assertTrue(result.rejected.isEmpty())
         assertEquals(2, storedFiles().size)
         storedFiles().forEach {
-            assertEquals(generationAB, it.parentFile.name)
+            assertEquals(generationAB, it.parentFile!!.name)
             assertEquals(it.name.removeSuffix(".json"), CaptureJson.decode(it.readText()).captureId)
         }
         val profile = ProfileRepository(File(repo, "profiles")).profiles().single()

@@ -21,6 +21,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.jmrtd.lds.iso19794.FaceInfo
+import org.jmrtd.lds.ChipAuthenticationPublicKeyInfo
 
 /**
  * Checks the generated LDS files and that [PassportData.toMrzData] agrees with JMRTD's MRZ encoding.
@@ -112,11 +114,11 @@ class PassportLdsFilesTest {
         val cam = PassportLdsFiles.create(passportData.copy(paceMapping = PaceMapping.CHIP_AUTHENTICATION))
         val cardSecurity = CardSecurityFile(ByteArrayInputStream(cam.masterFile(PassportService.EF_CARD_SECURITY)!!))
 
-        val chipKeyInfo = cardSecurity.chipAuthenticationPublicKeyInfos.single()
+        val chipKeyInfo = cardSecurity.securityInfos.filterIsInstance<ChipAuthenticationPublicKeyInfo>().single()
         assertEquals(cam.paceChipAuthenticationKeyPairs.values.single().public, chipKeyInfo.subjectPublicKey)
         // ICAO 9303-11 4.4.5.5: the CAM key's key ID is the PACEInfo's parameter ID
-        assertEquals(cardSecurity.paceInfos.single().parameterId, chipKeyInfo.keyId)
-        assertEquals(PaceProtocol.oid(PaceMapping.CHIP_AUTHENTICATION), cardSecurity.paceInfos.single().objectIdentifier)
+        assertEquals(cardSecurity.securityInfos.filterIsInstance<PACEInfo>().single().parameterId, chipKeyInfo.keyId)
+        assertEquals(PaceProtocol.oid(PaceMapping.CHIP_AUTHENTICATION), cardSecurity.securityInfos.filterIsInstance<PACEInfo>().single().objectIdentifier)
         assertFalse(cam.isPublic(PassportService.EF_CARD_SECURITY))
         assertEquals(PassportService.EF_CARD_SECURITY, cam.fidForSfi(PassportService.SFI_CARD_SECURITY.toInt(), isApplicationSelected = false))
 
@@ -185,6 +187,6 @@ class PassportLdsFilesTest {
 
     private fun faceImage(data: PassportData): FaceImageInfo {
         val dg2 = DG2File(ByteArrayInputStream(PassportLdsFiles.create(data).applicationFile(PassportService.EF_DG2)!!))
-        return dg2.faceInfos.single().faceImageInfos.single()
+        return dg2.subRecords.filterIsInstance<FaceInfo>().single().faceImageInfos.single()
     }
 }

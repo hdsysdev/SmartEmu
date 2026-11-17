@@ -161,11 +161,6 @@ class CaptureBuilder private constructor(private val captureId: String) {
             files.dir to other.files.dir
         ).all { (mine, theirs) -> mine == null || theirs == null || mine == theirs }
 
-    /** The pack the draft was started with, to check that a resume is on the same one. */
-    fun probePackRef(): ProbePackRef? = probePack
-
-    fun additionalProbePackRefs(): List<ProbePackRef> = additionalProbePacks
-
     /** The record so far, with its fingerprint. Throws [IllegalStateException] if the month, pack, reader or link isn't set. */
     fun build(): CaptureRecord {
         val unsealed = CaptureRecord(

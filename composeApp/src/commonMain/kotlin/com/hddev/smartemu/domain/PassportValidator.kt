@@ -289,19 +289,4 @@ object PassportValidator {
 data class ValidationResult(
     val isValid: Boolean,
     val errors: Map<String, String> = emptyMap()
-) {
-    /**
-     * Gets the first error message, if any.
-     */
-    fun getFirstError(): String? = errors.values.firstOrNull()
-    
-    /**
-     * Gets error message for a specific field.
-     */
-    fun getFieldError(field: String): String? = errors[field]
-    
-    /**
-     * Checks if a specific field has an error.
-     */
-    fun hasFieldError(field: String): Boolean = errors.containsKey(field)
-}
+)

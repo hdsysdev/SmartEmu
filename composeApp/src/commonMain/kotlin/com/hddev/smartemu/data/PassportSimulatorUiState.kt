@@ -45,45 +45,10 @@ data class PassportSimulatorUiState(
     }
     
     /**
-     * Returns true if NFC permissions need to be requested.
-     */
-    fun needsNfcPermission(): Boolean {
-        return nfcAvailable && !hasNfcPermission
-    }
-    
-    /**
      * Returns true if there are any validation errors.
      */
     fun hasValidationErrors(): Boolean {
         return validationErrors.isNotEmpty()
-    }
-    
-    /**
-     * Returns true if the simulation is currently active.
-     */
-    fun isSimulationActive(): Boolean {
-        return simulationStatus == SimulationStatus.ACTIVE
-    }
-    
-    /**
-     * Returns true if there are recent error events.
-     */
-    fun hasRecentErrors(): Boolean {
-        return nfcEvents.any { it.type.isError() }
-    }
-    
-    /**
-     * Gets the most recent NFC events up to the specified limit.
-     */
-    fun getRecentEvents(limit: Int = 10): List<NfcEvent> {
-        return nfcEvents.takeLast(limit)
-    }
-    
-    /**
-     * Gets events of a specific type.
-     */
-    fun getEventsByType(type: NfcEventType): List<NfcEvent> {
-        return nfcEvents.filter { it.type == type }
     }
     
     /**

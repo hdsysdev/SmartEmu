@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
@@ -185,7 +186,7 @@ private fun CreatePassportCard(onUseSampleDetails: () -> Unit, onChoosePreset: (
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        PassportPhoneIllustration(modifier = Modifier.heightIn(max = 180.dp))
+        PassportPhoneIllustration(modifier = Modifier.height(180.dp))
         Headline(
             title = "Create your passport",
             text = "Start with sample details, pick a ready-made passport or ID card, or enter your own. You can " +

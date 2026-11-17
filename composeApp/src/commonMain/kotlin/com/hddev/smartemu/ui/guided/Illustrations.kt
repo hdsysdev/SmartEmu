@@ -15,7 +15,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -349,31 +348,10 @@ fun SuccessMark(modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Rings spreading out from the middle, while the passport waits for the other phone.
- */
-@Composable
-fun WaitingPulse(color: Color, modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "waiting")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing)),
-        label = "phase"
-    )
-    Canvas(modifier = modifier) {
-        repeat(3) { index ->
-            val p = (phase + index / 3f) % 1f
-            drawCircle(color.copy(alpha = (1f - p) * 0.5f), radius = size.minDimension / 2 * p, center = center)
-        }
-    }
-}
-
 @Composable
 private fun IllustrationCanvas(modifier: Modifier, description: String, onDraw: DrawScope.() -> Unit) {
     Canvas(
         modifier = modifier
-            .fillMaxWidth()
             .aspectRatio(1.4f)
             .semantics { contentDescription = description },
         onDraw = onDraw

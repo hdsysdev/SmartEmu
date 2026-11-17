@@ -3,7 +3,7 @@ package com.hddev.smartemu.ui.capture
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * The way from the emulator's screens into capture mode. Developer mode always offers it; out of developer mode it
+ * The way from the emulator's screens into capture mode. Advanced mode always offers it; out of advanced mode it
  * stays hidden (see docs/capture-mode-plan.md, section 3, item 4) until seven taps unlock it. A platform provides it;
  * where nothing does, the app shows no trace of capture mode.
  */

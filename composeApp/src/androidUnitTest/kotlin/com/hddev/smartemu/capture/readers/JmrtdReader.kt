@@ -181,7 +181,7 @@ class JmrtdReader(private val hce: PassportHceService, private val limits: List<
 
     /**
      * PACE with the MRZ on the first suite the chip offers, then DG1: the access step alone, for the grid of PACE variants
-     * the developer settings can ask for. Returns the offered suite's label and the outcome; null if EF.CardAccess offers none.
+     * the advanced settings can ask for. Returns the offered suite's label and the outcome; null if EF.CardAccess offers none.
      */
     fun paceOfFirstSuite(profile: ChipProfile, data: PassportData): Pair<String, StepOutcome>? {
         PassportHceService.setSharedPassportData(data)
