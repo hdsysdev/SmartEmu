@@ -242,11 +242,17 @@ class CaptureViewModel(
     /** As [onTagDiscovered], for a connection that is already made; the seam the tests use. */
     internal fun onConnection(chosen: CaptureConnection) {
         synchronized(lock) {
-            if (mutableState.value !is CaptureUiState.Waiting || job?.isActive == true) return
+            if (mutableState.value !is CaptureUiState.Waiting) return
             connection = chosen
             val key = credentials
             mutableState.value = CaptureUiState.Reading("Connecting", 0, 1)
-            job = viewModelScope.launch(ioDispatcher) { capture(chosen, key) }
+            // A run that lost its tag shows Waiting before it has closed its connection. A tap in that moment used to be
+            // dropped; now the new run waits for the old one to finish, so the old connection is closed first.
+            val previous = job
+            job = viewModelScope.launch(ioDispatcher) {
+                previous?.join()
+                capture(chosen, key)
+            }
         }
     }
 

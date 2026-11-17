@@ -557,6 +557,32 @@ class CaptureViewModelTest {
         eventually("the key is closed") { key.isClosed }
     }
 
+    @Test
+    fun `a tap while the run that lost its tag is still closing its connection is not dropped`() {
+        val data = chip.documentFor(pace2)
+        val closing = java.util.concurrent.CountDownLatch(1)
+        val closeStarted = java.util.concurrent.CountDownLatch(1)
+        // The first connection's close blocks until the test lets it go: the lost run shows Waiting before it gets there
+        val slowToClose = object : CaptureConnection {
+            override fun open(): ApduTransport = TagLossTransport(chip.transport(data), loseAt = 60)
+            override fun close() {
+                closeStarted.countDown()
+                closing.await()
+            }
+        }
+        val model = viewModel()
+        model.startWaiting()
+        model.onConnection(slowToClose)
+        awaitState(model) { it is CaptureUiState.Waiting && it.retry }
+        assertTrue(closeStarted.await(10, java.util.concurrent.TimeUnit.SECONDS), "the lost run is closing its connection")
+
+        // The next tap comes while the old run is still in its close
+        model.onConnection(FakeConnection(chip.transport(data)))
+        assertIs<CaptureUiState.Reading>(model.state.value, "the tap is taken, not dropped")
+        closing.countDown()
+        assertIs<CaptureUiState.Preview>(awaitState(model) { it is CaptureUiState.Preview })
+    }
+
     // ---- the preview's actions ----
 
     @Test

@@ -41,8 +41,9 @@ First public release. The version name is `1.0.0` and the version code is `1`.
 ### Changed
 
 - The app is named PassportEmu everywhere. The package, namespace and application id are `com.hddev.passportemu`, and
-  the Logcat tag is `PassportEmuEvents`. The test PKI certificate subjects and file names keep the legacy `SmartEmu`
-  name on purpose, so existing trust anchors keep working.
+  the Logcat tag is `PassportEmuEvents`.
+- The test PKI is re-issued under PassportEmu names (`passportemu-test-*`, `O=PassportEmu`), every certificate valid
+  from 2026-11-16. A test CSCA from a pre-release build does not verify documents from this one.
 - "Make it a fake" is renamed "Simulate a failing check".
 - Capture-mode documentation is rewritten for a public project, and `docs/capture-mode-plan.md` moved to
   `docs/design/` as a historical design record. The profile steward is the maintainer, `hdsysdev`.
@@ -60,6 +61,8 @@ First public release. The version name is `1.0.0` and the version code is `1`.
 ### Fixed
 
 - Loading a Document Signer no longer crashes on Android 7.0 and 7.1.
+- Capture mode no longer ignores a tap that comes while the previous read, cut short by a lost tag, is still closing
+  its connection.
 
-[Unreleased]: https://github.com/hdsysdev/PassportEmu/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/hdsysdev/PassportEmu/releases/tag/v1.0.0
+[Unreleased]: https://github.com/hdsysdev/PassportEmu/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/hdsysdev/PassportEmu/releases/tag/1.0.0
