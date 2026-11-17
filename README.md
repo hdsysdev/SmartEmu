@@ -35,6 +35,16 @@ Download the APK from the [GitHub Releases](https://github.com/hdsysdev/Passport
 SHA-256 against the value in the release notes, and install it (Android asks you to allow installs from the app you
 open it with). Releases are the only official distribution channel at the moment.
 
+Every official APK is signed with the same key. Its certificate is `CN=PassportEmu, O=hdsysdev`, with this SHA-256
+fingerprint:
+
+```
+79:73:16:FF:45:D3:09:E9:22:4A:B3:6B:E6:D6:83:FF:50:E6:A8:2E:02:21:20:96:A4:38:2A:E1:78:46:E7:0A
+```
+
+Check it with `apksigner verify --print-certs PassportEmu-1.0.0.apk` (from the Android SDK build tools), or
+`keytool -printcert -jarfile PassportEmu-1.0.0.apk`. An APK signed with any other key is not from this project.
+
 Requirements:
 
 - Android 7.0 (API 24) or later.

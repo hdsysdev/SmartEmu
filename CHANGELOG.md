@@ -6,7 +6,7 @@ All notable changes to PassportEmu are recorded here. The format follows
 
 ## [Unreleased]
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-11-17
 
 First public release. The version name is `1.0.0` and the version code is `1`.
 

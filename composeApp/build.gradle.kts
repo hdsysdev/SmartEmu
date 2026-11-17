@@ -61,13 +61,15 @@ compose.resources {
 }
 
 // The release signing key's location and passwords, from local.properties (git-ignored; the key lives in keystore/,
-// also git-ignored). The older smartemu.signing.* names are still read. Without them, assembleRelease builds an
-// unsigned APK, so a fresh clone can build a release.
+// also git-ignored): passportemu.signing.storeFile, storePassword, keyAlias and keyPassword. keyPassword may be left
+// out: a PKCS12 keystore, keytool's default, has one password for the store and its key. Without them,
+// assembleRelease builds an unsigned APK, so a fresh clone can build a release.
 val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use(::load)
 }
 fun signingProperty(name: String): String? =
-    localProperties.getProperty("passportemu.signing.$name") ?: localProperties.getProperty("smartemu.signing.$name")
+    localProperties.getProperty("passportemu.signing.$name")?.takeIf { it.isNotBlank() }
+        ?: if (name == "keyPassword") signingProperty("storePassword") else null
 val releaseSigningConfigured = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all { signingProperty(it) != null }
 
 // Capture mode reads a real passport or ID card. It is compiled in only for developer builds made with
