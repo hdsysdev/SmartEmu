@@ -2,7 +2,7 @@
 
 > MEASURED = indistinguishable from the real chip at APDU level on probe pack vN, on fields marked compared, from n captures.
 
-This page covers what happens to captures after they are taken: merging into a profile, replay by the emulator, the diff that checks the replay, and the hold-out rule that decides which fields earn MEASURED. Plan: [capture-mode-plan.md](capture-mode-plan.md). Capture format: [capture-schema.md](capture-schema.md).
+This page covers what happens to captures after they are taken: merging into a profile, replay by the emulator, the diff that checks the replay, and the hold-out rule that decides which fields earn MEASURED. Plan: [the capture-mode design record](design/capture-mode-plan.md). Capture format: [capture-schema.md](capture-schema.md).
 
 ## The pieces
 
@@ -60,7 +60,7 @@ Steps with a preamble (some Tier B probes) start from a state the emulator doesn
 ## Running the diff
 
 ```
-./gradlew :composeApp:testDebugUnitTest --tests 'com.hddev.smartemu.capture.profile.*'
+./gradlew :composeApp:testDebugUnitTest --tests 'com.hddev.passportemu.capture.profile.*'
 ```
 
 `GoldenCaptureDiffTest` runs the diff over every capture in `composeApp/src/androidUnitTest/resources/capture/golden/` (see its README: the `synthetic-*` files prove the pipeline and nothing about real chips; real captures dropped in are picked up). It prints the table for each generation and fails on any deviation not allowed below, and on any hold-out rejection not allowed.
@@ -77,7 +77,7 @@ Deviations come first. The JVM diff bypasses Android's HCE stack: it is necessar
 
 ## Allowed deviations
 
-`docs/fidelity-allowed-deviations.json`, reviewed like code. Each entry has `field` (a key; `*` matches any run of characters), `reason`, `owner` (`TODO` until somebody takes it), optional `expires` (`YYYY-MM-DD`, last day honoured) and optional `profile`. Used entries are listed in the report; expired ones allow nothing and are listed as expired. The file is empty: nothing has needed allowing yet.
+`docs/fidelity-allowed-deviations.json`, reviewed like code. Each entry has `field` (a key; `*` matches any run of characters), `reason`, `owner` (the GitHub handle of whoever takes it; the profile steward, `hdsysdev`, by default), optional `expires` (`YYYY-MM-DD`, last day honoured) and optional `profile`. Used entries are listed in the report; expired ones allow nothing and are listed as expired. The file is empty: nothing has needed allowing yet.
 
 ## Hold-out rule
 

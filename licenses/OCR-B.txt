@@ -1,0 +1,33 @@
+OCR-B font (composeApp/src/commonMain/composeResources/font/ocr_b.ttf)
+=====================================================================
+
+What the file is
+  The TrueType font "OCR B Regular" ("OCRB"), version 2, as built by Matthew Skala in 2011 and 2012 (the file's
+  embedded copyright string reads "Matthew Skala (2011); based on code by Norbert Schwarz (1986, 2011)").
+  PassportEmu uses it to draw the machine-readable zone.
+
+Origin
+  OCR-B is the typeface of ISO 1073-2. The outlines of this font were generated from METAFONT definitions written by
+  Norbert Schwarz (Ruhr-Universitaet Bochum), dated from 1986 to 2010, and distributed on CTAN as the "ocr-b" package
+  (copyright 1995, 2010 Norbert Schwarz). Matthew Skala converted those definitions to scalable outlines. Schwarz's
+  README credits Adrian Frutiger as the probable designer of the original OCR-B typeface.
+
+Licence terms, as stated upstream (checked 2026-11-17)
+  * Norbert Schwarz originally allowed only non-commercial use. In his current README he lifted that restriction
+    and says that anyone may use, modify and distribute his files or the resulting fonts without limitation.
+    CTAN lists the package under "Free license not otherwise listed".
+  * Matthew Skala states in his documentation ("OCR-A and OCR-B fonts", version 0.4pre, 2021) that he makes no
+    copyright claim on the OCR B fonts himself. He also says he cannot give a binding legal opinion on their status.
+  * This is not a Creative Commons licence and it does not require attribution as a condition, but this project gives
+    attribution anyway, in this file and in THIRD_PARTY_LICENSES.md.
+  * The text of the terms is Schwarz's README. Read it at the source rather than relying on this summary:
+      https://www.ctan.org/pkg/ocr-b
+      https://mirrors.ctan.org/fonts/ocr-b/README
+  * Skala's account of the fonts' history and copyright status:
+      https://tsukurimashou.org/ocr.pdf
+      (distributed with the Tsukurimashou project's "OCR-A and OCR-B fonts" package)
+
+What this means for PassportEmu
+  The font file is included unmodified in PassportEmu's repository and in its APK. PassportEmu's own licence
+  (GPL-3.0-or-later) does not apply to the font; the terms above do. This summary is not legal advice. If you
+  redistribute the font, check the upstream README yourself.

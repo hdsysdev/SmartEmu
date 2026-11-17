@@ -15,3 +15,17 @@ swift composeApp/branding/export-icons.swift
 ```
 
 The adaptive foreground includes safe-zone padding; do not apply a second inset. The welcome animation uses Compose’s animation clock, which follows the device animation scale.
+
+## Provenance and licence
+
+- **Provenance.** The raster logo (`passportemu-logo-source.png`) and the mascot and launcher images derived from it
+  were generated with an AI image-generation tool, from the prompt in `prompt.txt`, and then selected and exported by
+  the maintainer. The one-color mark (`../launcher/ic_launcher.svg`) was drawn by hand from the same shapes.
+- **Licence.** The artwork is licensed under the same terms as the rest of the project, GNU GPL version 3 or (at your
+  option) any later version. See the [LICENSE](../../LICENSE).
+- **Copyright status is uncertain.** In some jurisdictions, images produced by a generative tool may not be
+  protected by copyright at all, or only in part, and the position differs from country to country and is still
+  changing. The licence above applies to whatever rights exist. It is not a promise that any exist.
+- **No trademark check.** The name "PassportEmu" and the logo have not been searched or cleared against existing
+  trademarks. Nothing here grants trademark rights, and nothing here promises that the name or mark is free to use in
+  every country. If you fork the project and distribute it widely, consider your own name and mark.

@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 11 and older: captures are never backed up, nor is the flag that unlocks capture mode. The app had no backup rules of its own before this -->
+<!-- Android 11 and older: captures, the flag that unlocks capture mode, the emulated document the user entered (passport)
+     and the read history are never backed up. Only the app settings are -->
 <full-backup-content>
     <exclude domain="file" path="captures/" />
     <exclude domain="file" path="capture-reports/" />
     <exclude domain="sharedpref" path="capture_gate.xml" />
+    <exclude domain="sharedpref" path="passport.xml" />
+    <exclude domain="sharedpref" path="read_history.xml" />
 </full-backup-content>

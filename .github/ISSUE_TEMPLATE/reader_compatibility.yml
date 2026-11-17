@@ -1,0 +1,71 @@
+name: Reader compatibility report
+description: A reader, app or library cannot read, or misreads, an emulated chip
+labels: ["reader-compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste an MRZ, a photo, or a raw APDU or chip dump that contains personal data.** An APDU trace from a
+        reader talking to a real document holds that person's data, and so can a trace of the emulator if you typed in
+        real details. Reproduce with a synthetic preset, and describe the failing step in words (for example "GENERAL
+        AUTHENTICATE step 3 returns 6A80"). If you must share a trace, share only the commands and status words, and
+        check there is no document number, name or date in it.
+  - type: input
+    id: reader
+    attributes:
+      label: Reader, app or library, with version
+      description: For example "JMRTD 0.8.8", "an Android app, version 2.4", "ACR122U with libnfc 1.8".
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: PassportEmu chip profile
+      description: The profile name from the app, or the preset.
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PassportEmu version
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Where it fails
+      options:
+        - The reader does not detect the phone
+        - Selecting the application
+        - Access control (BAC or PACE)
+        - Reading data groups
+        - Passive authentication (EF.SOD or the CSCA)
+        - Active, Chip or Terminal Authentication
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What happens
+      description: The error the reader shows, and whether it works with another profile or another phone.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What a real document of this kind does, if you know
+      description: With a public source if there is one. Not your own document's data.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: This report contains no MRZ, document number, name, date of birth, photo or raw dump from a real document.
+          required: true

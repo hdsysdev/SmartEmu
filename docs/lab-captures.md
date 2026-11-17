@@ -2,9 +2,9 @@
 
 A chip can be captured with a USB reader on a PC (PC/SC) or with a Proxmark instead of the phone. The lab operator sends the probe pack's commands, records the exchanges as a text **transcript**, and the importer replays that transcript to the same capture runner the phone uses. The result is a normal capture record with `source` set to `PCSC` or `PROXMARK`, built by the same typed extractors and checked by the same redaction lint, so it goes through intake like any other capture ([profile-steward.md](profile-steward.md)).
 
-Nothing in a transcript is saved. The importer reads it, builds the redacted record, and writes only that. Keep the transcript out of git and out of shared folders: a response from a chip can hold personal data, and the importer's job is to leave it out of the record, not out of your disk.
+Nothing in a transcript is saved. The importer reads it, builds the redacted record, and writes only that. Keep the transcript out of git, out of issues and out of shared folders: a response from a chip can hold personal data, and the importer's job is to leave it out of the record, not out of your disk.
 
-The same safety rules as on the phone apply ([probe-packs.md](probe-packs.md)): own or consenting colleagues' documents only, Tier A freely, Tier B after a confirm, **Tier C on a sacrificial or test card only**. A Tier C transcript is refused by the importer unless you pass the sacrificial-card flag.
+The same safety rules as on the phone apply ([probe-packs.md](probe-packs.md)): your own documents, or ones whose holders have agreed in writing, only, Tier A freely, Tier B after a confirm, **Tier C on a sacrificial or test card only**. A Tier C transcript is refused by the importer unless you pass the sacrificial-card flag.
 
 ## 1. Get the command sheet
 
@@ -81,7 +81,7 @@ The runner then asks the chip (the transcript) for the same things it asks a pho
 
 The error never prints a response, only commands. A record is written only if it passes the redaction lint ([capture-schema.md](capture-schema.md)) and its fingerprint matches its contents; otherwise the importer says which rule failed, by field, and writes nothing.
 
-The file is ready for the maintainer's intake. Share it like a phone capture.
+The file is ready for the steward's intake. Captures are not accepted publicly yet: offer it as described in [the capture guide](capture-guide.md#how-to-send-the-file), like a phone capture.
 
 ## What a lab capture shows
 

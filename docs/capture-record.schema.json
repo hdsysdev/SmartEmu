@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://passportemu.invalid/schemas/capture-record.schema.json",
   "title": "CaptureRecord (schema versions 1 and 2)",
-  "description": "A redacted record of how one real chip behaved. Mirrors composeApp/src/commonMain/kotlin/com/hddev/smartemu/capture/CaptureRecord.kt and is checked against it, field for field, by CaptureSchemaFileTest. Allowlist: no other property is accepted anywhere. Version 2 is the current one; version 1 records are still read and upgraded (docs/capture-schema.md). Rules this schema can't express (the fingerprint recomputed from the contents, redactions equal to the manifest, a bucket's maxBytes, the structure of the public files) are checked by the ingest lint, RedactionLint.",
+  "description": "A redacted record of how one real chip behaved. Mirrors composeApp/src/commonMain/kotlin/com/hddev/passportemu/capture/CaptureRecord.kt and is checked against it, field for field, by CaptureSchemaFileTest. Allowlist: no other property is accepted anywhere. Version 2 is the current one; version 1 records are still read and upgraded (docs/capture-schema.md). Rules this schema can't express (the fingerprint recomputed from the contents, redactions equal to the manifest, a bucket's maxBytes, the structure of the public files) are checked by the ingest lint, RedactionLint.",
   "type": "object",
   "additionalProperties": false,
   "required": [

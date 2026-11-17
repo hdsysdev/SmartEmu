@@ -6,3 +6,10 @@
 -dontwarn org.jmrtd.**
 -dontwarn net.sf.scuba.**
 -dontwarn javax.naming.**
+
+# Release builds drop debug and verbose logging: the HCE service logs each APDU and the BAC challenge at debug level.
+# Info and above stay, including the PassportEmuEvents event log that `adb logcat -s PassportEmuEvents` follows.
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}

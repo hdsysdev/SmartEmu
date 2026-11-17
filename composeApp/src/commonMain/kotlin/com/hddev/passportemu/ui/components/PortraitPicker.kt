@@ -1,0 +1,49 @@
+// SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package com.hddev.passportemu.ui.components
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.ImageBitmap
+import com.hddev.passportemu.data.Portrait
+
+/**
+ * Gets the holder's portrait from the device, cropped and scaled to a [Portrait] the chip can serve.
+ */
+interface PortraitPicker {
+    /** Whether the device has a camera to take a selfie with. */
+    val canTakeSelfie: Boolean
+
+    /** Lets the user choose a photo from their library. */
+    fun chooseFromLibrary()
+
+    /** Opens the camera, on the front lens where the camera app allows it. */
+    fun takeSelfie()
+}
+
+/**
+ * [onPicked] receives the portrait once the user has chosen or taken a photo; [onFailed] explains why a photo
+ * couldn't be used. Nothing is called if the user cancels.
+ */
+@Composable
+expect fun rememberPortraitPicker(onPicked: (Portrait) -> Unit, onFailed: (String) -> Unit): PortraitPicker
+
+/**
+ * The portrait decoded for display, or null if its JPEG can't be decoded.
+ */
+expect fun Portrait.toImageBitmap(): ImageBitmap?
+
+/** How bright the screen is while something is shown for a camera to read. */
+enum class ScreenBrightness {
+    /** Whatever the device is set to. */
+    CURRENT,
+    HALF,
+    FULL
+}
+
+/**
+ * Keeps the screen on, at the given [brightness] and without system bars, while in the composition, so that a
+ * camera can read what it shows.
+ */
+@Composable
+expect fun ScanningDisplayEffect(brightness: ScreenBrightness)

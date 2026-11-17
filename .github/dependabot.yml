@@ -1,0 +1,18 @@
+# Weekly update pull requests for the Gradle dependencies (gradle/libs.versions.toml) and the pinned GitHub Actions
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      kotlin-and-compose:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "org.jetbrains.compose*"
+          - "org.jetbrains.androidx*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

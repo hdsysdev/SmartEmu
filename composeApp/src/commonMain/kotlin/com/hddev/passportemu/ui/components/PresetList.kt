@@ -1,0 +1,163 @@
+// SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+package com.hddev.passportemu.ui.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.hddev.passportemu.data.AccessControl
+import com.hddev.passportemu.data.ChipFault
+import com.hddev.passportemu.data.PassportData
+import com.hddev.passportemu.data.PassportPreset
+import com.hddev.passportemu.data.PassportPresets
+import com.hddev.passportemu.data.PresetGroup
+import com.hddev.passportemu.ui.glossary.GlossaryText
+
+/**
+ * The ready-made documents under headings that open and close their group, for a lazy list: only the groups in
+ * [expanded] show their documents, and a heading's tap calls [onToggle]. [summary] is the line under each title;
+ * choosing one calls [onSelected].
+ */
+fun LazyListScope.presetItems(
+    groups: List<Pair<PresetGroup, List<PassportPreset>>>,
+    expanded: Set<PresetGroup>,
+    onToggle: (PresetGroup) -> Unit,
+    summary: (PassportPreset) -> String,
+    groupTitle: (PresetGroup) -> String = { it.title },
+    onSelected: (PassportPreset) -> Unit
+) {
+    groups.forEach { (group, presets) ->
+        item(key = "group-${group.name}") {
+            CollapsibleHeader(
+                title = groupTitle(group),
+                count = presets.size,
+                expanded = group in expanded,
+                onToggle = { onToggle(group) }
+            )
+        }
+        if (group in expanded) {
+            items(presets, key = { it.id }) { preset ->
+                PresetRow(preset = preset, summary = summary(preset), onClick = { onSelected(preset) })
+            }
+        }
+    }
+}
+
+/** The groups open when a preset list first shows: the first one, which is the captured documents when there are any. */
+internal fun initiallyExpanded(groups: List<Pair<PresetGroup, List<PassportPreset>>>): Set<PresetGroup> =
+    setOfNotNull(groups.firstOrNull()?.first)
+
+@Composable
+internal fun PresetRow(preset: PassportPreset, summary: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = preset.title, style = MaterialTheme.typography.bodyLarge)
+            GlossaryText(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * A dialog listing the ready-made documents with what each sets up, in advanced mode. Choosing one calls
+ * [onSelected], which replaces the passport details and chip settings; the portrait and CAN stay.
+ */
+@Composable
+fun PresetDialog(
+    today: kotlinx.datetime.LocalDate,
+    onSelected: (PassportPreset) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val groups = remember { PassportPresets.grouped }
+    var expanded by remember { mutableStateOf(initiallyExpanded(groups)) }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f)
+        ) {
+            Column {
+                Column(
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(text = "Load a preset", style = MaterialTheme.typography.headlineSmall)
+                    GlossaryText(
+                        text = "Replaces the document details and chip settings. The portrait and CAN are kept.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    presetItems(
+                        groups = groups,
+                        expanded = expanded,
+                        onToggle = { expanded = expanded.toggled(it) },
+                        summary = { preset -> "${preset.description} · ${preset.build(today).technicalSummary()}" },
+                        onSelected = { preset ->
+                            onSelected(preset)
+                            onDismiss()
+                        }
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                }
+            }
+        }
+    }
+}
+
+/** What a document sets up, in a reader tester's terms: its format, access control, and any extras or fault. */
+internal fun PassportData.technicalSummary(): String = buildList {
+    add("${documentType.formatName} ${documentType.documentCode}")
+    add(issuingCountry)
+    add(
+        when (accessControl) {
+            AccessControl.BAC_ONLY -> "BAC"
+            AccessControl.PACE_ONLY -> "PACE-${paceMapping.abbreviation}"
+            AccessControl.BAC_AND_PACE -> "BAC + PACE-${paceMapping.abbreviation}"
+        }
+    )
+    if (activeAuthentication) add("AA")
+    if (chipFault != ChipFault.NONE) add(chipFault.displayName)
+}.joinToString(" · ")

@@ -1,6 +1,6 @@
 # Authored notes on primary profile sources
 
-Checked 2026-09-30, and for the gmrtd sources 2026-10-12. These are bounded summaries written for PassportEmu, not copies of the publications. Full downloaded sources are outside the repository in `/tmp/passportemu-source-cache`. The [manifest](manifest.json) records their URLs, hashes and locators; [profile evidence](../../chip-profile-evidence.md) maps findings to presets and assumptions.
+Checked 2026-09-30, and for the gmrtd sources 2026-10-12. These are bounded summaries written for PassportEmu, not copies of the publications. Full downloaded sources are kept in a local cache, not in the repository. The [manifest](manifest.json) records their URLs, hashes and locators; [profile evidence](../../chip-profile-evidence.md) maps findings to presets and assumptions.
 
 ## Richter, Mostowski and Poll, 2008
 

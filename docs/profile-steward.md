@@ -1,19 +1,22 @@
 # Profile steward
 
-**Owner: TODO, not yet named.** Plan section 3, item 5. Name a person (and a deputy) and put them in `.github/CODEOWNERS`.
+**Owner: [hdsysdev](https://github.com/hdsysdev)**, the project maintainer. `.github/CODEOWNERS` names them for
+`profiles/` and the capture documentation.
 
 ## Role
 
-The steward is accountable for what enters `profiles/` and for the claims profiles make. They are the contact for consent questions, deletions and "the chip reported it is blocked" reports.
+The steward is accountable for what enters `profiles/` and for the claims profiles make. They are the contact for
+consent questions, deletions and reports that a chip "reported it is blocked".
 
 ## Responsibilities
 
-- Review and merge profile PRs. CODEOWNERS makes their approval required.
-- Own the restricted per-capture store: access list, 12-month deletion, deletion requests.
+- Review and merge profile PRs. CODEOWNERS makes their review the owner's review (turn on "Require review from Code
+  Owners" in the branch protection rules to make it binding).
+- Own the restricted per-capture store: who can read it, the 12-month deletion, deletion requests.
 - Keep the redaction manifest, schema and probe packs in step ([capture-schema.md](capture-schema.md), [probe-packs.md](probe-packs.md)).
 - Decide what to capture next from the [coverage matrix](coverage-matrix.md).
 - Approve Tier C results, and any new probe, before a pack version is released.
-- Keep the consent and retention page current, and follow up the DPO review.
+- Keep the [privacy notice for capture mode](capture-consent-and-retention.md) current.
 
 ## Merge criteria
 
@@ -28,7 +31,10 @@ A profile PR merges only if all of these hold:
 
 ## Intake flow
 
-Contributors need no git. They share the capture JSON their phone made (or one a lab imported, see [lab-captures.md](lab-captures.md)) to the Drive or Slack folder. A **maintainer** then runs the intake script on a download of that folder:
+Captures are not accepted publicly yet. A contributor who has a capture opens an issue to offer it (no file, no
+personal details), and the steward arranges a private way to hand it over. A contributor needs no git. The capture is a
+JSON file their phone made (or one a lab imported, see [lab-captures.md](lab-captures.md)). The steward then runs the
+intake script on a local folder holding the files received:
 
 ```
 tools/capture-intake/intake.sh --input ~/Downloads/captures            # dry run: reports, writes nothing
@@ -46,7 +52,7 @@ What it does, in order (the checks are the app's own Kotlin: `RedactionLint`, th
 
 It is a **dry run unless `--apply`**. `--link GENERATION=PROFILE-ID` attaches a generation to a curated profile (so the coverage matrix puts it on that document's row); it is remembered in the profile file on later runs.
 
-`--branch NAME` (with `--apply`) makes a **local** branch with one local commit of `profiles/*.json` and the three generated docs. It never includes a per-capture record or `profiles/pending/`, and refuses to start if those files already have uncommitted changes. It does **not** push: it prints the push command for you to run yourself, and opening the pull request is left to you after you have pushed. Use the PR template's profile section.
+`--branch NAME` (with `--apply`) makes a **local** branch with one local commit of `profiles/*.json` and the three generated docs. It never includes a per-capture record or `profiles/pending/`, and refuses to start if those files already have uncommitted changes. It does **not** push: it prints the push command for you to run yourself, and opening the pull request is left to you after you have pushed. Use the [profile PR template](../.github/PULL_REQUEST_TEMPLATE/profile.md) (`?template=profile.md` on the new pull request URL).
 
 ## `profiles/pending/`: the holdback in practice
 

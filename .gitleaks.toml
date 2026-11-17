@@ -1,0 +1,7 @@
+# test-pki/ holds the project's public test keys on purpose (see test-pki/README.md). They sign emulated documents only.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public test PKI"
+paths = ['''^test-pki/''']

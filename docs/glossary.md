@@ -1,6 +1,6 @@
 # Glossary
 
-Terms used by capture mode and its docs. Plan: [capture-mode-plan.md](capture-mode-plan.md).
+Terms used by capture mode and its docs. Plan: [the capture-mode design record](design/capture-mode-plan.md).
 
 ## Capture mode
 

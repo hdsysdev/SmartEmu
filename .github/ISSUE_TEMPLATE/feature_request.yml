@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement or a new capability
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        PassportEmu is a tool for testing readers and verification software. Requests that would make an emulated
+        document pass as genuine in production verification will be declined. **Do not paste real document data.**
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to test?
+      description: The reader or software, and what is missing or hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources
+      description: For a new country, document or protocol behaviour, link public sources (a standard, the issuer's documentation, a published sample). Never attach a chip dump from a real document.
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: I have not included any real document data.
+          required: true

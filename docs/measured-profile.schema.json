@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://passportemu.invalid/schemas/measured-profile.v1.schema.json",
   "title": "MeasuredProfile v1",
-  "description": "What captures of one generation of chip agreed on, with per-field fidelity and MEASURED status. Mirrors composeApp/src/commonMain/kotlin/com/hddev/smartemu/capture/profile/MeasuredProfile.kt. Stored as profiles/<id>.json. Only counts and random capture ids: nothing that identifies a holder, a device or a single chip. Reader-side confounders (controller transceive length, extended-length support) are never part of a profile. MEASURED = indistinguishable from the real chip at APDU level on probe pack vN, on fields marked compared, from n captures.",
+  "description": "What captures of one generation of chip agreed on, with per-field fidelity and MEASURED status. Mirrors composeApp/src/commonMain/kotlin/com/hddev/passportemu/capture/profile/MeasuredProfile.kt. Stored as profiles/<id>.json. Only counts and random capture ids: nothing that identifies a holder, a device or a single chip. Reader-side confounders (controller transceive length, extended-length support) are never part of a profile. MEASURED = indistinguishable from the real chip at APDU level on probe pack vN, on fields marked compared, from n captures.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "generation", "probePack", "sampleCount", "captureIds", "observations"],

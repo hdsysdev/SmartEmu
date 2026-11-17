@@ -1,4 +1,4 @@
-# Certificate profiles for the SmartEmu test PKI, following ICAO Doc 9303 part 12.
+# Certificate profiles for the PassportEmu test PKI, following ICAO Doc 9303 part 12.
 # Used by generate.sh; not needed to use the generated certificates.
 
 [ req ]

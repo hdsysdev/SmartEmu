@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Maintainer intake of contributed capture files (docs/capture-guide.md, docs/profile-steward.md).
+# SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Steward intake of contributed capture files (docs/capture-guide.md, docs/profile-steward.md).
 #
 #   tools/capture-intake/intake.sh --input DIR [--store DIR] [--apply] [--link GENERATION=PROFILE-ID]... [--branch NAME]
 #
-# Contributors share their capture JSON to a Drive or Slack folder; a maintainer downloads it and runs this. It runs the
-# app's own redaction lint, strict JSON decode and fingerprint check (Kotlin, through the Gradle task
+# Captures are not accepted publicly: the steward gets files privately, puts them in a local folder and runs this. It runs
+# the app's own redaction lint, strict JSON decode and fingerprint check (Kotlin, through the Gradle task
 # :composeApp:captureIntake: there is no second copy of any rule here), rejects bad files with their violation list and
 # quarantines them in DIR/rejected/, stores good ones in the RESTRICTED per-capture store (outside the repository), merges
 # them per generation into profiles/, runs the hold-out rule and the fidelity diff, regenerates the evidence and coverage
@@ -29,7 +31,7 @@ branch=""
 links=()
 
 usage() {
-  sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '4,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 die() { echo "intake: $*" >&2; exit 1; }
@@ -116,7 +118,7 @@ Made by tools/capture-intake/intake.sh. Per-capture records are in the restricte
   echo
   echo "Not pushed. Now push it yourself:"
   echo "  git -C \"$repo\" push -u origin $branch"
-  echo "Then open the pull request (template: .github/pull_request_template.md, profile PRs section)."
+  echo "Then open the pull request (template: .github/PULL_REQUEST_TEMPLATE/profile.md, or ?template=profile.md on the new pull request URL)."
 fi
 
 if ! grep -q '^RESULT: CLEAN' "$out"; then exit 3; fi

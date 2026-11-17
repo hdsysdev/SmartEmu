@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in PassportEmu does not work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste real document data.** No MRZ, document number, CAN, name, date of birth, photo, raw chip dump or
+        APDU log from a real document. Synthetic data from the app's own presets is fine. For a security problem, use
+        a [private report](https://github.com/hdsysdev/PassportEmu/security/advisories/new) instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PassportEmu version
+      description: Settings > About, or the release you installed.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone and Android version
+      description: For example "Pixel 8, Android 15".
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Chip profile in use
+      description: The profile name shown in the app, if the problem involves the chip.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error text
+      description: Only if it is free of personal data. Release builds log very little. Check it before you paste it.
+      render: text
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: I have removed any real document data (MRZ, CAN, names, photos, chip dumps) from this report.
+          required: true

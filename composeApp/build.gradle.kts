@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 
@@ -54,41 +57,62 @@ kotlin {
 
 // Keep generated resource imports stable when the app's display name changes.
 compose.resources {
-    packageOfResClass = "smartemu.composeapp.generated.resources"
+    packageOfResClass = "passportemu.composeapp.generated.resources"
 }
 
-// The dev signing key's location and passwords, from local.properties; see keystore/
-val devSigning = Properties().apply {
+// The release signing key's location and passwords, from local.properties (git-ignored; the key lives in keystore/,
+// also git-ignored). The older smartemu.signing.* names are still read. Without them, assembleRelease builds an
+// unsigned APK, so a fresh clone can build a release.
+val localProperties = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use(::load)
 }
+fun signingProperty(name: String): String? =
+    localProperties.getProperty("passportemu.signing.$name") ?: localProperties.getProperty("smartemu.signing.$name")
+val releaseSigningConfigured = listOf("storeFile", "storePassword", "keyAlias", "keyPassword").all { signingProperty(it) != null }
+
+// Capture mode reads a real passport or ID card. It is compiled in only for developer builds made with
+// -Ppassportemu.captureMode=true, never for a published APK; see docs/capture-guide.md
+val captureMode = providers.gradleProperty("passportemu.captureMode").orNull == "true"
 
 android {
-    namespace = "com.hddev.smartemu"
+    namespace = "com.hddev.passportemu"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.hddev.smartemu"
+        applicationId = "com.hddev.passportemu"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
+        buildConfigField("boolean", "CAPTURE_MODE", captureMode.toString())
+        manifestPlaceholders["captureModeEnabled"] = captureMode.toString()
     }
-    // Test Document Signer that signs EF.SOD; see test-pki/README.md
+    buildFeatures {
+        buildConfig = true
+    }
+    // Test Document Signers that sign EF.SOD; see test-pki/README.md. The app reads only <name>.cert.pem and
+    // <name>.key.pem, so the DER copies are kept out of the APK below.
     sourceSets["main"].resources.srcDir(rootProject.file("test-pki/document-signer"))
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/*.cert.der"
+            // Never ship a PKCS#12 key store that ends up in the folder
+            excludes += "/*.p12"
+            // The Apache-2.0 and LGPL-2.1 notices several dependencies carry; identical copies, so one of each ships
+            pickFirsts += "/META-INF/{AL2.0,LGPL2.1}"
             // Duplicated by the BouncyCastle jars JMRTD depends on; not needed at runtime
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
             merges += "/META-INF/LICENSE.md"
         }
     }
-    signingConfigs {
-        create("dev") {
-            devSigning.getProperty("smartemu.signing.storeFile")?.let { storeFile = rootProject.file(it) }
-            storePassword = devSigning.getProperty("smartemu.signing.storePassword")
-            keyAlias = devSigning.getProperty("smartemu.signing.keyAlias")
-            keyPassword = devSigning.getProperty("smartemu.signing.keyPassword")
+    if (releaseSigningConfigured) {
+        signingConfigs {
+            create("release") {
+                storeFile = rootProject.file(signingProperty("storeFile")!!)
+                storePassword = signingProperty("storePassword")
+                keyAlias = signingProperty("keyAlias")
+                keyPassword = signingProperty("keyPassword")
+            }
         }
     }
     buildTypes {
@@ -96,8 +120,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Shared as a test build, so signed with the dev key rather than a store release key
-            signingConfig = signingConfigs.getByName("dev")
+            // Unsigned when local.properties has no signing key; see the README
+            if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("release")
         }
     }
     testOptions {
@@ -114,31 +138,42 @@ dependencies {
     debugImplementation(compose.uiTooling)
 }
 
-/** Copies the merged measured profiles into the app's assets, where BundledProfiles installs them at start-up. */
-abstract class BundleMeasuredProfiles : DefaultTask() {
+/** Copies files from the repository into one folder of the app's assets. */
+abstract class BundleAssets : DefaultTask() {
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.NAME_ONLY)
-    abstract val profiles: ConfigurableFileCollection
+    abstract val files: ConfigurableFileCollection
+
+    @get:Input
+    abstract val folder: Property<String>
 
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
 
     @TaskAction
     fun copy() {
-        val target = outputDir.get().asFile.resolve("profiles")
+        val target = outputDir.get().asFile.resolve(folder.get())
         target.deleteRecursively()
         target.mkdirs()
-        profiles.files.forEach { it.copyTo(target.resolve(it.name)) }
+        files.files.filter { it.isFile }.forEach { it.copyTo(target.resolve(it.name)) }
     }
 }
 
-// Only the shared profiles/*.json: profiles/pending/ is held back for the steward and never ships
-val bundleMeasuredProfiles = tasks.register<BundleMeasuredProfiles>("bundleMeasuredProfiles") {
-    profiles.from(rootProject.fileTree("profiles") { include("*.json") })
+// The merged measured profiles, which BundledProfiles installs at start-up. Only the shared profiles/*.json:
+// profiles/pending/ is held back for the steward and never ships
+val bundleMeasuredProfiles = tasks.register<BundleAssets>("bundleMeasuredProfiles") {
+    files.from(rootProject.fileTree("profiles") { include("*.json") })
+    folder.set("profiles")
+}
+// The licence and third-party notices, shown under Settings > About > Open-source licences
+val bundleLicenceNotices = tasks.register<BundleAssets>("bundleLicenceNotices") {
+    files.from(rootProject.files("LICENSE", "THIRD_PARTY_LICENSES.md"), rootProject.fileTree("licenses"))
+    folder.set("licenses")
 }
 androidComponents {
     onVariants { variant ->
-        variant.sources.assets?.addGeneratedSourceDirectory(bundleMeasuredProfiles, BundleMeasuredProfiles::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleMeasuredProfiles, BundleAssets::outputDir)
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleLicenceNotices, BundleAssets::outputDir)
     }
 }
 
@@ -168,7 +203,7 @@ fun gradleOption(name: String, option: String): List<String> =
 registerCaptureTool(
     "captureIntake",
     "Maintainer intake of contributed captures: lint, quarantine, store, merge into profiles/, diff (-Pintake.input, -Pintake.store, -Pintake.repo, -Pintake.apply=true, -Pintake.links=GEN=ID,...)",
-    "com.hddev.smartemu.capture.intake.IntakeMain",
+    "com.hddev.passportemu.capture.intake.IntakeMain",
     gradleOption("intake.input", "--input") + gradleOption("intake.store", "--store") + gradleOption("intake.repo", "--repo") +
         gradleFlag("intake.apply", "--apply") +
         providers.gradleProperty("intake.links").orNull.orEmpty().split(',').filter { it.isNotBlank() }.flatMap { listOf("--link", it) }
@@ -177,7 +212,7 @@ registerCaptureTool(
 registerCaptureTool(
     "captureExportPack",
     "Writes the command sheet of probe packs for a lab operator (-Pexport.packs=tier-a/1,..., -Pexport.out=FILE, -Pexport.reader=NAME, -Pexport.extended=false)",
-    "com.hddev.smartemu.capture.transcript.LabMain",
+    "com.hddev.passportemu.capture.transcript.LabMain",
     listOf("export") + gradleOption("export.packs", "--packs") + gradleOption("export.out", "--out") + gradleOption("export.reader", "--reader") +
         gradleOption("export.source", "--source") + (if (providers.gradleProperty("export.extended").orNull == "false") listOf("--no-extended") else emptyList())
 )
@@ -185,7 +220,7 @@ registerCaptureTool(
 registerCaptureTool(
     "captureImportTranscript",
     "Imports a PC/SC or Proxmark transcript as a capture JSON, linted (-Pimport.transcript=FILE, -Pimport.out=DIR, -Pimport.source=PCSC|PROXMARK, -Pimport.packs=tier-a/1,..., -Pimport.sacrificial=true)",
-    "com.hddev.smartemu.capture.transcript.LabMain",
+    "com.hddev.passportemu.capture.transcript.LabMain",
     listOf("import") + gradleOption("import.transcript", "--transcript") + gradleOption("import.out", "--out") + gradleOption("import.source", "--source") +
         gradleOption("import.packs", "--packs") + gradleFlag("import.sacrificial", "--sacrificial")
 )

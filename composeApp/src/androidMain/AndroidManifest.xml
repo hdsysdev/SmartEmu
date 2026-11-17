@@ -27,9 +27,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Capture mode: reads a real document. Open in advanced mode, otherwise hidden until unlocked in the settings; separate from the emulator -->
+        <!-- Capture mode: reads a real document. Enabled only in developer builds made with -Ppassportemu.captureMode=true;
+             there, open in advanced mode, otherwise hidden until unlocked in the settings. Separate from the emulator -->
         <activity
             android:name=".capture.ui.CaptureActivity"
+            android:enabled="${captureModeEnabled}"
             android:exported="false"
             android:label="@string/capture_activity_label" />
 

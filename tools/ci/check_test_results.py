@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Fail on any failing unit test that is not in the known-failing allowlist.
 
 Reads the JUnit XML (TEST-*.xml) that Gradle wrote and the allowlist (.github/known-failing-tests.txt, one

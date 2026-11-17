@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Summarise which keys and signature algorithms each country's document PKI uses, from ICAO PKD downloads.
 
 PassportEmu's chip profiles distinguish documented facts from emulator defaults. Document Signer certificates

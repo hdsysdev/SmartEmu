@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2025-2026 PassportEmu contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Tests for tools/ci/check_test_results.py, on small hand-written JUnit XML; no Gradle needed."""
 import contextlib
 import importlib.util

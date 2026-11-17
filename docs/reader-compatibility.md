@@ -1,6 +1,6 @@
 # Reader compatibility matrix
 
-Which open-source readers can complete which profiles. It tests the emulator against readers the team already uses, in the JVM. It is not a claim about real documents. The matrix at the end of this page is **generated**; everything above it is hand-written.
+Which open-source readers can complete which profiles. It tests the emulator against open-source readers commonly used to test eMRTD chips, in the JVM. It is not a claim about real documents. The matrix at the end of this page is **generated**; everything above it is hand-written.
 
 ## Readers
 
