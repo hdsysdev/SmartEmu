@@ -63,6 +63,8 @@ First public release. The version name is `1.0.0` and the version code is `1`.
 - Loading a Document Signer no longer crashes on Android 7.0 and 7.1.
 - Capture mode no longer ignores a tap that comes while the previous read, cut short by a lost tag, is still closing
   its connection.
+- Capture mode no longer throws away a finished capture when the screen is left in the moment between the result
+  appearing and the key being released.
 
 [Unreleased]: https://github.com/hdsysdev/PassportEmu/compare/1.0.0...HEAD
 [1.0.0]: https://github.com/hdsysdev/PassportEmu/releases/tag/1.0.0

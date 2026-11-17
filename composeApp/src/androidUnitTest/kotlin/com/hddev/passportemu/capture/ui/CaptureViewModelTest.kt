@@ -326,6 +326,32 @@ class CaptureViewModelTest {
     }
 
     @Test
+    fun `leaving the screen while the finished run is still closing keeps the capture, and the key is still closed`() {
+        val data = chip.documentFor(pace2)
+        val key = mrz(data)
+        val closing = java.util.concurrent.CountDownLatch(1)
+        // The connection's close blocks until the test lets it go, or for 10 s at most (a stop closes it from the test's
+        // own thread): the run shows its preview before it gets there
+        val slowToClose = object : CaptureConnection {
+            override fun open(): ApduTransport = chip.transport(data)
+            override fun close() {
+                closing.await(10, java.util.concurrent.TimeUnit.SECONDS)
+            }
+        }
+        val model = viewModel()
+        model.enterKey(key)
+        model.onConnection(slowToClose)
+        awaitState(model) { it is CaptureUiState.Preview }
+        assertFalse(key.isClosed, "the run is still in its close, before it drops the key")
+
+        model.onScreenLeft()
+        assertIs<CaptureUiState.Preview>(model.state.value, "the finished capture is not thrown away")
+        closing.countDown()
+        eventually("the run closes the key") { key.isClosed }
+        assertIs<CaptureUiState.Preview>(model.state.value)
+    }
+
+    @Test
     fun `a read without a key is not stopped by leaving the screen`() {
         val model = viewModel()
         model.startWaiting()
@@ -567,7 +593,7 @@ class CaptureViewModelTest {
             override fun open(): ApduTransport = TagLossTransport(chip.transport(data), loseAt = 60)
             override fun close() {
                 closeStarted.countDown()
-                closing.await()
+                closing.await(10, java.util.concurrent.TimeUnit.SECONDS)
             }
         }
         val model = viewModel()

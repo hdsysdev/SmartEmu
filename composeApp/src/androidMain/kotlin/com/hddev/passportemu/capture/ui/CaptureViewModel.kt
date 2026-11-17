@@ -430,6 +430,10 @@ class CaptureViewModel(
      * left alone, as the key is already gone.
      */
     fun onScreenLeft() {
+        // A finished run shows its result before its job has closed the key; the job still closes it, so the key being
+        // held for that moment doesn't make the result something to throw away
+        val finished = mutableState.value.let { it is CaptureUiState.Preview || it is CaptureUiState.Failed }
+        if (finished) return
         val keyHeld = synchronized(lock) { credentials != null }
         if (keyHeld || mutableState.value is CaptureUiState.KeyEntry) cancel()
     }
